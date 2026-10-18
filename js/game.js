@@ -1,6 +1,7 @@
 // A single Hauntfall run: movement, auto-weapons, swarm, loot, level-ups, boss. Drawn on a canvas, HUD lives in the DOM (ui.js).
 import { rnd, rint, pick, clamp, ENEMIES, WEAPONS, UPGRADES, RARITIES, heroStats, makeItem } from './data.js';
-import { spr, sprite, flashOf, TEX } from './art.js';
+import { spr, sprite, flashOf, flipped, glow, SHADOW, GEM, GOLD, KNIFE, AXE, HOLE, CONE, TEX } from './art.js';
+const PROP_H = { prop_tree: 230, prop_car: 130, prop_lamp: 150, prop_tomb3: 100, prop_fence: 70, prop_bush: 60, prop_pumpkin: 40, prop_tomb1: 74, prop_tomb2: 74 };
 
 const RUN_LEN = 300;               // seconds until the boss
 const CELL = 90;                   // collision grid
@@ -30,7 +31,7 @@ export class Run {
     this.cool = 0; this.spawnAcc = 0; this.nextElite = 90; this.bossOut = false; this.boss = null; this.won = false; this.lootItems = []; this.waveTick = 0;
     this.input = { x: 0, y: 0 }; this.keys = {}; this.joy = null; this.sw = 0; this.sh = 0; this.scale = 1; this.cam = { x: 0, y: 0 };
     this.light = document.createElement('canvas'); this.lx = this.light.getContext('2d');
-    this.props = new Map(); this.saltAng = 0; this.beamT = 0; this.fireT = 2; this.tickMap = new WeakMap();
+    this.q = 0; this.props = new Map(); this.saltAng = 0; this.beamT = 0; this.fireT = 2; this.tickMap = new WeakMap();
     this.bind(); this.resize();
   }
   needFor(l) { return Math.round(4 + l * 3 + l * l * 0.5); }
@@ -47,15 +48,16 @@ export class Run {
   }
   destroy() { removeEventListener('keydown', this.kd); removeEventListener('keyup', this.ku); removeEventListener('resize', this.rs); this.cv.removeEventListener('pointerdown', this.pd); this.cv.removeEventListener('pointermove', this.pm); this.cv.removeEventListener('pointerup', this.pu); this.cv.removeEventListener('pointercancel', this.pu); }
   resize() {
-    const dpr = Math.min(devicePixelRatio || 1, 2), W = innerWidth, H = innerHeight;
+    const coarse = matchMedia('(pointer: coarse)').matches, cap = this.q >= 2 ? 0.8 : this.q >= 1 ? 1 : (coarse ? 1.25 : 1.75), dpr = Math.min(devicePixelRatio || 1, cap), W = innerWidth, H = innerHeight;
     this.cv.width = Math.round(W * dpr); this.cv.height = Math.round(H * dpr); this.cv.style.width = W + 'px'; this.cv.style.height = H + 'px';
     this.dpr = dpr; this.sw = W; this.sh = H; this.scale = Math.min(W, H) / 640; // portrait and landscape both show about 640 px across the short side
-    this.light.width = Math.round(W / 2); this.light.height = Math.round(H / 2);
+    const lk = this.q >= 1 ? 0.25 : 0.33; this.light.width = Math.max(2, Math.round(W * lk)); this.light.height = Math.max(2, Math.round(H * lk)); this.pat = null;
   }
+  setQuality(q) { if (q === this.q) return; this.q = q; this.resize(); }
   // ---------- main update ----------
   update(dt) {
     if (this.paused || this.over) return;
-    this.t += dt; const h = this.hero;
+    this.t += dt; this.frame = (this.frame || 0) + 1; const h = this.hero;
     // movement
     let ix = 0, iy = 0;
     if (this.keys.KeyA || this.keys.ArrowLeft) ix -= 1; if (this.keys.KeyD || this.keys.ArrowRight) ix += 1; if (this.keys.KeyW || this.keys.ArrowUp) iy -= 1; if (this.keys.KeyS || this.keys.ArrowDown) iy += 1;
@@ -101,7 +103,7 @@ export class Run {
     if (t >= RUN_LEN && !this.bossOut) { this.spawnBoss(); }
     if (!this.bossOut) {
       const rate = (0.8 + t / 48) * (1 + 0.4 * (this.district - 1)); this.spawnAcc += rate * dt;
-      const cap = 90 + Math.min(200, t * 0.7);
+      const cap = 70 + Math.min(120, t * 0.45);
       while (this.spawnAcc >= 1 && this.enemies.length < cap) { this.spawnAcc -= 1; this.spawnOne(); }
       if (this.spawnAcc > 3) this.spawnAcc = 3;
       if (t >= this.nextElite && this.nextElite < RUN_LEN) { this.spawnOne('brute'); this.nextElite += 90; this.ui.toast('A Butcher is hunting you!'); sfx('boom', this.sound); this.shake = 0.5; }
@@ -122,7 +124,7 @@ export class Run {
     this.enemies.push(b); this.boss = b; this.ui.toast('THE GRAVEKEEPER RISES'); this.ui.bossBar(true); this.shake = 1; sfx('boom', this.sound);
   }
   // ---------- enemies ----------
-  buildGrid() { const g = (this.grid = new Map()); for (const e of this.enemies) { const k = Math.floor(e.x / CELL) * 100003 + Math.floor(e.y / CELL); let a = g.get(k); if (!a) g.set(k, (a = [])); a.push(e); } }
+  buildGrid() { const g = this.grid || (this.grid = new Map()); if (g.size > 500) g.clear(); else for (const a of g.values()) a.length = 0; for (const e of this.enemies) { const k = Math.floor(e.x / CELL) * 100003 + Math.floor(e.y / CELL); let a = g.get(k); if (!a) g.set(k, (a = [])); a.push(e); } }
   near(x, y, rad, fn) { const g = this.grid, r = Math.ceil(rad / CELL) + 1, cx = Math.floor(x / CELL), cy = Math.floor(y / CELL); for (let i = cx - r; i <= cx + r; i++) for (let j = cy - r; j <= cy + r; j++) { const a = g.get(i * 100003 + j); if (a) for (const e of a) fn(e); } }
   updateEnemies(dt) {
     const h = this.hero, out = [];
@@ -136,7 +138,7 @@ export class Run {
       else if (fxk === 'boss') this.bossAi(e, dt, dx, dy, d);
       if (fxk === 'boss' && e.slam > 0) sp = 0;
       // push apart from crowd neighbours
-      let sx = 0, sy = 0; if (!e.def.boss) this.near(e.x, e.y, e.r * 1.5, (o) => { if (o === e) return; const ox = e.x - o.x, oy = e.y - o.y, od = Math.hypot(ox, oy); const m = (e.r + o.r) * 0.85; if (od < m && od > 0.01) { sx += ox / od * (m - od); sy += oy / od * (m - od); } });
+      let sx = 0, sy = 0; if (!e.def.boss && ((this.frame + e.v) & 1) === 0) { const gx = Math.floor(e.x / CELL), gy = Math.floor(e.y / CELL); for (let i = gx - 1; i <= gx + 1; i++) for (let j = gy - 1; j <= gy + 1; j++) { const cell = this.grid.get(i * 100003 + j); if (!cell) continue; for (let n = 0; n < cell.length; n++) { const o = cell[n]; if (o === e) continue; const ox = e.x - o.x, oy = e.y - o.y, m = (e.r + o.r) * 0.85; if (ox * ox + oy * oy < m * m) { const od = Math.hypot(ox, oy) || 0.01; sx += ox / od * (m - od); sy += oy / od * (m - od); } } } }
       const ml = Math.hypot(mx, my) || 1;
       e.x += (mx / ml * sp + e.vx) * dt + sx * 4 * dt; e.y += (my / ml * sp + e.vy) * dt + sy * 4 * dt;
       e.vx *= Math.pow(0.02, dt); e.vy *= Math.pow(0.02, dt); if (Math.abs(dx) > 0.2) e.face = dx > 0 ? 1 : -1;
@@ -237,7 +239,8 @@ export class Run {
   updatePickups(dt) {
     const h = this.hero, mag = this.hs.magnet * this.magnetMul, ng = [];
     for (const g of this.gems) { g.t += dt; const dx = h.x - g.x, dy = h.y - g.y, d = Math.hypot(dx, dy); if (d < mag || g.pull) { g.pull = true; const s = 420 + g.t * 200; g.x += dx / d * s * dt; g.y += dy / d * s * dt; } if (d < 16) { this.addXp(g.v); sfx('gem', this.sound && Math.random() < 0.4); continue; } ng.push(g); }
-    this.gems = ng.length > 400 ? ng.slice(-400) : ng;
+    while (ng.length > 220) { const g = ng.shift(); this.addXp(g.v); }
+    this.gems = ng;
     const nl = [];
     for (const l of this.loot) { l.t += dt; const dx = h.x - l.x, dy = h.y - l.y, d = Math.hypot(dx, dy); if (d < mag * 1.2 || l.pull) { l.pull = true; const s = 380 + l.t * 160; l.x += dx / d * s * dt; l.y += dy / d * s * dt; } if (d < 18) { this.collect(l); continue; } nl.push(l); }
     this.loot = nl;
@@ -256,8 +259,8 @@ export class Run {
   }
   pickUpgrade(u) { this.picked[u.id] = (this.picked[u.id] || 0) + 1; u.apply(this); this.ui.toast(`${u.name}${this.picked[u.id] > 1 ? ' ' + this.picked[u.id] : ''}`); }
   // ---------- effects ----------
-  puff(x, y, col, n) { for (let i = 0; i < n; i++) { const a = rnd(0, TAU), s = rnd(30, 150); this.fx.push({ k: 'p', x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 20, t: 0, life: rnd(0.3, 0.7), col, r: rnd(2, 5) }); } if (this.fx.length > 500) this.fx.splice(0, 100); }
-  text(x, y, s, col, size) { this.texts.push({ x, y, s, col, size, t: 0 }); if (this.texts.length > 60) this.texts.shift(); }
+  puff(x, y, col, n) { for (let i = 0; i < n; i++) { const a = rnd(0, TAU), s = rnd(30, 150); this.fx.push({ k: 'p', x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 20, t: 0, life: rnd(0.3, 0.7), col, r: rnd(2, 5) }); } if (this.fx.length > (this.q >= 1 ? 160 : 320)) this.fx.splice(0, 80); }
+  text(x, y, s, col, size) { if (this.q >= 3) return; this.texts.push({ x, y, s, col, size, t: 0 }); if (this.texts.length > 16) this.texts.shift(); }
   updateFx(dt) {
     for (const f of this.fx) { f.t += dt; if (f.k === 'p') { f.x += f.vx * dt; f.y += f.vy * dt; f.vx *= 0.94; f.vy *= 0.94; } } this.fx = this.fx.filter((f) => f.t < f.life);
     for (const t of this.texts) { t.t += dt; t.y -= 38 * dt; } this.texts = this.texts.filter((t) => t.t < 0.8);
@@ -278,9 +281,8 @@ export class Run {
     this.props.set(key, list); if (this.props.size > 160) this.props.delete(this.props.keys().next().value); return list;
   }
   draw() {
-    const x = this.x, dpr = this.dpr, W = this.sw, H = this.sh, S = this.scale, h = this.hero;
+    const x = this.x, dpr = this.dpr, W = this.sw, H = this.sh, S = this.scale, h = this.hero, q = this.q || 0;
     const sh = this.shake > 0 ? this.shake * 10 : 0, ox = sh ? rnd(-sh, sh) : 0, oy = sh ? rnd(-sh, sh) : 0;
-    x.setTransform(dpr, 0, 0, dpr, 0, 0); x.fillStyle = '#0a0d10'; x.fillRect(0, 0, W, H);
     const camx = this.cam.x, camy = this.cam.y;
     x.setTransform(dpr * S, 0, 0, dpr * S, dpr * (W / 2 - camx * S + ox), dpr * (H / 2 - camy * S + oy));
     const vw = W / S, vh = H / S, x0 = camx - vw / 2 - 60, x1 = camx + vw / 2 + 60, y0 = camy - vh / 2 - 60, y1 = camy + vh / 2 + 60;
@@ -288,78 +290,82 @@ export class Run {
     const tex = TEX.tex_ground;
     if (tex) { if (!this.pat) { this.pat = x.createPattern(tex, 'repeat'); this.pat.setTransform(new DOMMatrix().scale(0.5)); } x.fillStyle = this.pat; } else x.fillStyle = '#1b2220';
     x.fillRect(x0, y0, x1 - x0, y1 - y0);
-    // draw list sorted by y
-    const list = []; const C = 520;
-    for (let cx = Math.floor(x0 / C) - 1; cx <= Math.floor(x1 / C) + 1; cx++) for (let cy = Math.floor(y0 / C) - 1; cy <= Math.floor(y1 / C) + 1; cy++) for (const p of this.props_at(cx, cy)) if (p.x > x0 - 100 && p.x < x1 + 100 && p.y > y0 - 120 && p.y < y1 + 200) list.push({ y: p.y, p });
-    for (const e of this.enemies) if (e.x > x0 - 80 && e.x < x1 + 80 && e.y > y0 - 80 && e.y < y1 + 80) list.push({ y: e.y, e });
-    list.push({ y: h.y, hero: true }); list.sort((a, b) => a.y - b.y);
-    // gems and loot on the ground first
-    for (const g of this.gems) { x.fillStyle = g.v >= 5 ? '#ff6bd6' : g.v >= 2 ? '#6bd0ff' : '#7dff9a'; x.globalAlpha = 0.95; x.beginPath(); x.moveTo(g.x, g.y - 6); x.lineTo(g.x + 5, g.y); x.lineTo(g.x, g.y + 6); x.lineTo(g.x - 5, g.y); x.fill(); }
-    x.globalAlpha = 1;
-    for (const l of this.loot) { if (l.kind === 'gold') { x.fillStyle = '#ffd24a'; x.beginPath(); x.arc(l.x, l.y, 5, 0, TAU); x.fill(); x.strokeStyle = '#7a5a00'; x.stroke(); } else { const c = RARITIES[l.item.rar].color; x.globalCompositeOperation = 'lighter'; const g = x.createRadialGradient(l.x, l.y, 2, l.x, l.y, 34); g.addColorStop(0, c); g.addColorStop(1, 'transparent'); x.fillStyle = g; x.beginPath(); x.arc(l.x, l.y, 34, 0, TAU); x.fill(); x.fillRect(l.x - 2, l.y - 60, 4, 60); x.globalCompositeOperation = 'source-over'; x.fillStyle = c; x.fillRect(l.x - 7, l.y - 7, 14, 14); x.strokeStyle = '#000'; x.strokeRect(l.x - 7, l.y - 7, 14, 14); } }
-    // zones (fire, telegraphs)
-    for (const z of this.zones) { if (z.tele) { x.fillStyle = `rgba(255,50,50,${0.12 + 0.2 * (1 - z.t / 0.9)})`; x.strokeStyle = '#ff4a4a'; x.lineWidth = 3; x.beginPath(); x.arc(z.x, z.y, z.r, 0, TAU); x.fill(); x.stroke(); } else { x.globalCompositeOperation = 'lighter'; const g = x.createRadialGradient(z.x, z.y, 4, z.x, z.y, z.r); g.addColorStop(0, 'rgba(255,200,80,.75)'); g.addColorStop(0.6, 'rgba(255,90,20,.45)'); g.addColorStop(1, 'transparent'); x.fillStyle = g; x.beginPath(); x.arc(z.x, z.y, z.r * (0.9 + Math.sin(this.t * 14) * 0.06), 0, TAU); x.fill(); x.globalCompositeOperation = 'source-over'; } }
-    for (const it of list) {
-      if (it.p) { const p = it.p, s = spr(p.t, p.t === 'prop_tree' ? 230 : p.t === 'prop_car' ? 130 : p.t === 'prop_lamp' ? 150 : p.t === 'prop_tomb3' ? 100 : p.t === 'prop_fence' ? 70 : p.t === 'prop_bush' ? 60 : p.t === 'prop_pumpkin' ? 40 : 74); x.save(); x.translate(p.x, p.y); if (p.f < 0) x.scale(-1, 1); x.fillStyle = 'rgba(0,0,0,.35)'; x.beginPath(); x.ellipse(0, -2, s.width * 0.35, 8, 0, 0, TAU); x.fill(); x.drawImage(s, -s.width / 2, -s.height); x.restore(); }
-      else if (it.e) this.drawEnemy(x, it.e); else this.drawHero(x);
+    // things standing on the ground, drawn back to front (list is reused every frame)
+    const list = this.dl || (this.dl = []); list.length = 0; const C = 520;
+    for (let cx = Math.floor(x0 / C) - 1; cx <= Math.floor(x1 / C) + 1; cx++) for (let cy = Math.floor(y0 / C) - 1; cy <= Math.floor(y1 / C) + 1; cy++) for (const p of this.props_at(cx, cy)) if (p.x > x0 - 100 && p.x < x1 + 100 && p.y > y0 - 120 && p.y < y1 + 200) list.push(p);
+    for (const e of this.enemies) if (e.x > x0 - 80 && e.x < x1 + 80 && e.y > y0 - 80 && e.y < y1 + 80) list.push(e);
+    list.push(h); list.sort((a, b) => a.y - b.y);
+    // gems and loot first (pre-made sprites, no gradients)
+    for (const g of this.gems) { const s = g.v >= 5 ? GEM.p : g.v >= 2 ? GEM.b : GEM.g; if (g.x > x0 && g.x < x1 && g.y > y0 && g.y < y1) x.drawImage(s, g.x - 7, g.y - 7); }
+    for (const l of this.loot) {
+      if (l.x < x0 || l.x > x1 || l.y < y0 || l.y > y1) continue;
+      if (l.kind === 'gold') x.drawImage(GOLD, l.x - 6, l.y - 6);
+      else { const c = RARITIES[l.item.rar].color; x.globalCompositeOperation = 'lighter'; x.drawImage(glow(c, 96), l.x - 40, l.y - 40, 80, 80); x.fillStyle = c; x.globalAlpha = 0.5; x.fillRect(l.x - 2, l.y - 70, 4, 70); x.globalAlpha = 1; x.globalCompositeOperation = 'source-over'; x.fillStyle = c; x.fillRect(l.x - 7, l.y - 7, 14, 14); x.strokeStyle = '#000'; x.lineWidth = 1; x.strokeRect(l.x - 7, l.y - 7, 14, 14); }
     }
-    // bullets
+    for (const z of this.zones) {
+      if (z.tele) { x.fillStyle = `rgba(255,50,50,${0.12 + 0.2 * (1 - z.t / 0.9)})`; x.strokeStyle = '#ff4a4a'; x.lineWidth = 3; x.beginPath(); x.arc(z.x, z.y, z.r, 0, TAU); x.fill(); x.stroke(); }
+      else { x.globalCompositeOperation = 'lighter'; const r = z.r * (0.95 + Math.sin(this.t * 14) * 0.05); x.drawImage(glow('#ff8a2a', 128), z.x - r * 1.2, z.y - r * 1.2, r * 2.4, r * 2.4); x.globalCompositeOperation = 'source-over'; }
+    }
+    for (let i = 0; i < list.length; i++) { const o = list[i]; if (o === h) this.drawHero(x); else if (o.def) this.drawEnemy(x, o); else this.drawProp(x, o); }
+    // bullets and effects (additive)
     x.globalCompositeOperation = 'lighter';
     for (const b of this.bullets) {
-      if (b.shape === 'bullet') { x.strokeStyle = b.crit ? '#ffd84a' : '#ffe9a0'; x.lineWidth = 3; x.beginPath(); x.moveTo(b.x, b.y); x.lineTo(b.x - Math.cos(b.a) * 26, b.y - Math.sin(b.a) * 26); x.stroke(); x.strokeStyle = 'rgba(255,200,80,.35)'; x.lineWidth = 7; x.stroke(); }
-      else if (b.shape === 'knife') { x.save(); x.translate(b.x, b.y); x.rotate(b.a); x.fillStyle = '#e8f2ff'; x.beginPath(); x.moveTo(14, 0); x.lineTo(-6, -4); x.lineTo(-3, 0); x.lineTo(-6, 4); x.fill(); x.fillStyle = 'rgba(160,200,255,.5)'; x.fillRect(-22, -1.5, 18, 3); x.restore(); }
-      else if (b.shape === 'axe') { x.save(); x.translate(b.x, b.y); x.rotate(b.spin); x.fillStyle = '#d7dde6'; x.beginPath(); x.arc(0, 0, 14, -1.1, 1.1); x.lineTo(2, 0); x.fill(); x.fillStyle = '#8a5a30'; x.fillRect(-14, -2, 20, 4); x.restore(); }
+      if (b.shape === 'bullet') { x.strokeStyle = b.crit ? '#ffd84a' : '#ffe9a0'; x.lineWidth = 3; x.beginPath(); x.moveTo(b.x, b.y); x.lineTo(b.x - Math.cos(b.a) * 26, b.y - Math.sin(b.a) * 26); x.stroke(); }
+      else if (b.shape === 'knife') { const c = Math.cos(b.a), s = Math.sin(b.a); x.setTransform(dpr * S * c, dpr * S * s, -dpr * S * s, dpr * S * c, dpr * (W / 2 - camx * S + ox) + dpr * S * (b.x * 1), dpr * (H / 2 - camy * S + oy) + dpr * S * b.y); x.drawImage(KNIFE, -22, -6); x.setTransform(dpr * S, 0, 0, dpr * S, dpr * (W / 2 - camx * S + ox), dpr * (H / 2 - camy * S + oy)); }
+      else if (b.shape === 'axe') { const c = Math.cos(b.spin), s = Math.sin(b.spin); x.setTransform(dpr * S * c, dpr * S * s, -dpr * S * s, dpr * S * c, dpr * (W / 2 - camx * S + ox) + dpr * S * b.x, dpr * (H / 2 - camy * S + oy) + dpr * S * b.y); x.drawImage(AXE, -16, -16); x.setTransform(dpr * S, 0, 0, dpr * S, dpr * (W / 2 - camx * S + ox), dpr * (H / 2 - camy * S + oy)); }
     }
-    for (const b of this.ebul) { const g = x.createRadialGradient(b.x, b.y, 1, b.x, b.y, 14); g.addColorStop(0, '#d8ffd0'); g.addColorStop(0.4, '#5dff7a'); g.addColorStop(1, 'transparent'); x.fillStyle = g; x.beginPath(); x.arc(b.x, b.y, 14, 0, TAU); x.fill(); }
-    // salt ring + beam
-    if (this.salt > 0) { const n = 1 + this.salt, R = 78 + this.salt * 6; for (let i = 0; i < n; i++) { const a = this.saltAng + i * TAU / n; x.fillStyle = '#fff'; x.beginPath(); x.arc(h.x + Math.cos(a) * R, h.y + Math.sin(a) * R, 7, 0, TAU); x.fill(); const g = x.createRadialGradient(h.x + Math.cos(a) * R, h.y + Math.sin(a) * R, 2, h.x + Math.cos(a) * R, h.y + Math.sin(a) * R, 22); g.addColorStop(0, 'rgba(200,230,255,.7)'); g.addColorStop(1, 'transparent'); x.fillStyle = g; x.beginPath(); x.arc(h.x + Math.cos(a) * R, h.y + Math.sin(a) * R, 22, 0, TAU); x.fill(); } }
+    for (const b of this.ebul) x.drawImage(glow('#5dff7a', 64), b.x - 15, b.y - 15, 30, 30);
+    if (this.salt > 0) { const n = 1 + this.salt, R = 78 + this.salt * 6, gs = glow('#c8e6ff', 64); for (let i = 0; i < n; i++) { const a = this.saltAng + i * TAU / n, px = h.x + Math.cos(a) * R, py = h.y + Math.sin(a) * R; x.drawImage(gs, px - 20, py - 20, 40, 40); x.fillStyle = '#fff'; x.fillRect(px - 5, py - 5, 10, 10); } }
     for (const f of this.fx) {
       if (f.k === 'slash') { const k = f.t / f.life; x.strokeStyle = `rgba(255,255,255,${1 - k})`; x.lineWidth = 10 * (1 - k) + 2; x.beginPath(); x.arc(f.x, f.y - 10, f.r * (0.7 + 0.3 * k), f.a - f.arc / 2, f.a + f.arc / 2); x.stroke(); }
-      else if (f.k === 'p') { x.globalAlpha = 1 - f.t / f.life; x.fillStyle = f.col; x.beginPath(); x.arc(f.x, f.y, f.r, 0, TAU); x.fill(); x.globalAlpha = 1; }
+      else if (f.k === 'p') { x.globalAlpha = 1 - f.t / f.life; x.fillStyle = f.col; x.fillRect(f.x - f.r, f.y - f.r, f.r * 2, f.r * 2); }
     }
-    x.globalCompositeOperation = 'source-over';
-    this.drawDark(x, W, H, S, camx, camy, ox, oy);
-    // damage numbers on top
-    x.setTransform(dpr * S, 0, 0, dpr * S, dpr * (W / 2 - camx * S + ox), dpr * (H / 2 - camy * S + oy)); x.textAlign = 'center'; x.lineJoin = 'round';
-    for (const t of this.texts) { x.globalAlpha = 1 - (t.t / 0.8) ** 2; x.font = `800 ${Math.round(15 * t.size)}px Inter, sans-serif`; x.lineWidth = 3; x.strokeStyle = '#000'; x.strokeText(t.s, t.x, t.y); x.fillStyle = t.col; x.fillText(t.s, t.x, t.y); } x.globalAlpha = 1;
+    x.globalAlpha = 1; x.globalCompositeOperation = 'source-over';
+    this.drawDark(x, W, H, S, camx, camy, ox, oy, q);
+    // damage numbers (cheap: one dark copy under one coloured copy)
+    if (q < 3) {
+      x.setTransform(dpr * S, 0, 0, dpr * S, dpr * (W / 2 - camx * S + ox), dpr * (H / 2 - camy * S + oy)); x.textAlign = 'center';
+      for (const t of this.texts) { x.globalAlpha = 1 - (t.t / 0.8) ** 2; x.font = `800 ${Math.round(15 * t.size)}px Inter, sans-serif`; x.fillStyle = '#000'; x.fillText(t.s, t.x + 1.5, t.y + 1.5); x.fillStyle = t.col; x.fillText(t.s, t.x, t.y); } x.globalAlpha = 1;
+    }
+  }
+  drawProp(x, p) {
+    const s0 = spr(p.t, PROP_H[p.t] || 74), s = p.f < 0 ? flipped(s0) : s0;
+    x.drawImage(SHADOW, p.x - s.width * 0.4, p.y - 8, s.width * 0.8, 16); x.drawImage(s, p.x - s.width / 2, p.y - s.height);
   }
   drawEnemy(x, e) {
-    const d = e.def, bob = Math.sin(e.age * (d.fx === 'ghost' ? 3 : 7) + e.ph) * (d.fx === 'ghost' ? 6 : 2.5), lift = d.fx === 'ghost' ? 16 : d.fx === 'swoop' ? 26 : 0;
-    const s = sprite(d.sprite, e.v, d.size); x.save(); x.translate(e.x, e.y);
-    x.fillStyle = 'rgba(0,0,0,.35)'; x.beginPath(); x.ellipse(0, 0, d.r * 1.1, d.r * 0.45, 0, 0, TAU); x.fill();
-    if (e.face < 0) x.scale(-1, 1);
-    const sq = d.fx === 'ghost' ? 1 : 1 + Math.sin(e.age * 9 + e.ph) * 0.03;
-    if (d.fx === 'ghost') x.globalAlpha = 0.88;
-    x.translate(0, -lift - bob); x.scale(sq, 1 / sq);
-    if (e.slam > 0) x.translate(rnd(-2, 2), 0);
-    x.drawImage(s, -s.width / 2, -s.height);
-    if (e.flash > 0) { x.globalAlpha = 0.85; x.drawImage(flashOf(s), -s.width / 2, -s.height); }
-    x.restore();
-    if (e.hp < e.maxHp && !d.boss && e.hp > 0) { const w = d.r * 2, yy = e.y - d.size - lift - 6; x.fillStyle = 'rgba(0,0,0,.6)'; x.fillRect(e.x - w / 2, yy, w, 4); x.fillStyle = d.elite ? '#ff9a3a' : '#e04a4a'; x.fillRect(e.x - w / 2, yy, w * Math.max(0, e.hp / e.maxHp), 4); }
+    const d = e.def, ghost = d.fx === 'ghost', bob = Math.sin(e.age * (ghost ? 3 : 7) + e.ph) * (ghost ? 6 : 2.5), lift = ghost ? 16 : d.fx === 'swoop' ? 26 : 0;
+    const s0 = sprite(d.sprite, e.v, d.size), s = e.face < 0 ? flipped(s0) : s0, yy = e.y - lift - bob, jx = e.slam > 0 ? rnd(-2, 2) : 0;
+    x.drawImage(SHADOW, e.x - d.r * 1.2, e.y - d.r * 0.45, d.r * 2.4, d.r * 0.9);
+    if (ghost) x.globalAlpha = 0.88;
+    x.drawImage(s, e.x - s.width / 2 + jx, yy - s.height);
+    if (e.flash > 0) { x.globalAlpha = 0.85; x.drawImage(flashOf(s), e.x - s.width / 2 + jx, yy - s.height); }
+    x.globalAlpha = 1;
+    if (e.hp < e.maxHp && !d.boss && e.hp > 0) { const w = d.r * 2, by = yy - s.height - 6; x.fillStyle = 'rgba(0,0,0,.6)'; x.fillRect(e.x - w / 2, by, w, 4); x.fillStyle = d.elite ? '#ff9a3a' : '#e04a4a'; x.fillRect(e.x - w / 2, by, w * Math.max(0, e.hp / e.maxHp), 4); }
   }
   drawHero(x) {
-    const h = this.hero, s = sprite('hero_' + this.S.hero, 1, 86), bob = Math.abs(Math.sin(h.bob)) * 3;
-    x.save(); x.translate(h.x, h.y); x.fillStyle = 'rgba(0,0,0,.4)'; x.beginPath(); x.ellipse(0, 0, 18, 7, 0, 0, TAU); x.fill();
-    if (h.face < 0) x.scale(-1, 1); if (h.inv > 0 && Math.floor(this.t * 20) % 2) x.globalAlpha = 0.5;
-    x.drawImage(s, -s.width / 2, -s.height - bob); if (h.flash > 0) { x.globalAlpha = 0.6; x.drawImage(flashOf(s), -s.width / 2, -s.height - bob); }
-    x.restore();
+    const h = this.hero, s0 = sprite('hero_' + this.S.hero, 1, 86), s = h.face < 0 ? flipped(s0) : s0, bob = Math.abs(Math.sin(h.bob)) * 3;
+    x.drawImage(SHADOW, h.x - 20, h.y - 7, 40, 14);
+    if (h.inv > 0 && Math.floor(this.t * 20) % 2) x.globalAlpha = 0.5;
+    x.drawImage(s, h.x - s.width / 2, h.y - s.height - bob);
+    if (h.flash > 0) { x.globalAlpha = 0.6; x.drawImage(flashOf(s), h.x - s.width / 2, h.y - s.height - bob); }
+    x.globalAlpha = 1;
   }
-  drawDark(x, W, H, S, camx, camy, ox, oy) {
-    // night: dark layer with holes for the flashlight glow, lamps and fires
-    const l = this.lx, lw = this.light.width, lh = this.light.height, k = 0.5;
-    l.setTransform(1, 0, 0, 1, 0, 0); l.globalCompositeOperation = 'source-over'; l.fillStyle = 'rgba(3,5,10,0.80)'; l.fillRect(0, 0, lw, lh);
+  drawDark(x, W, H, S, camx, camy, ox, oy, q) {
+    // night: dark layer with soft holes for the flashlight, lamps and fires (all pre-made glow sprites)
+    if (q >= 2) { x.setTransform(this.dpr, 0, 0, this.dpr, 0, 0); x.fillStyle = 'rgba(3,5,10,0.55)'; x.fillRect(0, 0, W, H); return; }
+    const l = this.lx, lw = this.light.width, lh = this.light.height, k = lw / W;
+    l.setTransform(1, 0, 0, 1, 0, 0); l.globalCompositeOperation = 'source-over'; l.globalAlpha = 1; l.fillStyle = 'rgba(3,5,10,0.72)'; l.fillRect(0, 0, lw, lh);
     l.globalCompositeOperation = 'destination-out';
     const sx = (wx) => (W / 2 + (wx - camx) * S) * k, sy = (wy) => (H / 2 + (wy - camy) * S) * k;
-    const hole = (wx, wy, r, a) => { const g = l.createRadialGradient(sx(wx), sy(wy), r * S * k * 0.1, sx(wx), sy(wy), r * S * k); g.addColorStop(0, `rgba(0,0,0,${a})`); g.addColorStop(1, 'rgba(0,0,0,0)'); l.fillStyle = g; l.beginPath(); l.arc(sx(wx), sy(wy), r * S * k, 0, TAU); l.fill(); };
-    const h = this.hero; hole(h.x, h.y - 20, 300, 0.95);
-    // flashlight cone
-    { const a = h.aim, g = l.createRadialGradient(sx(h.x), sy(h.y - 20), 10 * S * k, sx(h.x), sy(h.y - 20), 420 * S * k); g.addColorStop(0, 'rgba(0,0,0,.85)'); g.addColorStop(1, 'rgba(0,0,0,0)'); l.fillStyle = g; l.beginPath(); l.moveTo(sx(h.x), sy(h.y - 20)); l.arc(sx(h.x), sy(h.y - 20), 420 * S * k, a - 0.42, a + 0.42); l.closePath(); l.fill(); }
+    const hole = (wx, wy, r, a) => { const rr = r * S * k; l.globalAlpha = a; l.drawImage(HOLE, sx(wx) - rr, sy(wy) - rr, rr * 2, rr * 2); };
+    const h = this.hero; hole(h.x, h.y - 20, 340, 0.96);
+    { const rr = 420 * S * k; l.save(); l.translate(sx(h.x), sy(h.y - 20)); l.rotate(h.aim); l.globalAlpha = 0.85; l.drawImage(CONE, 0, -rr * 0.5, rr, rr); l.restore(); }
     for (const z of this.zones) if (z.fire) hole(z.x, z.y, z.r * 2.4, 0.9);
     for (const b of this.ebul) hole(b.x, b.y, 70, 0.7);
-    const C = 520; for (let cx = Math.floor((camx - W / 2 / S) / C) - 1; cx <= Math.floor((camx + W / 2 / S) / C) + 1; cx++) for (let cy = Math.floor((camy - H / 2 / S) / C) - 1; cy <= Math.floor((camy + H / 2 / S) / C) + 1; cy++) for (const p of this.props_at(cx, cy)) if (p.t === 'prop_lamp' || p.t === 'prop_pumpkin') hole(p.x, p.y - (p.t === 'prop_lamp' ? 120 : 14), p.t === 'prop_lamp' ? 210 : 90, p.t === 'prop_lamp' ? 0.85 : 0.6);
+    if (q < 1) {
+      const C = 520; for (let cx = Math.floor((camx - W / 2 / S) / C) - 1; cx <= Math.floor((camx + W / 2 / S) / C) + 1; cx++) for (let cy = Math.floor((camy - H / 2 / S) / C) - 1; cy <= Math.floor((camy + H / 2 / S) / C) + 1; cy++) for (const p of this.props_at(cx, cy)) if (p.t === 'prop_lamp' || p.t === 'prop_pumpkin') hole(p.x, p.y - (p.t === 'prop_lamp' ? 120 : 14), p.t === 'prop_lamp' ? 210 : 90, p.t === 'prop_lamp' ? 0.85 : 0.6);
+    }
     for (const e of this.enemies) if (e.def.boss) hole(e.x, e.y - 60, 280, 0.8);
-    x.setTransform(1, 0, 0, 1, 0, 0); x.drawImage(this.light, 0, 0, this.cv.width, this.cv.height);
-    // warm/cold colour wash for mood
-    x.setTransform(this.dpr, 0, 0, this.dpr, 0, 0); x.globalCompositeOperation = 'lighter'; const g = x.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, Math.hypot(W, H) / 2); g.addColorStop(0, 'rgba(255,220,160,0.04)'); g.addColorStop(1, 'rgba(20,40,80,0.05)'); x.fillStyle = g; x.fillRect(0, 0, W, H); x.globalCompositeOperation = 'source-over';
+    l.globalAlpha = 1; x.setTransform(1, 0, 0, 1, 0, 0); x.drawImage(this.light, 0, 0, this.cv.width, this.cv.height);
   }
 }

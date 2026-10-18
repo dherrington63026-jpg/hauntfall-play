@@ -34,3 +34,18 @@ export function sprite(name, variant, h) { const n = IMG[`${name}_${variant}`] ?
 export function flashOf(c) { let f = FLASH.get(c); if (f) return f; f = document.createElement('canvas'); f.width = c.width; f.height = c.height; const x = f.getContext('2d'); x.drawImage(c, 0, 0); x.globalCompositeOperation = 'source-in'; x.fillStyle = '#fff'; x.fillRect(0, 0, f.width, f.height); FLASH.set(c, f); return f; }
 export const hasArt = (n) => !!IMG[n] || !!IMG[n + '_1'];
 export const iconUrl = (n) => (IMG['icon_' + n] ? IMG['icon_' + n].src : '');
+
+// ---- pre-made sprites so the per-frame drawing never builds gradients or paths ----
+const mkc = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
+const GLOWS = {};
+export function glow(col, size = 64) { const k = col + size; if (GLOWS[k]) return GLOWS[k]; const c = mkc(size, size), x = c.getContext('2d'), g = x.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2); g.addColorStop(0, col); g.addColorStop(0.35, col + '99'); g.addColorStop(1, col + '00'); x.fillStyle = g; x.fillRect(0, 0, size, size); return (GLOWS[k] = c); }
+export const SHADOW = (() => { const c = mkc(64, 24), x = c.getContext('2d'), g = x.createRadialGradient(32, 12, 2, 32, 12, 30); g.addColorStop(0, 'rgba(0,0,0,.55)'); g.addColorStop(1, 'rgba(0,0,0,0)'); x.save(); x.scale(1, 0.4); x.fillStyle = g; x.fillRect(0, 0, 64, 60); x.restore(); return c; })();
+const FLIP = new WeakMap();
+export function flipped(c) { let f = FLIP.get(c); if (f) return f; f = mkc(c.width, c.height); const x = f.getContext('2d'); x.translate(c.width, 0); x.scale(-1, 1); x.drawImage(c, 0, 0); FLIP.set(c, f); return f; }
+const diamond = (col) => { const c = mkc(14, 14), x = c.getContext('2d'); x.fillStyle = col; x.strokeStyle = 'rgba(0,0,0,.6)'; x.beginPath(); x.moveTo(7, 1); x.lineTo(12, 7); x.lineTo(7, 13); x.lineTo(2, 7); x.closePath(); x.fill(); x.stroke(); x.fillStyle = 'rgba(255,255,255,.55)'; x.fillRect(5, 4, 2, 2); return c; };
+export const GEM = { g: diamond('#7dff9a'), b: diamond('#6bd0ff'), p: diamond('#ff6bd6') };
+export const GOLD = (() => { const c = mkc(12, 12), x = c.getContext('2d'); x.fillStyle = '#ffd24a'; x.strokeStyle = '#7a5a00'; x.beginPath(); x.arc(6, 6, 5, 0, 7); x.fill(); x.stroke(); x.fillStyle = '#fff3b0'; x.fillRect(4, 3, 2, 2); return c; })();
+export const KNIFE = (() => { const c = mkc(40, 12), x = c.getContext('2d'); x.fillStyle = 'rgba(160,200,255,.5)'; x.fillRect(0, 5, 18, 2); x.fillStyle = '#e8f2ff'; x.beginPath(); x.moveTo(36, 6); x.lineTo(16, 2); x.lineTo(19, 6); x.lineTo(16, 10); x.fill(); return c; })();
+export const AXE = (() => { const c = mkc(34, 34), x = c.getContext('2d'); x.translate(17, 17); x.fillStyle = '#8a5a30'; x.fillRect(-14, -2, 20, 4); x.fillStyle = '#d7dde6'; x.beginPath(); x.arc(0, 0, 14, -1.1, 1.1); x.lineTo(2, 0); x.fill(); return c; })();
+export const HOLE = (() => { const c = mkc(128, 128), x = c.getContext('2d'), g = x.createRadialGradient(64, 64, 6, 64, 64, 64); g.addColorStop(0, 'rgba(0,0,0,1)'); g.addColorStop(1, 'rgba(0,0,0,0)'); x.fillStyle = g; x.fillRect(0, 0, 128, 128); return c; })();
+export const CONE = (() => { const c = mkc(256, 256), x = c.getContext('2d'), g = x.createRadialGradient(0, 128, 8, 0, 128, 256); g.addColorStop(0, 'rgba(0,0,0,.9)'); g.addColorStop(1, 'rgba(0,0,0,0)'); x.fillStyle = g; x.beginPath(); x.moveTo(0, 128); x.arc(0, 128, 256, -0.42, 0.42); x.closePath(); x.fill(); return c; })();

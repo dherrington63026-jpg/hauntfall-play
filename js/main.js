@@ -17,10 +17,18 @@ $('#pause').addEventListener('click', (e) => {
   if (b.dataset.pa === 'resume') { if (run) run.paused = false; } else if (run) { run.destroy(); run = null; UI.hideAll(); UI.camp(); }
 });
 UI.init(S, { start, pause, run: () => run, makeDrop: () => makeItem(S, 1 + S.maxDistrict * 2, Math.random() < 0.25 ? 2 : Math.random() < 0.6 ? 1 : 0) });
+let ema = 16.7, slow = 0;
 function frame(t) {
-  requestAnimationFrame(frame); const dt = Math.min(0.05, (t - last) / 1000 || 0.016); last = t;
-  if (run) { if (run.over) { run = null; } else { run.update(dt); run.draw(); } }
-  else { const x = cv.getContext('2d'); x.setTransform(1, 0, 0, 1, 0, 0); x.fillStyle = '#06080b'; x.fillRect(0, 0, cv.width, cv.height); }
+  requestAnimationFrame(frame); const raw = Math.min(250, (t - last) || 16.7); last = t;
+  if (run) {
+    if (run.over) { run = null; } else {
+      // keep game speed right even on a slow phone: several small steps instead of one big one
+      let rem = Math.min(0.1, raw / 1000); while (rem > 0.0001) { const st = Math.min(rem, 0.034); run.update(st); rem -= st; if (run.over || run.paused) break; }
+      if (!run.over) run.draw();
+      // slow phone? quietly lower the graphics a notch instead of stuttering
+      if (!run.paused) { ema += (raw - ema) * 0.05; if (ema > 26) slow += raw; else slow = Math.max(0, slow - raw); if (slow > 2000 && run.q < 3) { run.setQuality(run.q + 1); slow = 0; ema = 16.7; } }
+    }
+  } else { const x = cv.getContext('2d'); x.setTransform(1, 0, 0, 1, 0, 0); x.fillStyle = '#06080b'; x.fillRect(0, 0, cv.width, cv.height); }
 }
 (async () => {
   cv.width = innerWidth; cv.height = innerHeight;
