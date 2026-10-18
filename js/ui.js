@@ -72,7 +72,7 @@ function renderGear() {
   const eq = SLOTS.map((sl) => S.gear[sl] ? cardHtml(S.gear[sl], `<b class="sl">${SLOT_NAME[sl]}</b>`) : `<div class="itc empty"><b class="sl">${SLOT_NAME[sl]}</b></div>`).join('');
   const detail = sel ? detailHtml(sel) : `<p class="dim">Tap an item to see it. Your stats: damage x${hs.dmgPct.toFixed(2)} · fire rate x${hs.ratePct.toFixed(2)} · ${hs.hp} health · ${hs.armor} armor · ${Math.round(hs.crit * 100)}% crit · speed ${Math.round(hs.speed)}.</p>`;
   screen(`${top()}<div class="body gear"><div class="col"><div class="panel"><h2>Equipped</h2><div class="slots">${eq}</div></div><div class="panel detail">${detail}</div></div>
-    <div class="col"><div class="panel"><div class="bagtop"><h2>Bag <small>${S.bag.length}</small></h2><div class="btns"><button data-act="auto">Auto equip</button><button data-act="sellr" data-r="0">Sell white</button><button data-act="sellr" data-r="1">Sell green</button><button data-act="sellr" data-r="2">Sell blue</button></div></div>
+    <div class="col"><div class="panel"><div class="bagtop"><h2>Bag <small>${S.bag.length}</small></h2><div class="btns"><button data-act="auto">Auto equip</button><button data-act="sellr" data-r="0">Sell white</button><button data-act="sellr" data-r="1">Sell green</button><button data-act="sellr" data-r="2">Sell blue</button><button data-act="sellr" data-r="3">Sell purple</button></div></div>
     <div class="bag">${bag.map((it) => cardHtml(it)).join('') || '<p class="dim">Nothing yet. Loot drops during runs.</p>'}</div></div></div></div>${msg ? `<div class="msg">${msg}</div>` : ''}`);
   flashMsg();
 }
@@ -93,7 +93,7 @@ function handle(act, d) {
   if (act === 'district') { S.district = +d.d; save(); renderCamp(); return; }
   if (act === 'claim') { const i = idlePreview(S); S.gold += i.gold; for (let k = 0; k < i.gear; k++) S.bag.push(cb.makeDrop()); S.lastSeen = Date.now(); msg = `Collected ${i.gold} gold${i.gear ? ' and ' + i.gear + ' gear' : ''}.`; save(); renderCamp(); return; }
   if (act === 'again') { cb.start(); return; }
-  if (act === 'camp') { UI.camp(); return; }
+  if (act === 'camp') { UI.stopAfkTimer(); UI.camp(); return; }
   if (act === 'pick') { sel = find(d.id) || null; renderGear(); return; }
   if (act === 'equip') { const it = find(d.id); if (!it) return; const old = S.gear[it.slot]; S.bag.splice(S.bag.indexOf(it), 1); if (old) S.bag.push(old); S.gear[it.slot] = it; sel = it; save(); renderGear(); return; }
   if (act === 'unequip') { const it = find(d.id); if (!it) return; S.gear[it.slot] = null; S.bag.push(it); sel = it; save(); renderGear(); return; }
@@ -116,9 +116,9 @@ UI.done = (r) => {
   screen(`<div class="result ${won ? 'win' : 'lose'}"><h1>${won ? 'THE GRAVEKEEPER FALLS' : 'YOU DIED'}</h1><p class="sub">${won ? 'The graveyard is quiet. For now.' : 'The dead take another one...'}</p>
     <div class="stats"><div><small>Time</small><b>${Math.floor(r.t / 60)}:${String(Math.floor(r.t % 60)).padStart(2, '0')}</b></div><div><small>Kills</small><b>${r.kills}</b></div><div><small>Gold</small><b>${earned}</b></div><div><small>Gear</small><b>${items.length}</b></div></div>
     <div class="bag small">${items.map((it) => cardHtml(it)).join('') || '<p class="dim">No gear this time.</p>'}</div>
-    <div class="btns"><button class="go big" data-act="again">Run again</button><button data-act="camp">Camp</button></div>${afk ? '<p class="dim">AFK on: the next run starts in a few seconds...</p>' : ''}</div>`);
+    <div class="btns"><button class="go big" data-act="again">Run again</button><button class="big2" data-act="camp">Camp &amp; gear</button></div>${afk ? '<p class="dim" id="afkCount">AFK is on: the next run starts in 6 seconds. Tap <b>Camp &amp; gear</b> to stop it and look at your loot.</p>' : ''}</div>`);
   $('#hud').classList.remove('on');
-  if (afk) { clearTimeout(UI.afkT); UI.afkT = setTimeout(() => { if ($('.result')) cb.start(); }, 4500); }
+  if (afk) { clearTimeout(UI.afkT); let n = 6; const tick = () => { const el = $('#afkCount'); if (!el) return; n--; if (n <= 0) { cb.start(); return; } el.innerHTML = `AFK is on: the next run starts in ${n} second${n > 1 ? 's' : ''}. Tap <b>Camp &amp; gear</b> to stop it and look at your loot.`; UI.afkT = setTimeout(tick, 1000); }; UI.afkT = setTimeout(tick, 1000); }
 };
 UI.stopAfkTimer = () => clearTimeout(UI.afkT);
 UI.heroPick = (done) => {

@@ -53,3 +53,6 @@ button.big { width: 100%; padding: 16px; font: 800 18px Cinzel, serif; letter-sp
 .pick h1 { font-size: 40px; color: #ff8a6a; } .two { display: flex; gap: 14px; justify-content: center; } .two button { width: 40vw; max-width: 220px; padding: 10px; display: grid; gap: 6px; } .two img { width: 100%; height: 36vh; object-fit: contain; filter: drop-shadow(0 6px 12px #000); }
 #loading { position: fixed; inset: 0; background: var(--bg); display: grid; place-content: center; text-align: center; gap: 8px; z-index: 100; } #loading h1 { font-size: 42px; color: #ff8a6a; } #loading.off { display: none; }
 @media (max-height: 520px) { .top h1 { font-size: 18px; } .panel { padding: 10px; } .up { padding: 10px; } #levelup h2 { font-size: 22px; } .two img { height: 46vh; } }
+
+button.big2 { padding: 16px 22px; font: 800 16px Cinzel, serif; letter-spacing: 0.05em; background: #1f2a36; border-color: #6a8aa8; }
+.result .btns { flex-direction: column; align-items: stretch; max-width: 420px; margin: 0 auto; width: 100%; }
