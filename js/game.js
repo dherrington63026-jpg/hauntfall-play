@@ -1,6 +1,7 @@
 // A single Hauntfall run: movement, auto-weapons, swarm, loot, level-ups, boss. Drawn on a canvas, HUD lives in the DOM (ui.js).
 import { rnd, rint, pick, clamp, ENEMIES, WEAPONS, UPGRADES, RARITIES, heroStats, makeItem } from './data.js';
 import { spr, sprite, flashOf, flipped, glow, SHADOW, GEM, GOLD, KNIFE, AXE, HOLE, CONE, SPLAT, LEAF, FOG, FLARE, frames, FRAME_PAD, TEX } from './art.js';
+const WEAPON_LEN = { knife: 14, machete: 26, axe: 22, bat: 28, crowbar: 26, pistol: 16, revolver: 18, smg: 24, shotgun: 32, rifle: 38 };
 const PROP_H = { prop_tree: 230, prop_car: 130, prop_lamp: 150, prop_tomb3: 100, prop_fence: 70, prop_bush: 60, prop_pumpkin: 40, prop_tomb1: 74, prop_tomb2: 74 };
 
 const RUN_LEN = 300;               // seconds until the boss
@@ -196,9 +197,14 @@ export class Run {
       for (const e of this.enemies) { const dx = e.x - h.x, dy = e.y - h.y, d = Math.hypot(dx, dy); if (d > reach + e.r) continue; let da = Math.abs(Math.atan2(dy, dx) - h.aim); if (da > Math.PI) da = TAU - da; if (da < arc / 2 || d < 28) { const D = this.dmgOf(); this.hitEnemy(e, D.v, D.crit, (W.knock || 70) * (e.def.boss ? 0.1 : 1), dx / (d || 1), dy / (d || 1)); } }
       return;
     }
+    // shots leave the gun side by side (parallel lines with a tiny fan); only a shotgun sprays in a cone
+    const cone = W.spread >= 0.4, ca = Math.cos(h.aim), sa = Math.sin(h.aim), len = WEAPON_LEN[this.hs.weaponKind] || 16;
+    const mx = h.x + ca * 8 + h.face * 6 + ca * len, my = h.y - 44 + sa * 5 + sa * len, gap = W.shape === 'knife' ? 11 : W.shape === 'axe' ? 16 : 9;
     for (let i = 0; i < n; i++) {
-      const a = h.aim + (n === 1 ? rnd(-W.spread, W.spread) : (i - (n - 1) / 2) * (W.spread / Math.max(1, n - 1) * (W.shape === 'knife' ? 1.2 : 1) * (n > 3 ? 2 : 1)) + rnd(-W.spread * 0.2, W.spread * 0.2));
-      const D = this.dmgOf(); this.bullets.push({ x: h.x + Math.cos(a) * 14, y: h.y + Math.sin(a) * 14 - 10, vx: Math.cos(a) * W.speed, vy: Math.sin(a) * W.speed, a, life: W.life, dmg: D.v, crit: D.crit, pierce, hit: new Set(), shape: W.shape, r: W.shape === 'axe' ? 18 : 7, spin: 0 });
+      const o = i - (n - 1) / 2;
+      const a = cone ? h.aim + o * (W.spread / Math.max(1, n - 1) * 2) + rnd(-0.04, 0.04) : h.aim + o * 0.025 + (n === 1 ? rnd(-W.spread, W.spread) : rnd(-W.spread * 0.15, W.spread * 0.15));
+      const lat = cone ? 0 : o * gap;
+      const D = this.dmgOf(); this.bullets.push({ x: mx - sa * lat, y: my + ca * lat, vx: Math.cos(a) * W.speed, vy: Math.sin(a) * W.speed, a, life: W.life, dmg: D.v, crit: D.crit, pierce, hit: new Set(), shape: W.shape, r: W.shape === 'axe' ? 18 : 7, spin: 0 });
     }
     sfx('shoot', this.sound);
   }
@@ -365,7 +371,7 @@ export class Run {
     x.globalAlpha = 1;
     // the weapon in hand: aims at the target, kicks back when it fires, muzzle flash on guns
     const K = this.hs.weaponKind, Wp = WEAPONS[K], a = h.aim, ca = Math.cos(a), sa = Math.sin(a), hx = h.x + ca * 8 + h.face * 6, hy = h.y - 44 - bob + sa * 5, rc = h.recoil || 0;
-    const len = { knife: 14, machete: 26, axe: 22, bat: 28, crowbar: 26, pistol: 16, revolver: 18, smg: 24, shotgun: 32, rifle: 38 }[K] || 16, gun = Wp.shape === 'bullet';
+    const len = WEAPON_LEN[K] || 16, gun = Wp.shape === 'bullet';
     const ex = hx + ca * (len - rc), ey = hy + sa * (len - rc);
     x.lineCap = 'round'; x.strokeStyle = gun ? '#14181c' : '#cfd8e2'; x.lineWidth = gun ? (K === 'shotgun' || K === 'rifle' ? 5 : 4) : 3.2; x.beginPath(); x.moveTo(hx - ca * rc, hy - sa * rc); x.lineTo(ex, ey); x.stroke();
     x.strokeStyle = gun ? '#6a7480' : '#ffffff'; x.lineWidth = 1.2; x.beginPath(); x.moveTo(hx - ca * rc, hy - sa * rc - 1); x.lineTo(ex, ey - 1); x.stroke();
