@@ -1,6 +1,6 @@
 // A single Hauntfall run: movement, auto-weapons, swarm, loot, level-ups, boss. Drawn on a canvas, HUD lives in the DOM (ui.js).
 import { rnd, rint, pick, clamp, ENEMIES, WEAPONS, UPGRADES, RARITIES, heroStats, makeItem } from './data.js';
-import { spr, sprite, flashOf, flipped, glow, SHADOW, GEM, GOLD, KNIFE, AXE, HOLE, CONE, SPLAT, LEAF, FOG, FLARE, frames, FRAME_PAD, TEX } from './art.js';
+import { spr, sprite, flashOf, flipped, glow, SHADOW, GEM, GOLD, KNIFE, AXE, HOLE, CONE, SPLAT, LEAF, FOG, FLARE, PUDDLE, TUFT, PATCH, frames, FRAME_PAD, TEX } from './art.js';
 const WEAPON_LEN = { knife: 14, machete: 26, axe: 22, bat: 28, crowbar: 26, pistol: 16, revolver: 18, smg: 24, shotgun: 32, rifle: 38 };
 const PROP_H = { prop_tree: 230, prop_car: 130, prop_lamp: 150, prop_tomb3: 100, prop_fence: 70, prop_bush: 60, prop_pumpkin: 40, prop_tomb1: 74, prop_tomb2: 74 };
 
@@ -66,7 +66,7 @@ export class Run {
     const manual = Math.hypot(ix, iy) > 0.12;
     if (this.afk && !manual) { const a = this.afkSteer(); ix = a.x; iy = a.y; }
     const L = Math.hypot(ix, iy); if (L > 1) { ix /= L; iy /= L; }
-    const sp = this.hs.speed * this.speedMul; h.x += ix * sp * dt; h.y += iy * sp * dt; h.moving = L > 0.1; if (Math.abs(ix) > 0.1) h.face = ix > 0 ? 1 : -1; h.bob += dt * (L > 0.1 ? 12 : 3);
+    const sp = this.hs.speed * this.speedMul; h.x += ix * sp * dt; h.y += iy * sp * dt; h.moving = L > 0.1; if (h.moving && this.q < 2 && (this.frame % 7) === 0 && this.fx.length < 260) this.fx.push({ k: 'p', x: h.x + rnd(-6, 6), y: h.y - 2, vx: rnd(-14, 14), vy: rnd(-16, -4), t: 0, life: 0.45, col: '#4a4a44', r: 3 }); if (Math.abs(ix) > 0.1) h.face = ix > 0 ? 1 : -1; h.bob += dt * (L > 0.1 ? 12 : 3);
     h.inv = Math.max(0, h.inv - dt); h.flash = Math.max(0, h.flash - dt); h.fire = Math.max(0, (h.fire || 0) - dt); h.recoil = (h.recoil || 0) * Math.pow(0.001, dt); this.punch = Math.max(0, this.punch - dt * 2.2); this.fogT += dt;
     for (const d of this.decals) d.t += dt; if (this.decals.length && this.decals[0].t > this.decals[0].life) this.decals.shift();
     if (this.regen > 0) h.hp = Math.min(this.maxHp, h.hp + this.regen * dt);
@@ -189,7 +189,7 @@ export class Run {
     this.cool -= dt;
     const tgt = this.nearest(W.range + 60); if (tgt) h.aim = Math.atan2(tgt.y - h.y, tgt.x - h.x);
     if (this.cool > 0 || !tgt) return;
-    this.cool = W.rate / (this.hs.ratePct * this.rateMul); h.fire = W.shape === 'bullet' ? 0.07 : 0.14; h.recoil = W.shape === 'bullet' ? 5 : 0;
+    this.cool = W.rate / (this.hs.ratePct * this.rateMul); h.fire = W.shape === 'bullet' ? 0.07 : 0.14; h.recoil = W.shape === 'bullet' ? 5 : 0; if (W.shape === 'bullet' && this.q < 2) this.fx.push({ k: 'p', x: h.x, y: h.y - 40, vx: -Math.sin(h.aim) * 80 + rnd(-20, 20), vy: Math.cos(h.aim) * 80 + rnd(-60, -20), t: 0, life: 0.5, col: '#e8c860', r: 1.5 });
     const n = W.n + this.extraN, pierce = W.pierce ? W.pierce + this.extraPierce + this.hs.pierceBonus : 0;
     if (W.melee) {
       const arc = W.arc, reach = W.reach * (1 + 0.08 * this.extraN);
@@ -209,7 +209,7 @@ export class Run {
     sfx('shoot', this.sound);
   }
   hitEnemy(e, dmg, crit, kb, nx, ny) {
-    e.hp -= dmg; e.flash = 0.09; if (kb) { e.vx += nx * kb * 4; e.vy += ny * kb * 4; }
+    e.hp -= dmg; e.flash = 0.09; if (this.q < 2 && this.fx.length < 260) { const ghost = e.def.fx === 'ghost'; for (let i = 0; i < (crit ? 5 : 2); i++) { const a = Math.atan2(ny || 0, nx || 1) + rnd(-0.9, 0.9), sp = rnd(120, 260); this.fx.push({ k: 's', x: e.x, y: e.y - e.def.size * 0.45, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, t: 0, life: rnd(0.12, 0.25), col: ghost ? '#bfe4ff' : crit ? '#ffe08a' : '#ffb27a' }); } } if (kb) { e.vx += nx * kb * 4; e.vy += ny * kb * 4; }
     this.text(e.x + rnd(-8, 8), e.y - e.def.size * 0.5, Math.round(dmg), crit ? '#ffd84a' : '#ffffff', crit ? 1.5 : 1); sfx('hit', this.sound && Math.random() < 0.3);
     if (e.def.boss) this.ui.bossHp(e.hp / e.maxHp);
   }
@@ -270,7 +270,7 @@ export class Run {
   puff(x, y, col, n) { for (let i = 0; i < n; i++) { const a = rnd(0, TAU), s = rnd(30, 150); this.fx.push({ k: 'p', x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 20, t: 0, life: rnd(0.3, 0.7), col, r: rnd(2, 5) }); } if (this.fx.length > (this.q >= 1 ? 160 : 320)) this.fx.splice(0, 80); }
   text(x, y, s, col, size) { if (this.q >= 3) return; this.texts.push({ x, y, s, col, size, t: 0 }); if (this.texts.length > 16) this.texts.shift(); }
   updateFx(dt) {
-    for (const f of this.fx) { f.t += dt; if (f.k === 'p') { f.x += f.vx * dt; f.y += f.vy * dt; f.vx *= 0.94; f.vy *= 0.94; } } this.fx = this.fx.filter((f) => f.t < f.life);
+    for (const f of this.fx) { f.t += dt; if (f.k === 'p') { f.x += f.vx * dt; f.y += f.vy * dt; f.vx *= 0.94; f.vy *= 0.94; } else if (f.k === 's') { f.x += f.vx * dt; f.y += f.vy * dt; f.vy += 300 * dt; } } this.fx = this.fx.filter((f) => f.t < f.life);
     for (const t of this.texts) { t.t += dt; t.y -= 38 * dt; } this.texts = this.texts.filter((t) => t.t < 0.8);
   }
   retreat() { if (this.over) return; this.retreated = true; this.paused = false; this.end(false); }
@@ -288,7 +288,8 @@ export class Run {
       for (let i = 0; i < n; i++) { const q = r(), x = cx * C + r() * C, y = cy * C + r() * C; const t = q < 0.34 ? 'prop_tomb1' : q < 0.5 ? 'prop_tomb2' : q < 0.6 ? 'prop_tomb3' : q < 0.78 ? 'prop_tree' : q < 0.84 ? 'prop_lamp' : q < 0.88 ? 'prop_car' : q < 0.93 ? 'prop_fence' : q < 0.96 ? 'prop_pumpkin' : 'prop_bush'; list.push({ t, x, y, f: r() < 0.5 ? 1 : -1 }); }
     }
     const road = r() < 0.16 ? { h: r() < 0.5, o: Math.floor(r() * 300) } : null, leaves = []; for (let i = 0; i < 9; i++) leaves.push({ x: cx * C + r() * C, y: cy * C + r() * C, v: Math.floor(r() * 3) });
-    (this.cinfo || (this.cinfo = new Map())).set(key, { road, leaves }); if (this.cinfo.size > 200) this.cinfo.delete(this.cinfo.keys().next().value);
+    const patches = [], puddles = [], tufts = []; for (let i = 0; i < 2; i++) patches.push({ x: cx * C + r() * C, y: cy * C + r() * C, v: Math.floor(r() * 3), s: 220 + r() * 220 }); if (r() < 0.45) puddles.push({ x: cx * C + 60 + r() * (C - 120), y: cy * C + 60 + r() * (C - 120), s: 70 + r() * 60 }); for (let i = 0; i < 12; i++) tufts.push({ x: cx * C + r() * C, y: cy * C + r() * C, v: Math.floor(r() * 3) });
+    (this.cinfo || (this.cinfo = new Map())).set(key, { road, leaves, patches, puddles, tufts }); if (this.cinfo.size > 200) this.cinfo.delete(this.cinfo.keys().next().value);
     this.props.set(key, list); if (this.props.size > 160) this.props.delete(this.props.keys().next().value); return list;
   }
   draw() {
@@ -304,8 +305,9 @@ export class Run {
     // ground dressing: roads, fallen leaves, blood and ectoplasm stains
     for (let cx = Math.floor(x0 / 520) - 1; cx <= Math.floor(x1 / 520) + 1; cx++) for (let cy = Math.floor(y0 / 520) - 1; cy <= Math.floor(y1 / 520) + 1; cy++) {
       this.props_at(cx, cy); const ci = this.cinfo.get(cx + ',' + cy); if (!ci) continue;
+      if (q < 2) { x.globalAlpha = 0.5; for (const pa of ci.patches) x.drawImage(PATCH[pa.v], pa.x - pa.s / 2, pa.y - pa.s / 2, pa.s, pa.s); x.globalAlpha = 1; }
       if (ci.road && TEX.tex_road) { if (!this.rpat) { this.rpat = x.createPattern(TEX.tex_road, 'repeat'); this.rpat.setTransform(new DOMMatrix().scale(0.5)); } x.fillStyle = this.rpat; const r = ci.road; if (r.h) { x.fillRect(cx * 520, cy * 520 + r.o, 520, 150); x.fillStyle = 'rgba(210,200,150,.35)'; for (let k = 0; k < 520; k += 70) x.fillRect(cx * 520 + k, cy * 520 + r.o + 73, 38, 4); } else { x.fillRect(cx * 520 + r.o, cy * 520, 150, 520); x.fillStyle = 'rgba(210,200,150,.35)'; for (let k = 0; k < 520; k += 70) x.fillRect(cx * 520 + r.o + 73, cy * 520 + k, 4, 38); } }
-      if (this.q < 2) for (const lf of ci.leaves) x.drawImage(LEAF[lf.v], lf.x, lf.y);
+      if (this.q < 2) { for (const lf of ci.leaves) x.drawImage(LEAF[lf.v], lf.x, lf.y); for (const tf of ci.tufts) x.drawImage(TUFT[tf.v], tf.x, tf.y); x.globalAlpha = 0.8; for (const pd of ci.puddles) x.drawImage(PUDDLE, pd.x - pd.s / 2, pd.y - pd.s * 0.2, pd.s, pd.s * 0.42); x.globalAlpha = 1; }
     }
     for (const d of this.decals) { const a = Math.min(1, (d.life - d.t) / 2) * 0.75; if (d.x < x0 || d.x > x1 || d.y < y0 || d.y > y1) continue; x.globalAlpha = a; const w = 44 * d.sc; x.drawImage(d.s, d.x - w / 2, d.y - w * 0.3, w, w * 0.6); } x.globalAlpha = 1;
     // things standing on the ground, drawn back to front (list is reused every frame)
@@ -336,6 +338,7 @@ export class Run {
     if (this.salt > 0) { const n = 1 + this.salt, R = 78 + this.salt * 6, gs = glow('#c8e6ff', 64); for (let i = 0; i < n; i++) { const a = this.saltAng + i * TAU / n, px = h.x + Math.cos(a) * R, py = h.y + Math.sin(a) * R; x.drawImage(gs, px - 20, py - 20, 40, 40); x.fillStyle = '#fff'; x.fillRect(px - 5, py - 5, 10, 10); } }
     for (const f of this.fx) {
       if (f.k === 'slash') { const k = f.t / f.life; x.strokeStyle = `rgba(255,255,255,${1 - k})`; x.lineWidth = 10 * (1 - k) + 2; x.beginPath(); x.arc(f.x, f.y - 10, f.r * (0.7 + 0.3 * k), f.a - f.arc / 2, f.a + f.arc / 2); x.stroke(); }
+      else if (f.k === 's') { x.globalAlpha = 1 - f.t / f.life; x.strokeStyle = f.col; x.lineWidth = 2; x.beginPath(); x.moveTo(f.x, f.y); x.lineTo(f.x - f.vx * 0.04, f.y - f.vy * 0.04); x.stroke(); }
       else if (f.k === 'p') { x.globalAlpha = 1 - f.t / f.life; x.fillStyle = f.col; x.fillRect(f.x - f.r, f.y - f.r, f.r * 2, f.r * 2); }
       else if (f.k === 'gf') { const k = f.t / f.life, s0 = f.face < 0 ? flipped(f.s) : f.s; x.globalAlpha = (1 - k) * 0.7; x.drawImage(s0, f.x - s0.width / 2, f.y - s0.height - k * 40); }
     }
@@ -394,6 +397,7 @@ export class Run {
     }
     for (const e of this.enemies) if (e.def.boss) hole(e.x, e.y - 60, 280, 0.8);
     l.globalAlpha = 1; x.setTransform(1, 0, 0, 1, 0, 0); x.drawImage(this.light, 0, 0, this.cv.width, this.cv.height);
+    if (q < 1) { x.setTransform(1, 0, 0, 1, 0, 0); x.globalCompositeOperation = 'soft-light'; const gg = x.createRadialGradient(this.cv.width / 2, this.cv.height / 2, 0, this.cv.width / 2, this.cv.height / 2, Math.hypot(this.cv.width, this.cv.height) / 2); gg.addColorStop(0, 'rgba(255,196,120,0.30)'); gg.addColorStop(1, 'rgba(40,90,150,0.55)'); x.fillStyle = gg; x.fillRect(0, 0, this.cv.width, this.cv.height); x.globalCompositeOperation = 'source-over'; }
     if (q < 1) { x.globalCompositeOperation = 'lighter'; x.globalAlpha = 0.10; const T = this.fogT; for (let i = 0; i < 4; i++) { const fx = ((i * 0.31 + T * 0.012 * (1 + i * 0.3)) % 1.3 - 0.15) * this.cv.width, fy = (0.2 + i * 0.22 + Math.sin(T * 0.2 + i) * 0.05) * this.cv.height, sz = this.cv.width * 0.7; x.drawImage(FOG, fx - sz / 2, fy - sz / 2, sz, sz * 0.7); } x.globalAlpha = 1; x.globalCompositeOperation = 'source-over'; }
   }
 }

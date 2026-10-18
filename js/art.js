@@ -86,3 +86,7 @@ export function frames(name, variant, h, kind) {
   return (FR[key] = bake(base, kind, n));
 }
 export const FRAME_PAD = (h) => Math.round(h * 0.06);
+
+export const PUDDLE = (() => { const c = mkc(96, 40), x = c.getContext('2d'); const g = x.createRadialGradient(48, 20, 2, 48, 20, 46); g.addColorStop(0, 'rgba(40,60,90,.75)'); g.addColorStop(0.7, 'rgba(25,38,60,.55)'); g.addColorStop(1, 'rgba(25,38,60,0)'); x.save(); x.scale(1, 0.42); x.fillStyle = g; x.fillRect(0, 0, 96, 96); x.restore(); x.fillStyle = 'rgba(190,210,240,.35)'; x.beginPath(); x.ellipse(40, 16, 14, 2.2, 0, 0, 7); x.fill(); return c; })();
+export const TUFT = [0, 1, 2].map((i) => { const c = mkc(22, 20), x = c.getContext('2d'); x.strokeStyle = ['#2b3a22', '#33432a', '#25301c'][i]; x.lineWidth = 1.6; for (let k = 0; k < 7; k++) { x.beginPath(); x.moveTo(11 + (k - 3) * 1.5, 19); x.quadraticCurveTo(11 + (k - 3) * 3, 9, 11 + (k - 3) * 4.5 + (i - 1) * 3, 2 + (k % 3) * 2); x.stroke(); } return c; });
+export const PATCH = ['#1a2a18', '#2a1a2e', '#101c28'].map((col) => glow(col, 128));
