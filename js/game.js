@@ -180,14 +180,14 @@ export class Run {
   }
   // ---------- weapons ----------
   nearest(maxD) { const h = this.hero; let best = null, bd = maxD * maxD; for (const e of this.enemies) { const d2 = (e.x - h.x) ** 2 + (e.y - h.y) ** 2; if (d2 < bd) { bd = d2; best = e; } } return best; }
-  dmgOf(mul = 1) { const crit = Math.random() < this.crit; return { v: this.hs.weaponDmg * this.hs.dmgPct * this.dmgMul * mul * (crit ? 2.2 : 1), crit }; }
+  dmgOf(mul = 1) { const crit = Math.random() < this.crit; return { v: this.hs.weaponDmg * this.hs.dmgPct * this.dmgMul * mul * (crit ? this.hs.critDmg : 1), crit }; }
   updateWeapons(dt) {
     const W = WEAPONS[this.hs.weaponKind], h = this.hero;
     this.cool -= dt;
     const tgt = this.nearest(W.range + 60); if (tgt) h.aim = Math.atan2(tgt.y - h.y, tgt.x - h.x);
     if (this.cool > 0 || !tgt) return;
     this.cool = W.rate / (this.hs.ratePct * this.rateMul);
-    const n = W.n + this.extraN, pierce = W.pierce ? W.pierce + this.extraPierce : 0;
+    const n = W.n + this.extraN, pierce = W.pierce ? W.pierce + this.extraPierce + this.hs.pierceBonus : 0;
     if (W.melee) {
       const arc = W.arc, reach = W.reach * (1 + 0.08 * this.extraN);
       this.fx.push({ k: 'slash', x: h.x, y: h.y, a: h.aim, arc, r: reach, t: 0, life: 0.18 }); sfx('slash', this.sound);

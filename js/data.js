@@ -37,9 +37,12 @@ const NAMES = {
 const PREFIX = ['Worn', 'Salvaged', 'Reinforced', 'Haunted', 'Blessed', 'Bloodied', 'Grave-Touched', 'Nightwatch'];
 // what each slot rolls as its base (primary) stat
 const PRIMARY = { weapon: ['dmg', 1], head: ['armor', 6], body: ['hp', 28], boots: ['speed', 0.04], charm: ['crit', 0.03], relic: ['rate', 0.05] };
-const AFFIX_POOL = [['dmg', 0.06, 0.12], ['rate', 0.04, 0.09], ['hp', 12, 26], ['armor', 3, 7], ['speed', 0.02, 0.05], ['crit', 0.02, 0.05], ['magnet', 0.1, 0.25], ['luck', 0.05, 0.12], ['regen', 0.3, 0.9]];
-export const STAT_LABEL = { dmg: 'Damage', rate: 'Fire rate', hp: 'Health', armor: 'Armor', speed: 'Move speed', crit: 'Crit chance', magnet: 'Pickup range', luck: 'Luck', regen: 'Regen/s' };
-export const PCT = new Set(['dmg', 'rate', 'speed', 'crit', 'magnet', 'luck']);
+const AFFIX = { dmg: ['dmg', 0.06, 0.12], rate: ['rate', 0.04, 0.09], hp: ['hp', 12, 26], armor: ['armor', 3, 7], speed: ['speed', 0.02, 0.05], crit: ['crit', 0.02, 0.05], magnet: ['magnet', 0.1, 0.25], luck: ['luck', 0.05, 0.12], regen: ['regen', 0.3, 0.9], power: ['power', 0.07, 0.13], critdmg: ['critdmg', 0.1, 0.22], pierce: ['pierce', 1, 1] };
+// each slot only rolls bonuses that make sense for it (weapons: damage, attack speed, crit, move speed)
+export const SLOT_AFFIXES = { weapon: ['power', 'rate', 'crit', 'critdmg', 'pierce', 'speed'], head: ['armor', 'hp', 'regen', 'luck'], body: ['hp', 'armor', 'regen', 'speed'], boots: ['speed', 'armor', 'hp', 'magnet'], charm: ['crit', 'luck', 'magnet', 'dmg'], relic: ['dmg', 'rate', 'crit', 'regen'] };
+const rollAffix = (slot, key, ilvl) => { const a = AFFIX[key]; return rnd(a[1], a[2]) * (1 + ilvl * 0.08); };
+export const STAT_LABEL = { power: 'Weapon damage', critdmg: 'Crit damage', pierce: 'Pierce', dmg: 'Damage', rate: 'Fire rate', hp: 'Health', armor: 'Armor', speed: 'Move speed', crit: 'Crit chance', magnet: 'Pickup range', luck: 'Luck', regen: 'Regen/s' };
+export const PCT = new Set(['dmg', 'power', 'rate', 'speed', 'crit', 'critdmg', 'magnet', 'luck']);
 
 export function makeItem(S, ilvl, rar, slot, kind) {
   slot = slot || pick(SLOTS);
@@ -50,8 +53,8 @@ export function makeItem(S, ilvl, rar, slot, kind) {
   it.stats[pk] = slot === 'weapon' ? 1 : pv * (1 + ilvl * 0.12);
   const used = new Set([pk]);
   for (let i = 0; i < R.affixes; i++) {
-    let a; do { a = pick(AFFIX_POOL); } while (used.has(a[0])); used.add(a[0]);
-    it.stats[a[0]] = rnd(a[1], a[2]) * (1 + ilvl * 0.08);
+    const opts = SLOT_AFFIXES[slot].filter((k) => !used.has(k)); if (!opts.length) break; const k = pick(opts); used.add(k);
+    it.stats[k] = rollAffix(slot, k, ilvl);
   }
   if (slot === 'weapon') it.name = `${pick(PREFIX)} ${WEAPONS[wk].name}`; else it.name = `${pick(PREFIX)} ${pick(NAMES[slot])}`;
   it.icon = slot === 'weapon' ? WEAPONS[wk].icon : pick(SLOT_ICON[slot]);
@@ -65,12 +68,12 @@ export function itemScore(it) { if (!it) return 0; let s = 0; for (const k in it
 
 // ---------- hero stats from gear ----------
 export function heroStats(S) {
-  const t = { dmg: 0, rate: 0, hp: 0, armor: 0, speed: 0, crit: 0.05, magnet: 0, luck: 0, regen: 0 };
+  const t = { dmg: 0, power: 0, rate: 0, hp: 0, armor: 0, speed: 0, crit: 0.05, critdmg: 0, pierce: 0, magnet: 0, luck: 0, regen: 0 };
   let weapon = null;
   for (const slot of SLOTS) { const it = S.gear[slot]; if (!it) continue; if (slot === 'weapon') weapon = it; for (const k in it.stats) if (!(slot === 'weapon' && k === 'dmg')) t[k] += itemStat(it, k); }
   const base = weapon ? weapon : { kind: 'knife', ilvl: 1, rar: 0, up: 0, stats: { dmg: 1 } };
   const W = WEAPONS[base.kind], wdmg = 11 * W.dmg * (1 + 0.12 * (base.ilvl - 1)) * itemMult(base);
-  return { hp: 120 + t.hp, armor: t.armor, speed: 135 * (1 + t.speed), crit: t.crit, magnet: 70 * (1 + t.magnet), luck: t.luck, regen: t.regen, dmgPct: 1 + t.dmg, ratePct: 1 + t.rate, weaponKind: base.kind, weaponDmg: wdmg, power: Math.round(wdmg * (1 + t.dmg) / W.rate * 0.5 + (120 + t.hp) * 0.2 + t.armor * 2) };
+  return { hp: 120 + t.hp, armor: t.armor, speed: 135 * (1 + t.speed), crit: t.crit, magnet: 70 * (1 + t.magnet), luck: t.luck, regen: t.regen, dmgPct: 1 + t.dmg + t.power, critDmg: 2.2 + t.critdmg, pierceBonus: Math.floor(t.pierce + 0.01), ratePct: 1 + t.rate, weaponKind: base.kind, weaponDmg: wdmg, power: Math.round(wdmg * (1 + t.dmg) / W.rate * 0.5 + (120 + t.hp) * 0.2 + t.armor * 2) };
 }
 
 // ---------- enemies ----------
@@ -108,7 +111,15 @@ export function newSave() {
   S.gear.weapon = makeItem(S, 1, 0, 'weapon', 'knife'); S.gear.weapon.name = 'Rusty Kitchen Knife';
   return S;
 }
-export function loadSave() { try { const s = JSON.parse(localStorage.getItem(KEY)); if (s && s.v === 1) return s; } catch (e) { } return null; }
+// older items may carry bonuses their slot should not have: swap them for allowed ones of similar strength
+function fixItem(it) {
+  if (!it || !it.stats) return; const ok = SLOT_AFFIXES[it.slot]; if (!ok) return; const primary = PRIMARY[it.slot][0];
+  for (const k of Object.keys(it.stats)) {
+    if (k === primary || ok.includes(k)) continue;
+    delete it.stats[k]; const opts = ok.filter((n) => !(n in it.stats) && n !== primary); if (opts.length) { const n = pick(opts); it.stats[n] = rollAffix(it.slot, n, it.ilvl); }
+  }
+}
+export function loadSave() { try { const s = JSON.parse(localStorage.getItem(KEY)); if (s && s.v === 1) { (s.bag || []).forEach(fixItem); Object.values(s.gear || {}).forEach(fixItem); return s; } } catch (e) { } return null; }
 export function writeSave(S) { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { } }
 export const IDLE_CAP_MIN = 480;
 export function idlePreview(S) { const mins = Math.min(IDLE_CAP_MIN, (Date.now() - S.lastSeen) / 60000); const rate = 4 + 3 * S.maxDistrict + S.best * 0.4; return { mins, gold: Math.floor(mins * rate), gear: Math.min(6, Math.floor(mins / 45)) }; }
