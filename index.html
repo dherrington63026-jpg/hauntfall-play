@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="theme-color" content="#06080b">
+<title>Hauntfall</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;800&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="vig"></div>
+<div id="hud">
+  <div class="left"><div class="lv"><b id="lvl">1</b></div><div class="bars"><div class="hp"><i id="hpFill"></i><span id="hpText"></span></div><div class="xp"><i id="xpFill"></i></div></div></div>
+  <div class="mid"><div id="timer">5:00</div><div class="sm">kills <b id="kills">0</b> · gold <b id="gold">0</b></div></div>
+  <div class="right"><button id="btnAfk">AFK</button><button id="btnPause">II</button></div>
+  <div id="bossbar"><b>THE GRAVEKEEPER</b><div class="bb"><i id="bossFill"></i></div></div>
+</div>
+<div id="toasts"></div>
+<div id="joy"><i></i></div>
+<div id="levelup"><h2>LEVEL UP</h2><div class="cards"></div></div>
+<div id="pause"><div class="box"><h2>Paused</h2><button data-pa="resume">Resume</button><button data-pa="quit">Leave the run</button></div></div>
+<div id="screen"></div>
+<div id="loading"><h1>HAUNTFALL</h1><p id="loadMsg">Waking the dead...</p></div>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
