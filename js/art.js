@@ -49,3 +49,40 @@ export const KNIFE = (() => { const c = mkc(40, 12), x = c.getContext('2d'); x.f
 export const AXE = (() => { const c = mkc(34, 34), x = c.getContext('2d'); x.translate(17, 17); x.fillStyle = '#8a5a30'; x.fillRect(-14, -2, 20, 4); x.fillStyle = '#d7dde6'; x.beginPath(); x.arc(0, 0, 14, -1.1, 1.1); x.lineTo(2, 0); x.fill(); return c; })();
 export const HOLE = (() => { const c = mkc(128, 128), x = c.getContext('2d'), g = x.createRadialGradient(64, 64, 6, 64, 64, 64); g.addColorStop(0, 'rgba(0,0,0,1)'); g.addColorStop(1, 'rgba(0,0,0,0)'); x.fillStyle = g; x.fillRect(0, 0, 128, 128); return c; })();
 export const CONE = (() => { const c = mkc(256, 256), x = c.getContext('2d'), g = x.createRadialGradient(0, 128, 8, 0, 128, 256); g.addColorStop(0, 'rgba(0,0,0,.9)'); g.addColorStop(1, 'rgba(0,0,0,0)'); x.fillStyle = g; x.beginPath(); x.moveTo(0, 128); x.arc(0, 128, 256, -0.42, 0.42); x.closePath(); x.fill(); return c; })();
+
+const blob = (r, g, b, n) => { const c = mkc(64, 64), x = c.getContext('2d'); for (let i = 0; i < n; i++) { const px = 32 + (Math.random() - 0.5) * 36, py = 32 + (Math.random() - 0.5) * 36, rr = 3 + Math.random() * 10, gr = x.createRadialGradient(px, py, 0, px, py, rr); gr.addColorStop(0, `rgba(${r},${g},${b},.75)`); gr.addColorStop(1, `rgba(${r},${g},${b},0)`); x.fillStyle = gr; x.beginPath(); x.arc(px, py, rr, 0, 7); x.fill(); } return c; };
+export const SPLAT = { r: [blob(80, 12, 14, 9), blob(70, 10, 12, 7), blob(90, 16, 18, 8)], g: [blob(60, 140, 120, 8), blob(50, 120, 110, 7), blob(70, 150, 130, 9)] };
+export const LEAF = [0, 1, 2].map((i) => { const c = mkc(12, 8), x = c.getContext('2d'); x.fillStyle = ['#5a3a22', '#4a3018', '#6a4a26'][i]; x.beginPath(); x.ellipse(6, 4, 5, 2.5, 0.4 * i, 0, 7); x.fill(); return c; });
+export const FOG = (() => { const c = mkc(256, 256), x = c.getContext('2d'), g = x.createRadialGradient(128, 128, 0, 128, 128, 128); g.addColorStop(0, 'rgba(170,190,215,.55)'); g.addColorStop(1, 'rgba(170,190,215,0)'); x.fillStyle = g; x.fillRect(0, 0, 256, 256); return c; })();
+export const FLARE = (() => { const c = mkc(64, 64), x = c.getContext('2d'), g = x.createRadialGradient(32, 32, 0, 32, 32, 32); g.addColorStop(0, 'rgba(255,245,200,1)'); g.addColorStop(0.25, 'rgba(255,200,90,.8)'); g.addColorStop(1, 'rgba(255,140,40,0)'); x.fillStyle = g; x.fillRect(0, 0, 64, 64); return c; })();
+
+// ---- pre-baked animation frames: the flat painting is bent a little differently in each frame (done once at load) ----
+const FR = {};
+function bake(src, kind, n) {
+  const w = src.width, h = src.height, pad = Math.round(h * 0.06), out = [];
+  for (let f = 0; f < n; f++) {
+    const ph = f / n * Math.PI * 2, c = mkc(w + pad * 2, h + pad * 2), x = c.getContext('2d');
+    if (kind === 'ghost') { // cloth sway: the hem swings, the body stretches a little
+      for (let y = 0; y < h; y++) { const k = y / h, dx = Math.sin(ph + y / 11) * 5 * Math.pow(k, 1.3) + Math.sin(ph * 2 + y / 23) * 1.5 * k; x.drawImage(src, 0, y, w, 1, pad + dx, pad + y * (1 + Math.sin(ph) * 0.015), w, 1.2); }
+    } else if (kind === 'flap') { // wings beat: stretch up/down and shear
+      const sy = 1 + Math.sin(ph) * 0.12; for (let xx = 0; xx < w; xx += 2) { const k = Math.abs(xx - w / 2) / (w / 2), dy = -Math.sin(ph) * 7 * k; x.drawImage(src, xx, 0, 2, h, pad + xx, pad + dy + h * (1 - sy) * 0.5, 2, h * sy); }
+    } else { // walk / idle: torso sways, hips shift, feet alternate lifting
+      const idle = kind === 'idle', amp = idle ? 0.35 : 1, bob = Math.abs(Math.sin(ph / 2 * (idle ? 1 : 2))) * (idle ? 1.5 : 3.5) * -1;
+      for (let y = 0; y < h; y++) {
+        const k = y / h, lower = Math.max(0, (k - 0.62) / 0.38), dx = Math.sin(ph) * 2.2 * amp * (1 - k) + Math.sin(ph) * 3 * amp * lower;
+        if (lower > 0 && !idle) { // legs: left half and right half lift in turn
+          const half = w / 2; x.drawImage(src, 0, y, half, 1, pad + dx, pad + y + bob + Math.sin(ph) * 3.2 * lower, half, 1.2); x.drawImage(src, half, y, w - half, 1, pad + half + dx, pad + y + bob - Math.sin(ph) * 3.2 * lower, w - half, 1.2);
+        } else x.drawImage(src, 0, y, w, 1, pad + dx, pad + y + bob, w, 1.2);
+      }
+    }
+    out.push(c);
+  }
+  return out;
+}
+// frames for a picture at height h; kind = ghost | flap | walk | idle
+export function frames(name, variant, h, kind) {
+  const base = sprite(name, variant, h), key = `${name}|${variant}|${h}|${kind}`; if (FR[key]) return FR[key];
+  const n = kind === 'walk' ? 8 : kind === 'idle' ? 6 : 8;
+  return (FR[key] = bake(base, kind, n));
+}
+export const FRAME_PAD = (h) => Math.round(h * 0.06);

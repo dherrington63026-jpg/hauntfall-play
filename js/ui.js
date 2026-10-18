@@ -17,6 +17,7 @@ function bindStatic() {
   $('#btnPause').onclick = () => cb.pause();
   document.addEventListener('click', (e) => { const b = e.target.closest('[data-act]'); if (!b) return; handle(b.dataset.act, b.dataset); });
 }
+UI.hurt = () => { document.body.classList.add('hurt'); clearTimeout(UI.hurtT); UI.hurtT = setTimeout(() => document.body.classList.remove('hurt'), 160); };
 UI.toggleAfk = () => { S.opts.afk = !S.opts.afk; save(); if (cb.run()) cb.run().afk = S.opts.afk; syncAfk(); };
 function syncAfk() { const b = $('#btnAfk'); b.classList.toggle('on', !!S.opts.afk); b.textContent = S.opts.afk ? 'AFK ON' : 'AFK'; }
 UI.syncAfk = syncAfk;
@@ -28,7 +29,7 @@ UI.hud = (r) => {
   $('#hpFill').style.width = Math.max(0, r.hero.hp / r.maxHp * 100) + '%'; $('#hpText').textContent = `${Math.ceil(Math.max(0, r.hero.hp))} / ${r.maxHp}`;
   $('#xpFill').style.width = (r.xp / r.xpNeed * 100) + '%'; $('#lvl').textContent = r.level;
   const t = Math.max(0, Math.floor(r.bossOut ? r.t - 300 : 300 - r.t)); $('#timer').textContent = r.bossOut ? 'BOSS' : `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
-  $('#gold').textContent = r.gold; $('#kills').textContent = r.kills;
+  $('#gold').textContent = r.gold; $('#kills').textContent = r.kills; document.body.classList.toggle('low', r.hero.hp < r.maxHp * 0.3);
 };
 UI.toast = (msg) => { const d = document.createElement('div'); d.className = 'toast'; d.textContent = msg; $('#toasts').appendChild(d); setTimeout(() => d.remove(), 2200); while ($('#toasts').children.length > 3) $('#toasts').firstChild.remove(); };
 UI.lootToast = (it) => { const d = document.createElement('div'); d.className = 'toast loot'; d.style.setProperty('--r', RARITIES[it.rar].color); d.innerHTML = `${icon(it)}<span>${it.name}</span>`; $('#toasts').appendChild(d); setTimeout(() => d.remove(), 2600); while ($('#toasts').children.length > 4) $('#toasts').firstChild.remove(); };
@@ -39,14 +40,14 @@ UI.joyMove = (dx, dy) => { $('#joy i').style.transform = `translate(${dx * 46}px
 UI.joyHide = () => $('#joy').classList.remove('on');
 UI.levelUp = (choices, pick) => {
   const o = $('#levelup'); o.classList.add('on');
-  o.querySelector('.cards').innerHTML = choices.map((u, i) => `<button class="up ${u.weapon ? 'wep' : ''}" data-i="${i}"><b>${u.name}</b><span>${u.desc}</span>${u.weapon ? '<small>NEW WEAPON</small>' : ''}</button>`).join('');
+  o.querySelector('.cards').innerHTML = choices.map((u, i) => `<button class="up ${u.weapon ? 'wep' : ''}" data-i="${i}"><img src="art/skill_${u.id}.jpg" alt="" onerror="this.style.display='none'"><b>${u.name}${(UI.picked && UI.picked[u.id]) ? ' ' + (UI.picked[u.id] + 1) : ''}</b><span>${u.desc}</span>${u.weapon ? '<small>NEW WEAPON</small>' : ''}</button>`).join('');
   o.onclick = (e) => { const b = e.target.closest('.up'); if (!b) return; o.classList.remove('on'); o.onclick = null; pick(choices[+b.dataset.i]); };
 };
 
 // ---------- screens ----------
-UI.hideAll = () => { $('#screen').classList.remove('on'); $('#screen').innerHTML = ''; $('#hud').classList.remove('on'); $('#levelup').classList.remove('on'); $('#bossbar').classList.remove('on'); };
+UI.hideAll = () => { document.body.classList.remove('low', 'hurt'); $('#screen').classList.remove('on'); $('#screen').innerHTML = ''; $('#hud').classList.remove('on'); $('#levelup').classList.remove('on'); $('#bossbar').classList.remove('on'); };
 UI.showHud = () => { $('#hud').classList.add('on'); syncAfk(); };
-const screen = (html) => { const s = $('#screen'); s.innerHTML = html; s.classList.add('on'); s.scrollTop = 0; };
+const screen = (html, bg = 'camp') => { const s = $('#screen'); s.innerHTML = html; s.className = 'on bg-' + bg; s.scrollTop = 0; };
 let tab = 'camp', sel = null, msg = '';
 
 UI.camp = () => { tab = 'camp'; sel = null; S.lastSeen = S.lastSeen || Date.now(); renderCamp(); };
@@ -122,6 +123,6 @@ UI.done = (r) => {
 };
 UI.stopAfkTimer = () => clearTimeout(UI.afkT);
 UI.heroPick = (done) => {
-  screen(`<div class="pick"><h1>HAUNTFALL</h1><p class="sub">The town fell in the night. Who are you?</p><div class="two"><button data-act="hero" data-h="f"><img src="art/hero_f_1.png" alt=""><b>Her</b></button><button data-act="hero" data-h="m"><img src="art/hero_m_1.png" alt=""><b>Him</b></button></div></div>`);
+  screen(`<div class="pick"><h1>HAUNTFALL</h1><p class="sub">The town fell in the night. Who are you?</p><div class="two"><button data-act="hero" data-h="f"><img src="art/hero_f_1.png" alt=""><b>Her</b></button><button data-act="hero" data-h="m"><img src="art/hero_m_1.png" alt=""><b>Him</b></button></div></div>`, 'title');
   $('#screen').onclick = (e) => { const b = e.target.closest('[data-h]'); if (!b) return; S.hero = b.dataset.h; save(); $('#screen').onclick = null; done(); };
 };

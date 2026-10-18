@@ -79,12 +79,12 @@ export function heroStats(S) {
 // ---------- enemies ----------
 // size = drawn height in px; r = hit radius; dmg = contact damage; fx = behaviour tag
 export const ENEMIES = {
-  ghost: { name: 'Wraith', sprite: 'en_ghost', hp: 22, speed: 62, dmg: 9, r: 15, size: 78, xp: 2, fx: 'ghost' },
-  ghoul: { name: 'Ghoul', sprite: 'en_ghoul', hp: 38, speed: 74, dmg: 12, r: 16, size: 74, xp: 4, fx: 'walk' },
-  crow: { name: 'Crow', sprite: 'en_crow', hp: 12, speed: 150, dmg: 7, r: 12, size: 52, xp: 2, fx: 'swoop' },
-  child: { name: 'Screamer', sprite: 'en_child', hp: 16, speed: 118, dmg: 8, r: 11, size: 56, xp: 2, fx: 'ghost' },
-  brute: { name: 'Butcher', sprite: 'en_brute', hp: 520, speed: 50, dmg: 26, r: 30, size: 130, xp: 30, fx: 'walk', elite: true },
-  gravekeeper: { name: 'The Gravekeeper', sprite: 'boss_gravekeeper', hp: 3800, speed: 42, dmg: 34, r: 42, size: 190, xp: 150, fx: 'boss', boss: true },
+  ghost: { name: 'Wraith', sprite: 'en_ghost', hp: 22, speed: 62, dmg: 9, r: 15, size: 92, eye: '#cfe8ff', xp: 2, fx: 'ghost' },
+  ghoul: { name: 'Ghoul', sprite: 'en_ghoul', hp: 38, speed: 74, dmg: 12, r: 16, size: 88, eye: '#ffd040', xp: 4, fx: 'walk' },
+  crow: { name: 'Crow', sprite: 'en_crow', hp: 12, speed: 150, dmg: 7, r: 12, size: 62, eye: '#ff3a3a', xp: 2, fx: 'swoop' },
+  child: { name: 'Screamer', sprite: 'en_child', hp: 16, speed: 118, dmg: 8, r: 11, size: 66, eye: '#ff3a3a', xp: 2, fx: 'ghost' },
+  brute: { name: 'Butcher', sprite: 'en_brute', hp: 520, speed: 50, dmg: 26, r: 30, size: 150, eye: '#ff3a3a', xp: 30, fx: 'walk', elite: true },
+  gravekeeper: { name: 'The Gravekeeper', sprite: 'boss_gravekeeper', hp: 3800, speed: 42, dmg: 34, r: 42, size: 225, eye: '#6dff6d', xp: 150, fx: 'boss', boss: true },
 };
 
 // ---------- in-run upgrades (picked on level up) ----------

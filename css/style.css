@@ -56,3 +56,16 @@ button.big { width: 100%; padding: 16px; font: 800 18px Cinzel, serif; letter-sp
 
 button.big2 { padding: 16px 22px; font: 800 16px Cinzel, serif; letter-spacing: 0.05em; background: #1f2a36; border-color: #6a8aa8; }
 .result .btns { flex-direction: column; align-items: stretch; max-width: 420px; margin: 0 auto; width: 100%; }
+
+/* painted backgrounds */
+#screen.bg-camp { background: linear-gradient(rgba(5, 7, 10, 0.30), rgba(5, 7, 10, 0.70)), url(../art/bg_camp.jpg) center / cover fixed; }
+#screen.bg-title { background: linear-gradient(rgba(5, 7, 10, 0.25), rgba(5, 7, 10, 0.75)), url(../art/bg_title.jpg) center / cover fixed; }
+#loading { background: linear-gradient(rgba(5, 7, 10, 0.4), rgba(5, 7, 10, 0.85)), url(../art/bg_title.jpg) center / cover; }
+:root { --panel: rgba(14, 18, 24, 0.80); }
+.up img { width: 84px; height: 84px; object-fit: cover; border-radius: 12px; margin: 0 auto 4px; border: 1px solid #fff2; box-shadow: 0 0 18px #0008; }
+.up { animation: cardIn 0.28s ease-out both; } .up:nth-child(2) { animation-delay: 0.06s; } .up:nth-child(3) { animation-delay: 0.12s; }
+@keyframes cardIn { from { transform: translateY(18px) scale(0.94); opacity: 0; } }
+.itc { animation: itemIn 0.3s ease-out both; } @keyframes itemIn { from { transform: scale(0.7); opacity: 0; } }
+#hud .hp { border-radius: 10px; border: 1px solid #ffffff22; box-shadow: 0 0 12px #0008, inset 0 0 8px #0008; } .lv { box-shadow: 0 0 14px #ffd36a55; }
+body.hurt #vig { background: radial-gradient(ellipse at 50% 50%, transparent 35%, rgba(190, 20, 20, 0.55) 100%); } body.low #vig { animation: lowhp 1s ease-in-out infinite; }
+@keyframes lowhp { 50% { background: radial-gradient(ellipse at 50% 50%, transparent 40%, rgba(150, 10, 10, 0.5) 100%); } }
