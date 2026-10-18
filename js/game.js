@@ -1,5 +1,5 @@
 // A single Hauntfall run: movement, auto-weapons, swarm, loot, level-ups, boss. Drawn on a canvas, HUD lives in the DOM (ui.js).
-import { rnd, rint, pick, clamp, ENEMIES, WEAPONS, UPGRADES, RARITIES, heroStats, makeItem } from './data.js';
+import { rnd, rint, pick, clamp, ENEMIES, WEAPONS, UPGRADES, RARITIES, heroStats, makeItem, baseBonus } from './data.js';
 import { spr, sprite, flashOf, flipped, glow, SHADOW, GEM, GOLD, KNIFE, AXE, HOLE, CONE, SPLAT, LEAF, FOG, FLARE, PUDDLE, TUFT, PATCH, frames, FRAME_PAD, TEX } from './art.js';
 const WEAPON_LEN = { knife: 14, machete: 26, axe: 22, bat: 28, crowbar: 26, pistol: 16, revolver: 18, smg: 24, shotgun: 32, rifle: 38 };
 const PROP_H = { prop_tree: 230, prop_car: 130, prop_lamp: 150, prop_tomb3: 100, prop_fence: 70, prop_bush: 60, prop_pumpkin: 40, prop_tomb1: 74, prop_tomb2: 74 };
@@ -24,7 +24,7 @@ export class Run {
   constructor(S, canvas, ui, opts = {}) {
     this.S = S; this.cv = canvas; this.x = canvas.getContext('2d'); this.ui = ui; this.afk = !!opts.afk; this.sound = S.opts.sound !== false;
     this.hs = heroStats(S); this.district = S.district;
-    this.t = 0; this.over = false; this.paused = false; this.shake = 0; this.kills = 0; this.gold = 0; this.xp = 0; this.level = 1; this.xpNeed = this.needFor(1);
+    this.scrap = 0; this.xpMul = 1 + baseBonus(S).xp; this.t = 0; this.over = false; this.paused = false; this.shake = 0; this.kills = 0; this.gold = 0; this.xp = 0; this.level = 1; this.xpNeed = this.needFor(1);
     this.hero = { x: 0, y: 0, hp: this.hs.hp, face: 1, inv: 0, flash: 0, vx: 0, vy: 0, aim: 0, bob: 0 };
     this.maxHp = this.hs.hp; this.dmgMul = 1; this.rateMul = 1; this.extraN = 0; this.extraPierce = 0; this.speedMul = 1; this.magnetMul = 1; this.regen = this.hs.regen; this.crit = this.hs.crit; this.luckMul = 1;
     this.salt = 0; this.beam = 0; this.fire = 0; this.picked = {};
@@ -163,7 +163,7 @@ export class Run {
     this.text(h.x, h.y - 40, '-' + Math.round(taken), '#ff6a6a', 1); if (this.ui.hurt) this.ui.hurt();
   }
   kill(e) {
-    this.kills++; const d = e.def, luck = this.luck();
+    this.kills++; const d = e.def, luck = this.luck(); this.scrap += d.boss ? 25 : d.elite ? 5 : (Math.random() < 0.06 ? 1 : 0);
     this.puff(e.x, e.y, d.fx === 'ghost' ? '#cfe4ff' : '#8a5a5a', d.boss ? 40 : d.elite ? 18 : 6); sfx('kill', this.sound);
     if (this.q < 2) { const gh = d.fx === 'ghost'; if (gh) this.fx.push({ k: 'gf', x: e.x, y: e.y - 16, s: sprite(d.sprite, e.v, d.size), face: e.face, t: 0, life: 0.7 }); else if (this.decals.length < 70) this.decals.push({ x: e.x, y: e.y, t: 0, life: 9, s: pick(SPLAT.r), sc: d.boss ? 3 : d.elite ? 1.8 : 1 }); if (gh && this.decals.length < 70) this.decals.push({ x: e.x, y: e.y, t: 0, life: 6, s: pick(SPLAT.g), sc: 1 }); }
     const xp = d.xp; this.gems.push({ x: e.x + rnd(-6, 6), y: e.y + rnd(-6, 6), v: xp, t: 0 });
@@ -257,7 +257,7 @@ export class Run {
     if (l.kind === 'gold') { this.gold += l.v; sfx('coin', this.sound && Math.random() < 0.5); }
     else { this.lootItems.push(l.item); sfx('loot', this.sound); this.ui.lootToast(l.item); }
   }
-  addXp(v) { this.xp += v; while (this.xp >= this.xpNeed) { this.xp -= this.xpNeed; this.level++; this.xpNeed = this.needFor(this.level); this.levelUp(); } }
+  addXp(v) { this.xp += v * this.xpMul; while (this.xp >= this.xpNeed) { this.xp -= this.xpNeed; this.level++; this.xpNeed = this.needFor(this.level); this.levelUp(); } }
   levelUp() {
     sfx('level', this.sound); this.punch = 0.6;
     const pool = UPGRADES.filter((u) => (this.picked[u.id] || 0) < u.max), shuffled = pool.sort(() => Math.random() - 0.5);

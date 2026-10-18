@@ -62,14 +62,14 @@ export function makeItem(S, ilvl, rar, slot, kind) {
 }
 export const itemMult = (it) => RARITIES[it.rar].mult * (1 + 0.1 * it.up);
 export const itemStat = (it, k) => (it.stats[k] || 0) * (k === 'dmg' && it.slot === 'weapon' ? 1 : 1) * itemMult(it);
-export const upCost = (it) => Math.round((20 + it.ilvl * 8) * (1 + it.up * 0.9) * (1 + it.rar * 0.6));
+export const upCost = (it, S) => Math.round((20 + it.ilvl * 8) * (1 + it.up * 0.9) * (1 + it.rar * 0.6) * (1 - (S ? baseBonus(S).disc : 0)));
 export const salvageValue = (it) => Math.round((6 + it.ilvl * 4) * (1 + it.rar * 1.3) * (1 + 0.5 * it.up));
 export function itemScore(it) { if (!it) return 0; let s = 0; for (const k in it.stats) { const v = itemStat(it, k); s += k === 'dmg' && it.slot === 'weapon' ? v * 40 * (WEAPONS[it.kind].dmg / WEAPONS[it.kind].rate) : k === 'hp' ? v * 0.5 : k === 'armor' ? v * 2 : PCT.has(k) ? v * 100 : v * 10; } return s; }
 
 // ---------- hero stats from gear ----------
 export function heroStats(S) {
   const t = { dmg: 0, power: 0, rate: 0, hp: 0, armor: 0, speed: 0, crit: 0.05, critdmg: 0, pierce: 0, magnet: 0, luck: 0, regen: 0 };
-  let weapon = null;
+  let weapon = null; const B = baseBonus(S); t.dmg += B.dmg; t.hp += B.hp; t.regen += B.regen; t.luck += B.luck; t.magnet += B.magnet; t.crit += B.crit;
   for (const slot of SLOTS) { const it = S.gear[slot]; if (!it) continue; if (slot === 'weapon') weapon = it; for (const k in it.stats) if (!(slot === 'weapon' && k === 'dmg')) t[k] += itemStat(it, k); }
   const base = weapon ? weapon : { kind: 'knife', ilvl: 1, rar: 0, up: 0, stats: { dmg: 1 } };
   const W = WEAPONS[base.kind], wdmg = 11 * W.dmg * (1 + 0.12 * (base.ilvl - 1)) * itemMult(base);
@@ -104,12 +104,41 @@ export const UPGRADES = [
   { id: 'fire', name: 'Molotov', desc: 'Throws fire into the swarm', max: 5, weapon: true, apply: (R) => { R.fire += 1; } },
 ];
 
+// ---------- the haunted church (base) ----------
+// producers (gen, workshop) fill a bank over time; the others give permanent bonuses. Upgrades take real time, one at a time.
+export const ROOMS = {
+  gen: { name: 'Old Generator', icon: 'GEN', desc: 'Keeps the church powered and earns gold while you are away.', prod: 'gold', rate: 45, pow: 1.3 },
+  workshop: { name: 'Workshop', icon: 'WRK', desc: 'Makes scrap for building, and gear upgrades cost less.', prod: 'scrap', rate: 6, pow: 1.2, bonus: (l) => `Gear upgrades -${Math.min(50, l * 3)}%` },
+  armory: { name: 'Armory', icon: 'ARM', desc: 'Better weapons for every run.', bonus: (l) => `+${l * 4}% damage` },
+  infirmary: { name: 'Infirmary', icon: 'MED', desc: 'Patches you up before you go out.', bonus: (l) => `+${l * 14} health, +${(l * 0.2).toFixed(1)} regen/s` },
+  tower: { name: 'Bell Tower', icon: 'TWR', desc: 'A watchman spots loot from far away.', bonus: (l) => `+${l * 4}% loot luck, +${l * 5}% pickup range` },
+  store: { name: 'Storeroom', icon: 'STO', desc: 'Production banks hold more while you are away.', bonus: (l) => `Banks hold ${4 + l * 2} hours` },
+  chapel: { name: 'Prayer Hall', icon: 'PRY', desc: 'Faith makes you steadier in the dark.', bonus: (l) => `+${(l * 1.5).toFixed(1)}% crit, +${l * 6}% XP` },
+};
+export const ROOM_ORDER = ['gen', 'workshop', 'armory', 'infirmary', 'tower', 'store', 'chapel'];
+export const ROOM_MAX = 20;
+export const roomLvl = (S, id) => (S.base && S.base.rooms[id] ? S.base.rooms[id].lvl : 0);
+export function baseBonus(S) {
+  const g = (id) => roomLvl(S, id);
+  return { dmg: g('armory') * 0.04, hp: g('infirmary') * 14, regen: g('infirmary') * 0.2, luck: g('tower') * 0.04, magnet: g('tower') * 0.05, crit: g('chapel') * 0.015, xp: g('chapel') * 0.06, disc: Math.min(0.5, g('workshop') * 0.03), capHours: 4 + g('store') * 2 };
+}
+export const upgradeCost = (lvl) => ({ gold: Math.round(50 * Math.pow(1.75, lvl)), scrap: Math.round(4 * Math.pow(1.6, lvl)) });
+export const upgradeSecs = (lvl) => Math.round(20 * Math.pow(1.7, lvl)); // level 0 -> 1: 20 s, 5 -> 6: about 6 min, 10 -> 11: about 1.6 h
+export const roomRate = (S, id) => { const R = ROOMS[id], l = roomLvl(S, id); return R.prod && l ? R.rate * Math.pow(l, R.pow) : 0; };
+export function roomBank(S, id) { const r = S.base.rooms[id]; if (!r || !r.lvl || !ROOMS[id].prod) return 0; const hrs = Math.min(baseBonus(S).capHours, (Date.now() - r.t) / 3600000); return Math.floor(hrs * roomRate(S, id)); }
+export function collectRoom(S, id) { const n = roomBank(S, id); if (n <= 0) return 0; S[ROOMS[id].prod === 'gold' ? 'gold' : 'scrap'] += n; S.base.rooms[id].t = Date.now(); return n; }
+export function tickBase(S) { const b = S.base.build; if (b && Date.now() >= b.end) { const r = S.base.rooms[b.id]; if (r.lvl === 0 && ROOMS[b.id].prod) r.t = Date.now(); r.lvl++; S.base.build = null; return b.id; } return null; }
+export function startUpgrade(S, id) {
+  const r = S.base.rooms[id]; if (S.base.build || r.lvl >= ROOM_MAX) return 'busy'; const c = upgradeCost(r.lvl);
+  if (S.gold < c.gold || (S.scrap || 0) < c.scrap) return 'poor'; S.gold -= c.gold; S.scrap -= c.scrap; S.base.build = { id, end: Date.now() + upgradeSecs(r.lvl) * 1000 }; return 'ok';
+}
+function fixBase(S) { if (!S.base) { S.base = { rooms: {}, build: null }; S.scrap = (typeof S.scrap === 'number' ? S.scrap : 0) + 30; } if (typeof S.scrap !== 'number') S.scrap = 0; for (const id of ROOM_ORDER) if (!S.base.rooms[id]) S.base.rooms[id] = { lvl: id === 'gen' || id === 'workshop' ? 1 : 0, t: Date.now() }; return S; }
 // ---------- save ----------
 const KEY = 'hauntfall_v1';
 export function newSave() {
-  const S = { v: 1, nextId: 1, gold: 0, bag: [], gear: {}, best: 0, runs: 0, wins: 0, district: 1, maxDistrict: 1, lastSeen: Date.now(), hero: 'f', opts: { afk: false, sound: true } };
+  const S = { v: 1, nextId: 1, scrap: 0, base: null, gold: 0, bag: [], gear: {}, best: 0, runs: 0, wins: 0, district: 1, maxDistrict: 1, lastSeen: Date.now(), hero: 'f', opts: { afk: false, sound: true } };
   S.gear.weapon = makeItem(S, 1, 0, 'weapon', 'knife'); S.gear.weapon.name = 'Rusty Kitchen Knife';
-  return S;
+  return fixBase(S);
 }
 // older items may carry bonuses their slot should not have: swap them for allowed ones of similar strength
 function fixItem(it) {
@@ -119,7 +148,7 @@ function fixItem(it) {
     delete it.stats[k]; const opts = ok.filter((n) => !(n in it.stats) && n !== primary); if (opts.length) { const n = pick(opts); it.stats[n] = rollAffix(it.slot, n, it.ilvl); }
   }
 }
-export function loadSave() { try { const s = JSON.parse(localStorage.getItem(KEY)); if (s && s.v === 1) { (s.bag || []).forEach(fixItem); Object.values(s.gear || {}).forEach(fixItem); return s; } } catch (e) { } return null; }
+export function loadSave() { try { const s = JSON.parse(localStorage.getItem(KEY)); if (s && s.v === 1) { (s.bag || []).forEach(fixItem); Object.values(s.gear || {}).forEach(fixItem); return fixBase(s); } } catch (e) { } return null; }
 export function writeSave(S) { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { } }
 export const IDLE_CAP_MIN = 480;
 export function idlePreview(S) { const mins = Math.min(IDLE_CAP_MIN, (Date.now() - S.lastSeen) / 60000); const rate = 4 + 3 * S.maxDistrict + S.best * 0.4; return { mins, gold: Math.floor(mins * rate), gear: Math.min(6, Math.floor(mins / 45)) }; }

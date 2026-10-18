@@ -48,7 +48,7 @@ button.big { width: 100%; padding: 16px; font: 800 18px Cinzel, serif; letter-sp
 .bagtop { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; } .bagtop .btns button { padding: 7px 10px; font-size: 12px; }
 .msg { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); background: #000d; border: 1px solid #fff3; padding: 10px 18px; border-radius: 20px; z-index: 40; font-weight: 700; }
 .result, .pick { max-width: 760px; margin: 0 auto; display: grid; gap: 14px; text-align: center; padding-top: 4vh; } .result h1 { font-size: clamp(26px, 6vw, 44px); } .result.win h1 { color: var(--gold); } .result.lose h1 { color: var(--red); } .sub { color: var(--dim); margin: 0; }
-.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; } .stats div { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 4px; } .stats small { display: block; color: var(--dim); font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; } .stats b { font: 800 20px Cinzel; }
+.stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; } .stats div { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 4px; } .stats small { display: block; color: var(--dim); font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; } .stats b { font: 800 20px Cinzel; }
 .result .btns, .pick .btns { justify-content: center; }
 .pick h1 { font-size: 40px; color: #ff8a6a; } .two { display: flex; gap: 14px; justify-content: center; } .two button { width: 40vw; max-width: 220px; padding: 10px; display: grid; gap: 6px; } .two img { width: 100%; height: 36vh; object-fit: contain; filter: drop-shadow(0 6px 12px #000); }
 #loading { position: fixed; inset: 0; background: var(--bg); display: grid; place-content: center; text-align: center; gap: 8px; z-index: 100; } #loading h1 { font-size: 42px; color: #ff8a6a; } #loading.off { display: none; }
@@ -73,3 +73,17 @@ body.hurt #vig { background: radial-gradient(ellipse at 50% 50%, transparent 35%
 #btnLeave { font-size: 11px; padding: 8px 10px; letter-spacing: 0.06em; }
 .box button small { font-weight: 500; opacity: 0.7; }
 .result.lose h1 { }
+
+/* church base */
+.scrap { color: #9fd0ff; } .body.church { grid-template-columns: 1fr; max-width: 760px; }
+.banner { position: relative; border-radius: 16px; overflow: hidden; border: 1px solid var(--line); background-size: cover; background-position: center 30%; display: grid; grid-template-columns: 110px 1fr; gap: 12px; padding: 14px; align-items: end; min-height: 230px; }
+.banner .bleft img { width: 110px; max-height: 190px; object-fit: contain; filter: drop-shadow(0 6px 12px #000); } .banner h2 { font-size: 22px; margin-bottom: 4px; text-shadow: 0 2px 8px #000; } .banner p { margin: 0 0 8px; color: #d8d4cc; text-shadow: 0 1px 4px #000; font-size: 13px; }
+.banner button.big small { display: block; font: 600 11px Inter; letter-spacing: 0; opacity: 0.8; }
+.rooms { display: grid; gap: 10px; }
+.room { border-radius: 14px; border: 1px solid var(--line); background-size: cover; background-position: center; padding: 12px 14px; display: grid; grid-template-columns: 1fr auto; gap: 8px 14px; align-items: center; min-height: 112px; }
+.room.locked { filter: saturate(0.5); } .room h3 { font-size: 17px; text-shadow: 0 2px 6px #000; } .room h3 em { font: 700 12px Inter; color: var(--gold); letter-spacing: 0; margin-left: 6px; }
+.room p { margin: 3px 0 0; font-size: 12.5px; color: #cfcac0; text-shadow: 0 1px 3px #000; } .room p.bonus { color: #9ee6a0; font-weight: 700; }
+.rbot { display: grid; gap: 6px; justify-items: end; min-width: 170px; } .bank { display: grid; gap: 4px; justify-items: end; text-align: right; font-size: 12px; } .bank b { font: 800 16px Cinzel; color: var(--gold); }
+.upg { text-align: center; padding: 8px 12px; } .upg small { display: block; font: 600 10.5px Inter; opacity: 0.85; margin-top: 2px; }
+.build { font-size: 12px; text-align: right; } .build .bar { height: 7px; background: #000a; border-radius: 4px; margin-top: 4px; overflow: hidden; width: 170px; } .build .bar i { display: block; height: 100%; background: linear-gradient(#ffd36a, #c88a20); }
+@media (max-width: 560px) { .room { grid-template-columns: 1fr; } .rbot { justify-items: stretch; } .banner { grid-template-columns: 70px 1fr; } .banner .bleft img { width: 70px; } .bank { justify-items: start; text-align: left; } .build .bar { width: 100%; } }

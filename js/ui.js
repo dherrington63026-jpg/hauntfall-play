@@ -1,5 +1,5 @@
 // Hauntfall screens and HUD (plain DOM over the canvas).
-import { RARITIES, SLOTS, SLOT_NAME, STAT_LABEL, PCT, WEAPONS, heroStats, itemStat, itemScore, upCost, salvageValue, idlePreview, autoEquip, writeSave, IDLE_CAP_MIN } from './data.js';
+import { RARITIES, SLOTS, SLOT_NAME, STAT_LABEL, PCT, WEAPONS, ROOMS, ROOM_ORDER, ROOM_MAX, heroStats, itemStat, itemScore, upCost, salvageValue, autoEquip, writeSave, roomLvl, roomRate, roomBank, collectRoom, tickBase, startUpgrade, upgradeCost, upgradeSecs, baseBonus, makeItem } from './data.js';
 import { iconUrl } from './art.js';
 
 const $ = (s) => document.querySelector(s);
@@ -50,23 +50,39 @@ UI.showHud = () => { $('#hud').classList.add('on'); syncAfk(); };
 const screen = (html, bg = 'camp') => { const s = $('#screen'); s.innerHTML = html; s.className = 'on bg-' + bg; s.scrollTop = 0; };
 let tab = 'camp', sel = null, msg = '';
 
-UI.camp = () => { tab = 'camp'; sel = null; S.lastSeen = S.lastSeen || Date.now(); renderCamp(); };
+UI.camp = () => { tab = 'camp'; sel = null; const d = tickBase(S); if (d) { save(); msg = `${ROOMS[d].name} is now level ${S.base.rooms[d].lvl}!`; } renderCamp(); };
 function top() {
   const hs = heroStats(S);
-  return `<div class="top"><h1>HAUNTFALL</h1><div class="tabs"><button data-act="tab" data-t="camp" class="${tab === 'camp' ? 'on' : ''}">Camp</button><button data-act="tab" data-t="gear" class="${tab === 'gear' ? 'on' : ''}">Gear</button></div><div class="stat"><span class="gold">${S.gold.toLocaleString()} gold</span><span>Power ${hs.power}</span></div></div>`;
+  return `<div class="top"><h1>HAUNTFALL</h1><div class="tabs"><button data-act="tab" data-t="camp" class="${tab === 'camp' ? 'on' : ''}">Church</button><button data-act="tab" data-t="gear" class="${tab === 'gear' ? 'on' : ''}">Gear</button></div><div class="stat"><span class="gold">${S.gold.toLocaleString()} gold</span><span class="scrap">${Math.floor(S.scrap || 0).toLocaleString()} scrap</span><span>Power ${hs.power}</span></div></div>`;
+}
+const fmtDur = (sec) => { sec = Math.max(0, Math.ceil(sec)); const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), x = sec % 60; return h ? `${h}h ${String(m).padStart(2, '0')}m` : m ? `${m}m ${String(x).padStart(2, '0')}s` : `${x}s`; };
+function roomHtml(id) {
+  const R = ROOMS[id], r = S.base.rooms[id], l = r.lvl, building = S.base.build && S.base.build.id === id, busy = !!S.base.build, c = upgradeCost(l), can = S.gold >= c.gold && (S.scrap || 0) >= c.scrap;
+  const bank = R.prod ? roomBank(S, id) : 0, rate = roomRate(S, id);
+  const bonus = R.bonus ? (l ? R.bonus(l) : 'Not built yet') : '';
+  const prod = R.prod ? `<div class="bank"><span>${l ? `${Math.round(rate)} ${R.prod}/hour` : 'Not built yet'}</span><b data-bank="${id}">${bank} ${R.prod}</b><button data-act="collect" data-id="${id}" ${bank > 0 ? '' : 'disabled'}>Collect</button></div>` : '';
+  const up = building ? `<div class="build"><span>Building... <b data-build="${id}">${fmtDur((S.base.build.end - Date.now()) / 1000)}</b></span><div class="bar"><i data-buildbar="${id}" style="width:${Math.min(100, (1 - (S.base.build.end - Date.now()) / 1000 / upgradeSecs(l)) * 100)}%"></i></div></div>`
+    : l >= ROOM_MAX ? '<div class="build"><span>Max level</span></div>'
+    : `<button class="upg ${can && !busy ? 'go' : ''}" data-act="room" data-id="${id}" ${can && !busy ? '' : 'disabled'}>${l ? 'Upgrade' : 'Build'}<small>${c.gold.toLocaleString()} gold · ${c.scrap} scrap · ${fmtDur(upgradeSecs(l))}</small></button>`;
+  return `<div class="room ${l ? '' : 'locked'}" style="background-image:linear-gradient(90deg, rgba(5,7,10,.92) 5%, rgba(5,7,10,.45) 70%, rgba(5,7,10,.7)), url(art/room_${id}.jpg)"><div class="rtop"><h3>${R.name} <em>${l ? 'Lv ' + l : 'Unbuilt'}</em></h3><p>${R.desc}</p>${bonus ? `<p class="bonus">${bonus}</p>` : ''}</div><div class="rbot">${prod}${up}</div></div>`;
 }
 function renderCamp() {
-  const idle = idlePreview(S), hs = heroStats(S), full = idle.mins >= IDLE_CAP_MIN;
-  screen(`${top()}<div class="body camp">
-    <div class="panel hero"><img src="art/hero_${S.hero}_1.png" onerror="this.style.display='none'" alt=""><div><h2>The Survivor</h2><p>${WEAPONS[hs.weaponKind].name} · ${hs.hp} health · ${Math.round(hs.speed)} speed</p><p class="dim">Best run: ${S.best} kills · ${S.wins} boss kills</p></div></div>
-    <div class="panel"><h2>Graveyard Gate <small>district ${S.district}</small></h2><p>Survive 5 minutes. The Gravekeeper comes for you after that.</p>
-      <label class="chk"><input type="checkbox" id="afkChk" ${S.opts.afk ? 'checked' : ''}> AFK combat: explore, fight and loot by itself, and start the next run automatically</label>
-      <button class="big" data-act="run">Enter the graveyard</button>
-      ${S.maxDistrict > 1 ? `<div class="row">${Array.from({ length: S.maxDistrict }, (_, i) => `<button data-act="district" data-d="${i + 1}" class="${S.district === i + 1 ? 'on' : ''}">District ${i + 1}</button>`).join('')}</div>` : ''}</div>
-    <div class="panel"><h2>While you were away</h2><p>${fmtTime(idle.mins)} away${full ? ' (full)' : ''}. Your survivors scavenged <b>${idle.gold.toLocaleString()} gold</b>${idle.gear ? ` and <b>${idle.gear} piece${idle.gear > 1 ? 's' : ''} of gear</b>` : ''}.</p><button data-act="claim" ${idle.gold + idle.gear > 0 ? '' : 'disabled'}>Collect</button></div>
-    </div>${msg ? `<div class="msg">${msg}</div>` : ''}`);
+  const hs = heroStats(S);
+  screen(`${top()}<div class="body church">
+    <div class="banner" style="background-image:linear-gradient(rgba(5,7,10,.15), rgba(5,7,10,.9)), url(art/bg_church.jpg)"><div class="bleft"><img src="art/hero_${S.hero}_1.png" onerror="this.style.display='none'" alt=""></div>
+      <div class="bright"><h2>Hauntfall Church</h2><p>${WEAPONS[hs.weaponKind].name} · ${hs.hp} health · power ${hs.power} · best ${S.best} kills · ${S.wins} boss kills</p>
+      <label class="chk"><input type="checkbox" id="afkChk" ${S.opts.afk ? 'checked' : ''}> AFK combat: explore, fight and loot by itself, then start the next run</label>
+      <button class="big" data-act="run">Enter the graveyard <small>district ${S.district}</small></button>
+      ${S.maxDistrict > 1 ? `<div class="row">${Array.from({ length: S.maxDistrict }, (_, i) => `<button data-act="district" data-d="${i + 1}" class="${S.district === i + 1 ? 'on' : ''}">District ${i + 1}</button>`).join('')}</div>` : ''}</div></div>
+    <div class="rooms">${ROOM_ORDER.map(roomHtml).join('')}</div></div>${msg ? `<div class="msg">${msg}</div>` : ''}`);
   const c = $('#afkChk'); if (c) c.onchange = () => { S.opts.afk = c.checked; save(); };
-  flashMsg();
+  flashMsg(); clearInterval(UI.baseT); UI.baseT = setInterval(refreshBase, 1000);
+}
+function refreshBase() {
+  if (tab !== 'camp' || !$('#screen').classList.contains('on') || !$('.rooms')) { clearInterval(UI.baseT); return; }
+  const done = tickBase(S); if (done) { save(); msg = `${ROOMS[done].name} is now level ${S.base.rooms[done].lvl}!`; renderCamp(); return; }
+  for (const id of ROOM_ORDER) { const b = $(`[data-bank="${id}"]`); if (b) { const n = roomBank(S, id); b.textContent = `${n} ${ROOMS[id].prod}`; const btn = b.parentElement.querySelector('button'); if (btn) btn.disabled = n <= 0; } }
+  const bd = S.base.build; if (bd) { const t = $(`[data-build="${bd.id}"]`), bar = $(`[data-buildbar="${bd.id}"]`), left = (bd.end - Date.now()) / 1000; if (t) t.textContent = fmtDur(left); if (bar) bar.style.width = Math.min(100, (1 - left / upgradeSecs(S.base.rooms[bd.id].lvl)) * 100) + '%'; }
 }
 function renderGear() {
   const hs = heroStats(S), bag = S.bag.slice().sort((a, b) => b.rar - a.rar || itemScore(b) - itemScore(a));
@@ -83,7 +99,7 @@ function detailHtml(it) {
   return `<div class="dhead" style="--r:${R.color}">${icon(it)}<div><h3>${it.name}</h3><small>${R.name} ${SLOT_NAME[it.slot]} · level ${it.ilvl}${it.up ? ' · +' + it.up : ''}</small></div></div>${rows}
     ${!isEq && cur ? `<p class="cmp ${diff >= 0 ? 'up' : 'down'}">${diff >= 0 ? 'Better' : 'Worse'} than equipped</p>` : ''}
     <div class="btns">${isEq ? `<button data-act="unequip" data-id="${it.id}">Unequip</button>` : `<button class="go" data-act="equip" data-id="${it.id}">Equip</button>`}
-    <button data-act="upgrade" data-id="${it.id}" ${S.gold >= upCost(it) && it.up < 10 ? '' : 'disabled'}>Upgrade ${it.up < 10 ? upCost(it) + 'g' : '(max)'}</button>${isEq ? '' : `<button data-act="sell" data-id="${it.id}">Sell ${salvageValue(it)}g</button>`}</div>`;
+    <button data-act="upgrade" data-id="${it.id}" ${S.gold >= upCost(it, S) && it.up < 10 ? '' : 'disabled'}>Upgrade ${it.up < 10 ? upCost(it, S) + 'g' : '(max)'}</button>${isEq ? '' : `<button data-act="sell" data-id="${it.id}">Sell ${salvageValue(it)}g</button>`}</div>`;
 }
 function flashMsg() { if (!msg) return; const m = msg; setTimeout(() => { if (msg === m) { msg = ''; const el = $('.msg'); if (el) el.remove(); } }, 2600); }
 const find = (id) => S.bag.find((x) => x.id === +id) || SLOTS.map((s) => S.gear[s]).find((x) => x && x.id === +id);
@@ -92,13 +108,15 @@ function handle(act, d) {
   if (act === 'tab') { tab = d.t; sel = null; tab === 'camp' ? renderCamp() : renderGear(); return; }
   if (act === 'run') { cb.start(); return; }
   if (act === 'district') { S.district = +d.d; save(); renderCamp(); return; }
+  if (act === 'collect') { const n = collectRoom(S, d.id); if (n) { msg = `Collected ${n} ${ROOMS[d.id].prod}.`; save(); renderCamp(); } return; }
+  if (act === 'room') { const r = startUpgrade(S, d.id); if (r === 'ok') { save(); msg = `${ROOMS[d.id].name} upgrade started.`; } else msg = r === 'busy' ? 'Your builders are busy.' : 'Not enough gold or scrap.'; renderCamp(); return; }
   if (act === 'claim') { const i = idlePreview(S); S.gold += i.gold; for (let k = 0; k < i.gear; k++) S.bag.push(cb.makeDrop()); S.lastSeen = Date.now(); msg = `Collected ${i.gold} gold${i.gear ? ' and ' + i.gear + ' gear' : ''}.`; save(); renderCamp(); return; }
   if (act === 'again') { cb.start(); return; }
   if (act === 'camp') { UI.stopAfkTimer(); UI.camp(); return; }
   if (act === 'pick') { sel = find(d.id) || null; renderGear(); return; }
   if (act === 'equip') { const it = find(d.id); if (!it) return; const old = S.gear[it.slot]; S.bag.splice(S.bag.indexOf(it), 1); if (old) S.bag.push(old); S.gear[it.slot] = it; sel = it; save(); renderGear(); return; }
   if (act === 'unequip') { const it = find(d.id); if (!it) return; S.gear[it.slot] = null; S.bag.push(it); sel = it; save(); renderGear(); return; }
-  if (act === 'upgrade') { const it = find(d.id); if (!it || S.gold < upCost(it) || it.up >= 10) return; S.gold -= upCost(it); it.up++; msg = `${it.name} is now +${it.up}.`; save(); renderGear(); return; }
+  if (act === 'upgrade') { const it = find(d.id); if (!it || S.gold < upCost(it, S) || it.up >= 10) return; S.gold -= upCost(it, S); it.up++; msg = `${it.name} is now +${it.up}.`; save(); renderGear(); return; }
   if (act === 'sell') { const it = find(d.id); if (!it) return; S.gold += salvageValue(it); S.bag.splice(S.bag.indexOf(it), 1); sel = null; save(); renderGear(); return; }
   if (act === 'sellr') { const r = +d.r; let g = 0, n = 0; S.bag = S.bag.filter((it) => { if (it.rar !== r) return true; const cur = S.gear[it.slot]; if (!cur || itemScore(it) > itemScore(cur)) return true; g += salvageValue(it); n++; return false; }); S.gold += g; msg = n ? `Sold ${n} for ${g} gold (kept upgrades).` : 'Nothing to sell.'; sel = null; save(); renderGear(); return; }
   if (act === 'auto') { const n = autoEquip(S); msg = n ? `Equipped ${n} better item${n > 1 ? 's' : ''}.` : 'You already wear the best.'; save(); renderGear(); return; }
@@ -109,13 +127,13 @@ UI.gearTab = () => { tab = 'gear'; renderGear(); };
 // ---------- results ----------
 UI.done = (r) => {
   const won = r.won, items = r.lootItems.slice().sort((a, b) => b.rar - a.rar), earned = r.gold + (won ? 120 * S.district : Math.floor(r.t / 10));
-  S.gold += earned; S.runs++; S.best = Math.max(S.best, r.kills); if (won) { S.wins++; if (S.district === S.maxDistrict && S.maxDistrict < 6) { S.maxDistrict++; } }
+  S.gold += earned; S.scrap = (S.scrap || 0) + r.scrap; S.runs++; S.best = Math.max(S.best, r.kills); if (won) { S.wins++; if (S.district === S.maxDistrict && S.maxDistrict < 6) { S.maxDistrict++; } }
   for (const it of items) if (S.bag.length < 120) S.bag.push(it); else S.gold += salvageValue(it);
   if (S.opts.afk) autoEquip(S);
   S.lastSeen = Date.now(); save();
   if (r.retreated) S.opts.afk = false; save(); const afk = !!S.opts.afk; r.destroy();
   screen(`<div class="result ${won ? 'win' : 'lose'}"><h1>${won ? 'THE GRAVEKEEPER FALLS' : r.retreated ? 'YOU GOT OUT' : 'YOU DIED'}</h1><p class="sub">${won ? 'The graveyard is quiet. For now.' : r.retreated ? 'You slipped away with what you found.' : 'The dead take another one...'}</p>
-    <div class="stats"><div><small>Time</small><b>${Math.floor(r.t / 60)}:${String(Math.floor(r.t % 60)).padStart(2, '0')}</b></div><div><small>Kills</small><b>${r.kills}</b></div><div><small>Gold</small><b>${earned}</b></div><div><small>Gear</small><b>${items.length}</b></div></div>
+    <div class="stats"><div><small>Time</small><b>${Math.floor(r.t / 60)}:${String(Math.floor(r.t % 60)).padStart(2, '0')}</b></div><div><small>Kills</small><b>${r.kills}</b></div><div><small>Gold</small><b>${earned}</b></div><div><small>Scrap</small><b>${r.scrap}</b></div><div><small>Gear</small><b>${items.length}</b></div></div>
     <div class="bag small">${items.map((it) => cardHtml(it)).join('') || '<p class="dim">No gear this time.</p>'}</div>
     <div class="btns"><button class="go big" data-act="again">Run again</button><button class="big2" data-act="camp">Camp &amp; gear</button></div>${afk ? '<p class="dim" id="afkCount">AFK is on: the next run starts in 6 seconds. Tap <b>Camp &amp; gear</b> to stop it and look at your loot.</p>' : ''}</div>`);
   $('#hud').classList.remove('on');
