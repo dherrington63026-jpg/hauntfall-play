@@ -69,3 +69,7 @@ button.big2 { padding: 16px 22px; font: 800 16px Cinzel, serif; letter-spacing: 
 #hud .hp { border-radius: 10px; border: 1px solid #ffffff22; box-shadow: 0 0 12px #0008, inset 0 0 8px #0008; } .lv { box-shadow: 0 0 14px #ffd36a55; }
 body.hurt #vig { background: radial-gradient(ellipse at 50% 50%, transparent 35%, rgba(190, 20, 20, 0.55) 100%); } body.low #vig { animation: lowhp 1s ease-in-out infinite; }
 @keyframes lowhp { 50% { background: radial-gradient(ellipse at 50% 50%, transparent 40%, rgba(150, 10, 10, 0.5) 100%); } }
+
+#btnLeave { font-size: 11px; padding: 8px 10px; letter-spacing: 0.06em; }
+.box button small { font-weight: 500; opacity: 0.7; }
+.result.lose h1 { }

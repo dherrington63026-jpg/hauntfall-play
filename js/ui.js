@@ -14,7 +14,7 @@ const cardHtml = (it, extra = '') => `<button class="itc r${it.rar}" data-item="
 
 function bindStatic() {
   $('#btnAfk').onclick = () => UI.toggleAfk();
-  $('#btnPause').onclick = () => cb.pause();
+  $('#btnPause').onclick = () => cb.pause(); $('#btnLeave').onclick = () => cb.pause();
   document.addEventListener('click', (e) => { const b = e.target.closest('[data-act]'); if (!b) return; handle(b.dataset.act, b.dataset); });
 }
 UI.hurt = () => { document.body.classList.add('hurt'); clearTimeout(UI.hurtT); UI.hurtT = setTimeout(() => document.body.classList.remove('hurt'), 160); };
@@ -113,8 +113,8 @@ UI.done = (r) => {
   for (const it of items) if (S.bag.length < 120) S.bag.push(it); else S.gold += salvageValue(it);
   if (S.opts.afk) autoEquip(S);
   S.lastSeen = Date.now(); save();
-  const afk = !!S.opts.afk; r.destroy();
-  screen(`<div class="result ${won ? 'win' : 'lose'}"><h1>${won ? 'THE GRAVEKEEPER FALLS' : 'YOU DIED'}</h1><p class="sub">${won ? 'The graveyard is quiet. For now.' : 'The dead take another one...'}</p>
+  if (r.retreated) S.opts.afk = false; save(); const afk = !!S.opts.afk; r.destroy();
+  screen(`<div class="result ${won ? 'win' : 'lose'}"><h1>${won ? 'THE GRAVEKEEPER FALLS' : r.retreated ? 'YOU GOT OUT' : 'YOU DIED'}</h1><p class="sub">${won ? 'The graveyard is quiet. For now.' : r.retreated ? 'You slipped away with what you found.' : 'The dead take another one...'}</p>
     <div class="stats"><div><small>Time</small><b>${Math.floor(r.t / 60)}:${String(Math.floor(r.t % 60)).padStart(2, '0')}</b></div><div><small>Kills</small><b>${r.kills}</b></div><div><small>Gold</small><b>${earned}</b></div><div><small>Gear</small><b>${items.length}</b></div></div>
     <div class="bag small">${items.map((it) => cardHtml(it)).join('') || '<p class="dim">No gear this time.</p>'}</div>
     <div class="btns"><button class="go big" data-act="again">Run again</button><button class="big2" data-act="camp">Camp &amp; gear</button></div>${afk ? '<p class="dim" id="afkCount">AFK is on: the next run starts in 6 seconds. Tap <b>Camp &amp; gear</b> to stop it and look at your loot.</p>' : ''}</div>`);

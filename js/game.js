@@ -267,6 +267,7 @@ export class Run {
     for (const f of this.fx) { f.t += dt; if (f.k === 'p') { f.x += f.vx * dt; f.y += f.vy * dt; f.vx *= 0.94; f.vy *= 0.94; } } this.fx = this.fx.filter((f) => f.t < f.life);
     for (const t of this.texts) { t.t += dt; t.y -= 38 * dt; } this.texts = this.texts.filter((t) => t.t < 0.8);
   }
+  retreat() { if (this.over) return; this.retreated = true; this.paused = false; this.end(false); }
   end(won) {
     if (this.over) return; this.over = true; this.won = won;
     // everything still on the floor goes in the bag

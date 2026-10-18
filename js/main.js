@@ -14,7 +14,7 @@ function start() {
 function pause() { if (!run || run.over) return; run.paused = true; $('#pause').classList.add('on'); }
 $('#pause').addEventListener('click', (e) => {
   const b = e.target.closest('[data-pa]'); if (!b) return; $('#pause').classList.remove('on');
-  if (b.dataset.pa === 'resume') { if (run) run.paused = false; } else if (run) { run.destroy(); run = null; UI.hideAll(); UI.camp(); }
+  if (b.dataset.pa === 'resume') { if (run) run.paused = false; } else if (run) { run.retreat(); }
 });
 UI.init(S, { start, pause, run: () => run, makeDrop: () => makeItem(S, 1 + S.maxDistrict * 2, Math.random() < 0.25 ? 2 : Math.random() < 0.6 ? 1 : 0) });
 let ema = 16.7, slow = 0;
