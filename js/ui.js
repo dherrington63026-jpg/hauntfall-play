@@ -1,5 +1,5 @@
 // Hauntfall screens and HUD (plain DOM over the canvas).
-import { SETS, setCounts, setBonus, maxUp, ascend, ascendCost, reforge, reforgeCost, districtName, districtOf, ENEMIES, RARITIES, SLOTS, SLOT_NAME, STAT_LABEL, PCT, WEAPONS, ROOMS, ROOM_ORDER, SKILLS, SKILL_KEYS, SKILL_BOOST, COLS, heroStats, itemStat, itemScore, upCost, salvageValue, autoEquip, writeSave, tickBase, startUpgrade, startBuild, buildOf, builderCount, BUILDERS_MAX, openSlots, newRoomCost, upgradeCost, upgradeSecs, topFloor, slotKey, parseKey, staffSlots, staffOf, survivorById, assign, recruit, beds, capacity, flows, jobOf, makeItem, tickHaunt, resolveHaunt, defense, hauntStrength, cleanse, cleanseCost } from './data.js';
+import { GEMS, GEM_KEYS, GEM_TIER, GEM_MAX, gemName, gemText, fuseCost, fuseGems, socketGem, unsocketGem, releaseGems, transmute, transmuteCost, loose, reattune, reattuneCost, dismantle, dismantleValue, SETS, setCounts, setBonus, maxUp, ascend, ascendCost, reforge, reforgeCost, districtName, districtOf, ENEMIES, RARITIES, SLOTS, SLOT_NAME, STAT_LABEL, PCT, WEAPONS, ROOMS, ROOM_ORDER, SKILLS, SKILL_KEYS, SKILL_BOOST, COLS, heroStats, itemStat, itemScore, upCost, salvageValue, autoEquip, writeSave, tickBase, startUpgrade, startBuild, buildOf, builderCount, BUILDERS_MAX, openSlots, newRoomCost, upgradeCost, upgradeSecs, topFloor, slotKey, parseKey, staffSlots, staffOf, survivorById, assign, recruit, beds, capacity, flows, jobOf, makeItem, tickHaunt, resolveHaunt, defense, hauntStrength, cleanse, cleanseCost } from './data.js';
 import { iconUrl } from './art.js';
 
 const $ = (s) => document.querySelector(s);
@@ -101,6 +101,10 @@ function skillBars(sv, only) { return SKILL_KEYS.filter((k) => (only ? only.incl
 function svRow(sv, extra = '') { return `<div class="svrow">${portrait(sv)}<div class="svi"><h4>${sv.name} <small>${jobOf(sv)}</small></h4><div class="sks">${skillBars(sv)}</div><p class="dim">${sv.room && S.base.rooms[sv.room] ? 'Working: ' + ROOMS[S.base.rooms[sv.room].type].name : 'Idle'}</p></div>${extra}</div>`; }
 function sheetHtml() {
   if (!sheet) return '';
+  if (sheet.kind === 'gempick') { const gems = S.gems.slice().sort((a, b) => b.tier - a.tier);
+    return `<div class="sheetbg" data-act="closesheet"><div class="sheet"><div class="shead"><h3>Choose a gem</h3><button data-act="closesheet">Close</button></div><div class="svlist">${gems.map((g) => `<div class="gemrow">${gemChip(g)}<div><b>${gemName(g)}</b><small>${gemText(g)}</small></div><button class="go" data-act="socketdo" data-gem="${g.id}">Socket</button></div>`).join('') || '<p class="dim">You have no gems. Elites and bosses drop them.</p>'}</div></div></div>`; }
+  if (sheet.kind === 'setpick') { const it = find(sheet.id); if (!it) return '';
+    return `<div class="sheetbg" data-act="closesheet"><div class="sheet"><div class="shead"><h3>Change set</h3><button data-act="closesheet">Close</button></div><p class="dim">Re-attune ${it.name} to another set. Cost: ${reattuneCost(it).scrap} scrap. Its other stats stay the same.</p><div class="svlist">${SETS.map((S0, i) => `<div class="gemrow"><span class="rtag" style="--r:${S0.color}">${S0.name}</span><div><small>${[2, 4, 6].map((t) => t + ': ' + S0.tiers[t].desc).join(' · ')}</small></div><button class="${it.set === i ? '' : 'go'}" data-act="setdo" data-set="${i}" ${it.set === i || (S.scrap || 0) < reattuneCost(it).scrap ? 'disabled' : ''}>${it.set === i ? 'Current' : 'Attune'}</button></div>`).join('')}</div></div></div>`; }
   if (sheet.kind === 'hauntreport') { const p = sheet.rep; return `<div class="sheetbg" data-act="closesheet"><div class="sheet"><div class="shead"><h3>${p.won ? 'THE CHURCH HELD' : 'THE CHURCH WAS OVERRUN'}</h3><button data-act="closesheet">Close</button></div><p>${p.won ? `The ghosts (strength ${p.strength}) were driven back${p.byHand ? ' by your own hand' : ''}.` : `The ghosts (strength ${p.strength}) broke through.`}</p>${p.won ? `<p class="bonus">+${p.gold} gold, +${p.scrap} scrap${p.survivor ? ', and a survivor is knocking at the door!' : ''}</p>` : `<p class="warn">${p.haunted.length ? p.haunted.join(' and ') + (p.haunted.length > 1 ? ' are' : ' is') + ' haunted (output down 60% until cleansed). ' : ''}A quarter of the water and food spoiled.</p>`}</div></div>`; }
   const wrap = (inner) => `<div class="sheetbg" data-act="closesheet"><div class="sheet">${inner}</div></div>`;
   if (sheet.kind === 'build') {
@@ -173,24 +177,42 @@ function refreshBase() {
   const top2 = $('.top .stat'); if (top2) { const g = top2.querySelector('.gold'), sc = top2.querySelector('.scrap'); if (g) g.textContent = `${Math.floor(S.gold).toLocaleString()} gold`; if (sc) sc.textContent = `${Math.floor(S.scrap || 0).toLocaleString()} scrap`; }
   for (const bd of S.base.builds) { const left = (bd.end - Date.now()) / 1000; for (const sel of [`[data-build="${bd.key}"]`, `[data-up="${bd.key}"]`, `[data-bld="${bd.key}"]`]) { const t = $(sel); if (t) t.textContent = fmtDur(left); } const bar = $(`[data-buildbar="${bd.key}"]`); if (bar) bar.style.width = Math.min(100, (1 - left / upgradeSecs(S.base.rooms[bd.key].lvl)) * 100) + '%'; }
 }
+let gtab = 'gear';
+const gsub = () => `<div class="gsub">${[['gear', 'Gear'], ['gems', `Gems <small>${S.gems.length}</small>`], ['forge', 'Forge']].map(([k, n]) => `<button data-act="gtab" data-g="${k}" class="${gtab === k ? 'on' : ''}">${n}</button>`).join('')}</div>`;
+const gemChip = (g) => `<span class="gem" style="--gc:${GEMS[g.type].color}" title="${gemName(g)}"><i></i><b>${g.tier}</b></span>`;
 function renderGear() {
+  if (gtab === 'gems') return renderGems(); if (gtab === 'forge') return renderForge();
   const hs = heroStats(S), bag = S.bag.slice().sort((a, b) => b.rar - a.rar || itemScore(b) - itemScore(a));
   const eq = SLOTS.map((sl) => S.gear[sl] ? cardHtml(S.gear[sl], `<b class="sl">${SLOT_NAME[sl]}</b>`) : `<div class="itc empty"><b class="sl">${SLOT_NAME[sl]}</b></div>`).join('');
   const detail = sel ? detailHtml(sel) : `<p class="dim">Tap an item to see it. Your stats: damage x${hs.dmgPct.toFixed(2)} · fire rate x${hs.ratePct.toFixed(2)} · ${hs.hp} health · ${hs.armor} armor · ${Math.round(hs.crit * 100)}% crit · speed ${Math.round(hs.speed)}.</p>`;
-  screen(`${top()}<div class="body gear"><div class="col"><div class="panel"><h2>Equipped</h2><div class="slots">${eq}</div>${setSummary()}</div><div class="panel detail">${detail}</div></div>
+  screen(`${top()}${gsub()}<div class="body gear"><div class="col"><div class="panel"><h2>Equipped</h2><div class="slots">${eq}</div>${setSummary()}</div><div class="panel detail">${detail}</div></div>
     <div class="col"><div class="panel"><div class="bagtop"><h2>Bag <small>${S.bag.length}</small></h2><div class="btns"><button data-act="auto">Auto equip</button><button data-act="sellr" data-r="0">Sell white</button><button data-act="sellr" data-r="1">Sell green</button><button data-act="sellr" data-r="2">Sell blue</button><button data-act="sellr" data-r="3">Sell purple</button></div></div>
-    <div class="bag">${bag.map((it) => cardHtml(it)).join('') || '<p class="dim">Nothing yet. Loot drops during runs.</p>'}</div></div></div></div>${msg ? `<div class="msg">${msg}</div>` : ''}`);
+    <div class="bag">${bag.map((it) => cardHtml(it)).join('') || '<p class="dim">Nothing yet. Loot drops during runs.</p>'}</div></div></div></div>${sheetHtml()}${msg ? `<div class="msg">${msg}</div>` : ''}`);
+  flashMsg();
+}
+function renderGems() {
+  const groups = {}; for (const g of S.gems) { const k = g.type + '|' + g.tier; (groups[k] = groups[k] || []).push(g); }
+  const rows = Object.entries(groups).sort((a, b) => a[0].split('|')[0].localeCompare(b[0].split('|')[0]) || b[1][0].tier - a[1][0].tier).map(([k, arr]) => { const g = arr[0], can = arr.length >= 3 && g.tier < GEM_MAX; return `<div class="gemrow">${gemChip(g)}<div><b>${gemName(g)}</b><small>${gemText(g)}</small></div><span class="cnt">x${arr.length}</span><button class="${can ? 'go' : ''}" data-act="fuse" data-type="${g.type}" data-tier="${g.tier}" ${can && S.gold >= fuseCost(g.tier) ? '' : 'disabled'}>${g.tier >= GEM_MAX ? 'Max' : `Fuse 3 &rarr; ${GEM_TIER[g.tier + 1]}<small>${fuseCost(g.tier)} gold</small>`}</button></div>`; }).join('');
+  screen(`${top()}${gsub()}<div class="body gear"><div class="panel"><h2>Gems</h2><p class="dim">Gems drop from elites and bosses. Socket them into blue, purple, gold and red gear (blue has 1 socket, red has 4). Fuse 3 of the same gem into one better one.</p>${rows || '<p class="dim">No gems yet. Beat elites and bosses to find them.</p>'}</div></div>${msg ? `<div class="msg">${msg}</div>` : ''}`);
+  flashMsg();
+}
+function renderForge() {
+  const names = RARITIES.map((r) => r.name), rows = [0, 1, 2, 3, 4].map((r) => { const n = loose(S, r).length, c = transmuteCost(r); return `<div class="gemrow"><span class="rtag" style="--r:${RARITIES[r].color}">${names[r]}</span><div><b>3 ${names[r]} &rarr; 1 ${names[r + 1]}</b><small>You have ${n} in the bag · ${r >= 1 ? '50% chance of a set piece' : 'new random piece'}</small></div><button class="${n >= 3 && (S.scrap || 0) >= c.scrap ? 'go' : ''}" data-act="transmute" data-r="${r}" ${n >= 3 && (S.scrap || 0) >= c.scrap ? '' : 'disabled'}>Transmute<small>${c.scrap} scrap</small></button></div>`; }).join('');
+  screen(`${top()}${gsub()}<div class="body gear"><div class="panel"><h2>The Forge</h2><p class="dim">Turn spare gear into something better. Transmute eats the three weakest items of a rarity from your bag (not the ones you wear).</p>${rows}</div>
+    <div class="panel"><h2>Other tools</h2><p class="dim">On any item in the Gear tab you can also: <b>Ascend</b> a maxed item for endless levels, <b>Reforge</b> its bonuses, <b>Change set</b> on blue and better gear to chase the set you want, and <b>Dismantle</b> it into scrap.</p></div></div>${msg ? `<div class="msg">${msg}</div>` : ''}`);
   flashMsg();
 }
 function setSummary() { const cnt = setCounts(S), ids = Object.keys(cnt).filter((id) => cnt[id] >= 2); if (!ids.length) return Object.keys(cnt).length ? '<p class="dim">Wear 2, 4 or 6 pieces of the same set for bonuses.</p>' : '<p class="dim">Set pieces (marked with a coloured dot) give bonuses when you wear several of the same set.</p>'; return ids.map((id) => `<div class="setbox" style="--sc:${SETS[id].color}"><b>${SETS[id].name}</b> <small>${cnt[id]}/6</small>${setBonus(S).active.filter((a) => a.set === +id).map((a) => `<p class="on">&#10003; ${a.tier}: ${a.desc}</p>`).join('')}</div>`).join(''); }
 function detailHtml(it) {
   const R = RARITIES[it.rar], cur = S.gear[it.slot], isEq = cur && cur.id === it.id, rows = Object.keys(it.stats).map((k) => { const v = k === 'dmg' && it.slot === 'weapon' ? `${WEAPONS[it.kind].name}` : fmtStat(k, itemStat(it, k)); return `<div class="row2"><span>${k === 'dmg' && it.slot === 'weapon' ? 'Weapon' : STAT_LABEL[k]}</span><b>${v}</b></div>`; }).join('');
+  const sk = it.sockets ? `<div class="sockets">${Array.from({ length: it.sockets }, (_, i) => it.gems && it.gems[i] ? `<button class="sock full" data-act="unsocket" data-id="${it.id}" data-i="${i}" title="Tap to remove">${gemChip(it.gems[i])}<small>${gemText(it.gems[i])}</small></button>` : `<button class="sock" data-act="socketpick" data-id="${it.id}" data-i="${i}">+<small>socket</small></button>`).join('')}</div>` : '';
   const diff = !isEq && cur ? itemScore(it) - itemScore(cur) : 0, atMax = it.up >= maxUp(it);
   const setBox = it.set != null ? (() => { const S0 = SETS[it.set], n = setCounts(S)[it.set] || 0; return `<div class="setbox" style="--sc:${S0.color}"><b>${S0.name} set</b> <small>${n}/6 worn</small>${[2, 4, 6].map((t) => `<p class="${n >= t ? 'on' : ''}">${n >= t ? '&#10003;' : '&#9675;'} ${t} pieces: ${S0.tiers[t].desc}</p>`).join('')}</div>`; })() : '';
-  return `<div class="dhead" style="--r:${R.color}">${icon(it)}<div><h3>${it.name}</h3><small>${R.name} ${SLOT_NAME[it.slot]} · level ${it.ilvl}${it.up ? ' · +' + it.up : ''}${it.asc ? ' · ' + '&#9733;'.repeat(it.asc) : ''}</small></div></div>${rows}${setBox}
+  return `<div class="dhead" style="--r:${R.color}">${icon(it)}<div><h3>${it.name}</h3><small>${R.name} ${SLOT_NAME[it.slot]} · level ${it.ilvl}${it.up ? ' · +' + it.up : ''}${it.asc ? ' · ' + '&#9733;'.repeat(it.asc) : ''}</small></div></div>${rows}${sk}${setBox}
     ${!isEq && cur ? `<p class="cmp ${diff >= 0 ? 'up' : 'down'}">${diff >= 0 ? 'Better' : 'Worse'} than equipped</p>` : ''}
     <div class="btns">${isEq ? `<button data-act="unequip" data-id="${it.id}">Unequip</button>` : `<button class="go" data-act="equip" data-id="${it.id}">Equip</button>`}
     ${atMax ? `<button class="go" data-act="ascend" data-id="${it.id}" ${S.gold >= ascendCost(it, S).gold && (S.scrap || 0) >= ascendCost(it, S).scrap ? '' : 'disabled'}>Ascend &#9733; ${ascendCost(it, S).gold.toLocaleString()}g + ${ascendCost(it, S).scrap} scrap</button>` : `<button data-act="upgrade" data-id="${it.id}" ${S.gold >= upCost(it, S) ? '' : 'disabled'}>Upgrade ${upCost(it, S)}g</button>`}
+    ${it.rar >= 2 ? `<button data-act="setpick" data-id="${it.id}">Change set ${reattuneCost(it).scrap} scrap</button>` : ''}${isEq ? '' : `<button data-act="dismantle" data-id="${it.id}">Dismantle +${dismantleValue(it)} scrap</button>`}
     ${Object.keys(it.stats).length > 1 ? `<button data-act="reforge" data-id="${it.id}" ${(S.scrap || 0) >= reforgeCost(it).scrap ? '' : 'disabled'}>Reforge bonuses ${reforgeCost(it).scrap} scrap</button>` : ''}${isEq ? '' : `<button data-act="sell" data-id="${it.id}">Sell ${salvageValue(it)}g</button>`}</div>`;
 }
 function flashMsg() { if (!msg) return; const m = msg; setTimeout(() => { if (msg === m) { msg = ''; const el = $('.msg'); if (el) el.remove(); } }, 2600); }
@@ -213,7 +235,7 @@ function handle(act, d) {
   if (act === 'crew') { sheet = { kind: 'crew' }; renderCamp(); return; }
   if (act === 'assignpick') { sheet = { kind: 'assign', id: +d.id }; renderCamp(); return; }
   if (act === 'staffpick') { sheet = { kind: 'staff', key: d.key }; renderCamp(); return; }
-  if (act === 'closesheet') { sheet = null; renderCamp(); return; }
+  if (act === 'closesheet') { sheet = null; if (tab === 'gear') renderGear(); else renderCamp(); return; }
   if (act === 'assignto') { const r = assign(S, +d.id, d.key || null); if (r === 'full') msg = 'That room is already fully staffed.'; else save(); if (sheet && sheet.kind === 'assign') sheet = { kind: 'crew' }; else if (sheet && sheet.kind === 'staff') sheet = { kind: 'room', key: sheet.key }; renderCamp(); return; }
   if (act === 'letin') { const r = recruit(S, +d.i); msg = r === 'ok' ? 'Welcome to the church!' : r === 'nobeds' ? 'No free beds. Build a Bedroom.' : 'Nobody there.'; save(); if (!S.base.door.length) sheet = null; renderCamp(); return; }
   if (act === 'turnaway') { S.base.door.splice(+d.i, 1); save(); if (!S.base.door.length) sheet = null; renderCamp(); return; }
@@ -227,8 +249,17 @@ function handle(act, d) {
   if (act === 'ascend') { const it = find(d.id); if (it) { const r = ascend(S, it); msg = r === 'ok' ? `${it.name} ascended! Max level is now +${maxUp(it)}.` : 'Not enough gold or scrap.'; if (r === 'ok') save(); } renderGear(); return; }
   if (act === 'reforge') { const it = find(d.id); if (it) { const r = reforge(S, it); msg = r === 'ok' ? 'The bonuses were reforged.' : 'Not enough scrap.'; if (r === 'ok') save(); } renderGear(); return; }
   if (act === 'upgrade') { const it = find(d.id); if (!it || S.gold < upCost(it, S) || it.up >= maxUp(it)) return; S.gold -= upCost(it, S); it.up++; msg = `${it.name} is now +${it.up}.`; save(); renderGear(); return; }
-  if (act === 'sell') { const it = find(d.id); if (!it) return; S.gold += salvageValue(it); S.bag.splice(S.bag.indexOf(it), 1); sel = null; save(); renderGear(); return; }
-  if (act === 'sellr') { const r = +d.r; let g = 0, n = 0; S.bag = S.bag.filter((it) => { if (it.rar !== r) return true; const cur = S.gear[it.slot]; if (!cur || itemScore(it) > itemScore(cur)) return true; g += salvageValue(it); n++; return false; }); S.gold += g; msg = n ? `Sold ${n} for ${g} gold (kept upgrades).` : 'Nothing to sell.'; sel = null; save(); renderGear(); return; }
+  if (act === 'gtab') { gtab = d.g; sel = null; renderGear(); return; }
+  if (act === 'socketpick') { sheet = { kind: 'gempick', id: +d.id, i: +d.i }; renderGear(); return; }
+  if (act === 'socketdo') { const it = find(sheet.id); if (it) { socketGem(S, it, sheet.i, +d.gem); save(); } sheet = null; renderGear(); return; }
+  if (act === 'unsocket') { const it = find(d.id); if (it) { unsocketGem(S, it, +d.i); save(); } renderGear(); return; }
+  if (act === 'setpick') { sheet = { kind: 'setpick', id: +d.id }; renderGear(); return; }
+  if (act === 'setdo') { const it = find(sheet.id); if (it) { const r = reattune(S, it, +d.set); msg = r === 'ok' ? `${it.name}` : 'Not enough scrap.'; if (r === 'ok') save(); } sheet = null; renderGear(); return; }
+  if (act === 'dismantle') { const it = find(d.id); if (it) { const n = dismantle(S, it); msg = `Dismantled for ${n} scrap.`; sel = null; save(); } renderGear(); return; }
+  if (act === 'fuse') { const r = fuseGems(S, d.type, +d.tier); msg = r === 'ok' ? 'Fused into a better gem!' : 'Not enough gems or gold.'; if (r === 'ok') save(); renderGear(); return; }
+  if (act === 'transmute') { const o = transmute(S, +d.r); if (o.r === 'ok') { msg = `Forged: ${o.item.name}`; save(); } else msg = 'Not enough items or scrap.'; renderGear(); return; }
+  if (act === 'sell') { const it = find(d.id); if (!it) return; releaseGems(S, it); S.gold += salvageValue(it); S.bag.splice(S.bag.indexOf(it), 1); sel = null; save(); renderGear(); return; }
+  if (act === 'sellr') { const r = +d.r; let g = 0, n = 0; S.bag = S.bag.filter((it) => { if (it.rar !== r) return true; const cur = S.gear[it.slot]; if (!cur || itemScore(it) > itemScore(cur)) return true; releaseGems(S, it); g += salvageValue(it); n++; return false; }); S.gold += g; msg = n ? `Sold ${n} for ${g} gold (kept upgrades).` : 'Nothing to sell.'; sel = null; save(); renderGear(); return; }
   if (act === 'auto') { const n = autoEquip(S); msg = n ? `Equipped ${n} better item${n > 1 ? 's' : ''}.` : 'You already wear the best.'; save(); renderGear(); return; }
 }
 document.addEventListener('click', (e) => { const b = e.target.closest('.itc[data-item]'); if (b && $('#screen').classList.contains('on') && tab === 'gear') { sel = find(b.dataset.item) || null; renderGear(); } });
@@ -238,11 +269,12 @@ UI.gearTab = () => { tab = 'gear'; renderGear(); };
 function hauntDone(r) {
   const won = r.won, items = r.lootItems.slice().sort((a, b) => b.rar - a.rar); S.gold += r.gold; S.scrap = (S.scrap || 0) + r.scrap;
   for (const it of items) if (S.bag.length < 120) S.bag.push(it); else S.gold += salvageValue(it);
+  S.gems.push(...(r.lootGems || []));
   const rep = resolveHaunt(S, won, true); save(); r.destroy(); UI.stopAfkTimer();
   screen(`<div class="result ${won ? 'win' : 'lose'}"><h1>${won ? 'THE CHURCH HOLDS' : 'THE CHURCH FALLS'}</h1><p class="sub">${won ? 'You drove the ghosts back from the doors.' : 'The ghosts broke through while you fought.'}</p>
     <div class="stats"><div><small>Kills</small><b>${r.kills}</b></div><div><small>Gold</small><b>${r.gold + (won ? rep.gold : 0)}</b></div><div><small>Scrap</small><b>${r.scrap + (won ? rep.scrap : 0)}</b></div><div><small>Gear</small><b>${items.length}</b></div><div><small>Result</small><b>${won ? 'Held' : 'Lost'}</b></div></div>
     ${won ? `<p class="sub">Church reward: +${rep.gold} gold, +${rep.scrap} scrap${rep.survivor ? ' · a survivor is at the door!' : ''}</p>` : `<p class="sub">${rep.haunted.length ? rep.haunted.join(' and ') + ' haunted. ' : ''}Some food and water spoiled.</p>`}
-    <div class="bag small">${items.map((it) => cardHtml(it)).join('')}</div><div class="btns"><button class="go big" data-act="camp">Back to the church</button></div></div>`);
+    <div class="bag small">${items.map((it) => cardHtml(it)).join('')}</div>${r.lootGems && r.lootGems.length ? `<div class="gemline">${r.lootGems.map(gemChip).join('')}</div>` : ''}<div class="btns"><button class="go big" data-act="camp">Back to the church</button></div></div>`);
   $('#hud').classList.remove('on');
 }
 UI.done = (r) => {
@@ -250,13 +282,14 @@ UI.done = (r) => {
   const won = r.won, items = r.lootItems.slice().sort((a, b) => b.rar - a.rar), earned = r.gold + (won ? 120 * S.district : Math.floor(r.t / 10));
   S.gold += earned; S.scrap = (S.scrap || 0) + r.scrap; S.runs++; S.best = Math.max(S.best, r.kills); if (won) { S.wins++; if (S.district === S.maxDistrict) { S.maxDistrict++; } }
   for (const it of items) if (S.bag.length < 120) S.bag.push(it); else S.gold += salvageValue(it);
+  S.gems.push(...(r.lootGems || []));
   if (S.opts.afk) autoEquip(S);
   S.lastSeen = Date.now(); save();
   if (r.retreated) S.opts.afk = false; save(); const afk = !!S.opts.afk; r.destroy();
   screen(`<div class="result ${won ? 'win' : 'lose'}"><h1>${won ? (r.boss ? r.boss.def.name.toUpperCase() + ' FALLS' : 'VICTORY') : r.retreated ? 'YOU GOT OUT' : 'YOU DIED'}</h1><p class="sub">${won ? 'The district is quiet. For now. A new district opens.' : r.retreated ? 'You slipped away with what you found.' : 'The dead take another one...'}</p>
     <div class="stats"><div><small>Time</small><b>${Math.floor(r.t / 60)}:${String(Math.floor(r.t % 60)).padStart(2, '0')}</b></div><div><small>Kills</small><b>${r.kills}</b></div><div><small>Gold</small><b>${earned}</b></div><div><small>Scrap</small><b>${r.scrap}</b></div><div><small>Gear</small><b>${items.length}</b></div></div>
     <div class="bag small">${items.map((it) => cardHtml(it)).join('') || '<p class="dim">No gear this time.</p>'}</div>
-    <div class="btns"><button class="go big" data-act="again">Run again</button><button class="big2" data-act="camp">Camp &amp; gear</button></div>${afk ? '<p class="dim" id="afkCount">AFK is on: the next run starts in 6 seconds. Tap <b>Camp &amp; gear</b> to stop it and look at your loot.</p>' : ''}</div>`);
+    ${r.lootGems && r.lootGems.length ? `<div class="gemline">${r.lootGems.map(gemChip).join('')}<small>${r.lootGems.length} gem${r.lootGems.length > 1 ? 's' : ''}</small></div>` : ''}<div class="btns"><button class="go big" data-act="again">Run again</button><button class="big2" data-act="camp">Camp &amp; gear</button></div>${afk ? '<p class="dim" id="afkCount">AFK is on: the next run starts in 6 seconds. Tap <b>Camp &amp; gear</b> to stop it and look at your loot.</p>' : ''}</div>`);
   $('#hud').classList.remove('on');
   if (afk) { clearTimeout(UI.afkT); let n = 6; const tick = () => { const el = $('#afkCount'); if (!el) return; n--; if (n <= 0) { cb.start(); return; } el.innerHTML = `AFK is on: the next run starts in ${n} second${n > 1 ? 's' : ''}. Tap <b>Camp &amp; gear</b> to stop it and look at your loot.`; UI.afkT = setTimeout(tick, 1000); }; UI.afkT = setTimeout(tick, 1000); }
 };

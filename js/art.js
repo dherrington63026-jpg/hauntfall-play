@@ -41,6 +41,8 @@ export const iconUrl = (n) => (IMG['icon_' + n] ? IMG['icon_' + n].src : '');
 const mkc = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
 const GLOWS = {};
 export function glow(col, size = 64) { const k = col + size; if (GLOWS[k]) return GLOWS[k]; const c = mkc(size, size), x = c.getContext('2d'), g = x.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2); g.addColorStop(0, col); g.addColorStop(0.35, col + '99'); g.addColorStop(1, col + '00'); x.fillStyle = g; x.fillRect(0, 0, size, size); return (GLOWS[k] = c); }
+const GEMSPR = {};
+export function gemSprite(col) { if (GEMSPR[col]) return GEMSPR[col]; const c = mkc(18, 18), x = c.getContext('2d'); x.fillStyle = col; x.strokeStyle = 'rgba(0,0,0,.7)'; x.lineWidth = 1.5; x.beginPath(); x.moveTo(9, 1); x.lineTo(16, 7); x.lineTo(9, 17); x.lineTo(2, 7); x.closePath(); x.fill(); x.stroke(); x.fillStyle = 'rgba(255,255,255,.55)'; x.beginPath(); x.moveTo(9, 2); x.lineTo(13, 7); x.lineTo(9, 7); x.closePath(); x.fill(); return (GEMSPR[col] = c); }
 export const SHADOW = (() => { const c = mkc(64, 24), x = c.getContext('2d'), g = x.createRadialGradient(32, 12, 2, 32, 12, 30); g.addColorStop(0, 'rgba(0,0,0,.55)'); g.addColorStop(1, 'rgba(0,0,0,0)'); x.save(); x.scale(1, 0.4); x.fillStyle = g; x.fillRect(0, 0, 64, 60); x.restore(); return c; })();
 const FLIP = new WeakMap();
 export function flipped(c) { let f = FLIP.get(c); if (f) return f; f = mkc(c.width, c.height); const x = f.getContext('2d'); x.translate(c.width, 0); x.scale(-1, 1); x.drawImage(c, 0, 0); FLIP.set(c, f); return f; }

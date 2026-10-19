@@ -59,6 +59,43 @@ export function setBonus(S) {
   for (const [id, n] of Object.entries(setCounts(S))) for (const tier of [2, 4, 6]) if (n >= tier) { const t = SETS[id].tiers[tier]; out.active.push({ set: +id, tier, desc: t.desc }); for (const k in (t.stats || {})) out.stats[k] = (out.stats[k] || 0) + t.stats[k]; for (const k in (t.sp || {})) { if (k === 'taken') out.sp.taken *= t.sp[k]; else if (k === 'salt' || k === 'beam' || k === 'fire') out.sp[k] = Math.max(out.sp[k], t.sp[k]); else out.sp[k] += t.sp[k]; } }
   return out;
 }
+// ---------- gems and sockets ----------
+export const GEMS = {
+  ruby: { name: 'Ruby', color: '#ff4a5a', stat: 'dmg', per: 0.04, label: 'damage' },
+  onyx: { name: 'Onyx', color: '#9aa4b2', stat: 'armor', per: 4, label: 'armor' },
+  emerald: { name: 'Emerald', color: '#4adf7a', stat: 'hp', per: 14, label: 'health' },
+  sapphire: { name: 'Sapphire', color: '#4a9aff', stat: 'rate', per: 0.03, label: 'fire rate' },
+  topaz: { name: 'Topaz', color: '#ffc94a', stat: 'crit', per: 0.012, label: 'crit chance' },
+  opal: { name: 'Opal', color: '#e0d0ff', stat: 'luck', per: 0.03, stat2: 'magnet', per2: 0.04, label: 'loot luck and pickup' },
+};
+export const GEM_KEYS = Object.keys(GEMS);
+export const GEM_TIER = ['', 'Chipped', 'Flawed', 'Normal', 'Flawless', 'Perfect', 'Radiant', 'Brilliant', 'Royal'];
+export const GEM_MAX = 8;
+export const gemMult = (tier) => Math.pow(tier, 1.3);
+export const gemName = (g) => `${GEM_TIER[g.tier]} ${GEMS[g.type].name}`;
+export const gemText = (g) => { const G = GEMS[g.type], m = gemMult(g.tier), f = (k, v) => (['dmg', 'rate', 'crit', 'luck', 'magnet'].includes(k) ? '+' + (v * m * 100).toFixed(1) + '%' : '+' + Math.round(v * m)); return `${f(G.stat, G.per)} ${G.label.split(' and ')[0]}${G.stat2 ? ', ' + f(G.stat2, G.per2) + ' pickup' : ''}`; };
+export function makeGem(S, tier, type) { return { id: S.nextId++, type: type || pick(GEM_KEYS), tier: clamp(tier, 1, GEM_MAX) }; }
+export const socketCount = (it) => (it.rar >= 2 ? it.rar - 1 : 0);
+export function socketGem(S, it, idx, gemId) { const g = S.gems.find((x) => x.id === gemId); if (!g || idx >= (it.sockets || 0) || (it.gems && it.gems[idx])) return 'bad'; it.gems = it.gems || []; it.gems[idx] = g; S.gems.splice(S.gems.indexOf(g), 1); return 'ok'; }
+export function unsocketGem(S, it, idx) { const g = it.gems && it.gems[idx]; if (!g) return 'bad'; S.gems.push(g); it.gems[idx] = null; return 'ok'; }
+export function releaseGems(S, it) { for (const g of (it.gems || [])) if (g) S.gems.push(g); it.gems = []; }
+export const fuseCost = (tier) => 80 * tier;
+export function fuseGems(S, type, tier) {
+  const have = S.gems.filter((g) => g.type === type && g.tier === tier); if (have.length < 3 || tier >= GEM_MAX) return 'bad'; if (S.gold < fuseCost(tier)) return 'poor';
+  S.gold -= fuseCost(tier); for (let i = 0; i < 3; i++) S.gems.splice(S.gems.indexOf(have[i]), 1); S.gems.push(makeGem(S, tier + 1, type)); return 'ok';
+}
+// ---------- forge: turn junk into better gear ----------
+export const transmuteCost = (rar) => ({ scrap: 12 * (rar + 1) * (rar + 1) });
+export const loose = (S, rar) => S.bag.filter((it) => it.rar === rar);
+export function transmute(S, rar) {
+  const pool = loose(S, rar).sort((a, b) => itemScore(a) - itemScore(b)); if (rar > 4 || pool.length < 3) return { r: 'bad' }; const c = transmuteCost(rar); if ((S.scrap || 0) < c.scrap) return { r: 'poor' };
+  S.scrap -= c.scrap; const eat = pool.slice(0, 3), il = Math.max(...eat.map((x) => x.ilvl)); for (const it of eat) { releaseGems(S, it); S.bag.splice(S.bag.indexOf(it), 1); }
+  const out = makeItem(S, il, rar + 1, null, undefined, 0.5); S.bag.push(out); return { r: 'ok', item: out };
+}
+export const reattuneCost = (it) => ({ scrap: 40 * it.rar });
+export function reattune(S, it, setId) { if (it.rar < 2) return 'bad'; const c = reattuneCost(it); if ((S.scrap || 0) < c.scrap) return 'poor'; S.scrap -= c.scrap; it.set = setId; it.name = `${SETS[setId].name} ${it.base || SLOT_NAME[it.slot]}`; return 'ok'; }
+export const dismantleValue = (it) => Math.round(2 + it.ilvl * 0.5 + it.rar * 3 + (it.up || 0) * 2);
+export function dismantle(S, it) { const n = dismantleValue(it); releaseGems(S, it); S.bag.splice(S.bag.indexOf(it), 1); S.scrap = (S.scrap || 0) + n; return n; }
 export const maxUp = (it) => 10 + 10 * (it.asc || 0);
 export const ascendCost = (it, S) => { const u = upCost(it, S); return { gold: u * 6, scrap: 30 * ((it.asc || 0) + 1) }; };
 export function ascend(S, it) { if (it.up < maxUp(it)) return 'bad'; const c = ascendCost(it, S); if (S.gold < c.gold || (S.scrap || 0) < c.scrap) return 'poor'; S.gold -= c.gold; S.scrap -= c.scrap; it.asc = (it.asc || 0) + 1; return 'ok'; }
@@ -81,7 +118,7 @@ export function makeItem(S, ilvl, rar, slot, kind, setChance = 0.4) {
     const opts = SLOT_AFFIXES[slot].filter((k) => !used.has(k)); if (!opts.length) break; const k = pick(opts); used.add(k);
     it.stats[k] = rollAffix(slot, k, ilvl);
   }
-  const base = slot === 'weapon' ? WEAPONS[wk].name : pick(NAMES[slot]);
+  const base = slot === 'weapon' ? WEAPONS[wk].name : pick(NAMES[slot]); it.base = base; it.sockets = rar >= 2 ? rar - 1 : 0; it.gems = [];
   if (rar >= 2 && Math.random() < setChance) { it.set = Math.floor(Math.random() * SETS.length); it.name = `${SETS[it.set].name} ${base}`; } else it.name = `${pick(PREFIX)} ${base}`;
   it.icon = slot === 'weapon' ? WEAPONS[wk].icon : pick(SLOT_ICON[slot]);
   return it;
@@ -97,6 +134,7 @@ export function heroStats(S) {
   const t = { dmg: 0, power: 0, rate: 0, hp: 0, armor: 0, speed: 0, crit: 0.05, critdmg: 0, pierce: 0, magnet: 0, luck: 0, regen: 0 };
   let weapon = null; const B = baseBonus(S); t.dmg += B.dmg; t.hp += B.hp; t.regen += B.regen; t.luck += B.luck; t.magnet += B.magnet; t.crit += B.crit;
   for (const slot of SLOTS) { const it = S.gear[slot]; if (!it) continue; if (slot === 'weapon') weapon = it; for (const k in it.stats) if (!(slot === 'weapon' && k === 'dmg')) t[k] += itemStat(it, k); }
+  for (const slot of SLOTS) { const it = S.gear[slot]; if (!it || !it.gems) continue; for (const g of it.gems) { if (!g) continue; const G = GEMS[g.type], m = gemMult(g.tier); t[G.stat] = (t[G.stat] || 0) + G.per * m; if (G.stat2) t[G.stat2] = (t[G.stat2] || 0) + G.per2 * m; } }
   const SB = setBonus(S); for (const k in SB.stats) t[k] = (t[k] || 0) + SB.stats[k];
   const base = weapon ? weapon : { kind: 'knife', ilvl: 1, rar: 0, up: 0, stats: { dmg: 1 } };
   const W = WEAPONS[base.kind], wdmg = 11 * W.dmg * (1 + 0.12 * (base.ilvl - 1)) * itemMult(base);
@@ -300,6 +338,7 @@ export function startUpgrade(S, key) {
 }
 const OLD_MAP = { watch: 'watch', gen: 'gen', workshop: 'workshop', kitchen: 'kitchen', bedroom: 'bedroom', armory: 'armory', infirmary: 'infirmary', store: 'store', chapel: 'chapel' };
 function fixBase(S) {
+  if (!S.gems) S.gems = []; if (!S.squad) S.squad = [];
   const had = !!S.base; if (typeof S.scrap !== 'number') S.scrap = 0;
   if (S.base && S.base.v === 3 && !S.base.builds) { S.base.builds = S.base.build ? [S.base.build] : []; delete S.base.build; }
   if (!S.base || S.base.v !== 3) {
@@ -315,12 +354,13 @@ function fixBase(S) {
 // ---------- save ----------
 const KEY = 'hauntfall_v1';
 export function newSave() {
-  const S = { v: 1, nextId: 1, scrap: 0, base: null, gold: 0, bag: [], gear: {}, best: 0, runs: 0, wins: 0, district: 1, maxDistrict: 1, lastSeen: Date.now(), hero: 'f', opts: { afk: false, sound: true } };
+  const S = { v: 1, nextId: 1, gems: [], squad: [], scrap: 0, base: null, gold: 0, bag: [], gear: {}, best: 0, runs: 0, wins: 0, district: 1, maxDistrict: 1, lastSeen: Date.now(), hero: 'f', opts: { afk: false, sound: true } };
   S.gear.weapon = makeItem(S, 1, 0, 'weapon', 'knife'); S.gear.weapon.name = 'Rusty Kitchen Knife';
   return fixBase(S);
 }
 // older items may carry bonuses their slot should not have: swap them for allowed ones of similar strength
 function fixItem(it) {
+  if (it && it.sockets === undefined) { it.sockets = it.rar >= 2 ? it.rar - 1 : 0; it.gems = []; }
   if (!it || !it.stats) return; const ok = SLOT_AFFIXES[it.slot]; if (!ok) return; const primary = PRIMARY[it.slot][0];
   for (const k of Object.keys(it.stats)) {
     if (k === primary || ok.includes(k)) continue;

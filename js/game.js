@@ -1,6 +1,6 @@
 // A single Hauntfall run: movement, auto-weapons, swarm, loot, level-ups, boss. Drawn on a canvas, HUD lives in the DOM (ui.js).
-import { rnd, rint, pick, clamp, districtOf, ENEMIES, WEAPONS, UPGRADES, RARITIES, heroStats, makeItem, baseBonus } from './data.js';
-import { spr, sprite, flashOf, flipped, glow, SHADOW, GEM, GOLD, KNIFE, AXE, HOLE, CONE, SPLAT, LEAF, FOG, FLARE, PUDDLE, TUFT, PATCH, frames, FRAME_PAD, TEX } from './art.js';
+import { rnd, rint, pick, clamp, districtOf, makeGem, GEMS, ENEMIES, WEAPONS, UPGRADES, RARITIES, heroStats, makeItem, baseBonus } from './data.js';
+import { spr, sprite, flashOf, flipped, glow, SHADOW, GEM, GOLD, KNIFE, AXE, HOLE, CONE, SPLAT, LEAF, FOG, FLARE, gemSprite, PUDDLE, TUFT, PATCH, frames, FRAME_PAD, TEX } from './art.js';
 const WEAPON_LEN = { knife: 14, machete: 26, axe: 22, bat: 28, crowbar: 26, pistol: 16, revolver: 18, smg: 24, shotgun: 32, rifle: 38 };
 const PROP_H = { prop_tree: 230, prop_car: 130, prop_lamp: 150, prop_tomb3: 100, prop_fence: 70, prop_bush: 60, prop_pumpkin: 40, prop_tomb1: 74, prop_tomb2: 74 };
 
@@ -34,7 +34,7 @@ export class Run {
     this.crew = (S.squad || []).map((id) => S.base.survivors.find((x) => x.id === id)).filter(Boolean).slice(0, 2).map((sv, i) => ({ sv, role: sv.main, sk: sv.skills[sv.main], x: i ? 34 : -34, y: 10 + i * 8, cd: rnd(1, 3), cd2: 6, face: 1, bob: rnd(0, 6), moving: false, age: 0 }));
     for (const c of this.crew) { if (c.role === 'scout') { this.magnetMul *= 1 + 0.03 * c.sk; this.luckMul *= 1 + 0.02 * c.sk; } else if (c.role === 'cook') this.regen += 0.25 * c.sk; else if (c.role === 'trade') this.goldMul *= 1 + 0.04 * c.sk; else if (c.role === 'faith') this.dmgTaken *= Math.max(0.7, 1 - 0.03 * c.sk); }
     this.decals = []; this.corpses = []; this.hitstop = 0; this.fogT = 0; this.punch = 0; this.enemies = []; this.bullets = []; this.gems = []; this.loot = []; this.fx = []; this.texts = []; this.ebul = []; this.zones = []; this.drops = [];
-    this.cool = 0; this.spawnAcc = 0; this.nextElite = 90; this.bossOut = false; this.boss = null; this.won = false; this.lootItems = []; this.waveTick = 0;
+    this.cool = 0; this.spawnAcc = 0; this.nextElite = 90; this.bossOut = false; this.boss = null; this.won = false; this.lootItems = []; this.lootGems = []; this.waveTick = 0;
     this.input = { x: 0, y: 0 }; this.keys = {}; this.joy = null; this.sw = 0; this.sh = 0; this.scale = 1; this.cam = { x: 0, y: 0 };
     this.light = document.createElement('canvas'); this.lx = this.light.getContext('2d');
     this.q = 0; this.props = new Map(); this.saltAng = 0; this.beamT = 0; this.fireT = 2; this.tickMap = new WeakMap();
@@ -183,10 +183,11 @@ export class Run {
     if (this.q < 2) { const gh = d.fx === 'ghost'; if (gh) this.fx.push({ k: 'gf', x: e.x, y: e.y - 16, s: sprite(d.sprite, e.v, d.size), face: e.face, t: 0, life: 0.7 }); else if (this.decals.length < 70) this.decals.push({ x: e.x, y: e.y, t: 0, life: 9, s: pick(SPLAT.r), sc: d.boss ? 3 : d.elite ? 1.8 : 1 }); if (gh && this.decals.length < 70) this.decals.push({ x: e.x, y: e.y, t: 0, life: 6, s: pick(SPLAT.g), sc: 1 }); }
     const xp = d.xp; this.gems.push({ x: e.x + rnd(-6, 6), y: e.y + rnd(-6, 6), v: xp, t: 0 });
     if (Math.random() < 0.22 * luck) this.loot.push({ kind: 'gold', x: e.x + rnd(-14, 14), y: e.y + rnd(-14, 14), v: Math.round(rint(1, 3) * (1 + this.district) * this.goldMul), t: 0 });
-    if (d.boss) { this.won = true; this.hitstop = 0.35; for (let i = 0; i < 4; i++) this.dropItem(e.x + rnd(-40, 40), e.y + rnd(-40, 40), true, true); this.ui.bossBar(false); this.shake = 1; setTimeout(() => this.end(true), 2200); this.slowmo = 1; }
-    else if (d.elite) { for (let i = 0; i < 2; i++) this.dropItem(e.x + rnd(-24, 24), e.y + rnd(-24, 24), true); }
-    else if (Math.random() < 0.012 * luck) this.dropItem(e.x, e.y, false);
+    if (d.boss) { for (let i = 0; i < 2; i++) this.dropGem(e.x + rnd(-30, 30), e.y + rnd(-30, 30), true); this.won = true; this.hitstop = 0.35; for (let i = 0; i < 4; i++) this.dropItem(e.x + rnd(-40, 40), e.y + rnd(-40, 40), true, true); this.ui.bossBar(false); this.shake = 1; setTimeout(() => this.end(true), 2200); this.slowmo = 1; }
+    else if (d.elite) { if (Math.random() < 0.4 * luck) this.dropGem(e.x + rnd(-20, 20), e.y + rnd(-20, 20)); for (let i = 0; i < 2; i++) this.dropItem(e.x + rnd(-24, 24), e.y + rnd(-24, 24), true); }
+    else { if (Math.random() < 0.012 * luck) this.dropItem(e.x, e.y, false); if (Math.random() < 0.006 * luck) this.dropGem(e.x, e.y); }
   }
+  dropGem(x, y, bossTier) { const tier = 1 + Math.floor((this.district - 1) / 2) + (bossTier ? 1 : 0) + (Math.random() < 0.25 ? 1 : 0); this.loot.push({ kind: 'gem', gem: makeGem(this.S, tier), x, y, t: 0 }); }
   dropItem(x, y, good, boss) {
     const t = this.t, r = Math.random(), luck = this.luck();
     // rarity: grows with time and district; elites/bosses roll better
@@ -269,6 +270,7 @@ export class Run {
     this.loot = nl;
   }
   collect(l) {
+    if (l.kind === 'gem') { this.lootGems.push(l.gem); sfx('loot', this.sound); this.ui.toast(`${['', 'Chipped', 'Flawed', 'Normal', 'Flawless', 'Perfect', 'Radiant', 'Brilliant', 'Royal'][l.gem.tier]} ${GEMS[l.gem.type].name}`); return; }
     if (l.kind === 'gold') { this.gold += l.v; sfx('coin', this.sound && Math.random() < 0.5); }
     else { this.lootItems.push(l.item); sfx('loot', this.sound); this.ui.lootToast(l.item); }
   }
@@ -337,6 +339,7 @@ export class Run {
     for (const l of this.loot) {
       if (l.x < x0 || l.x > x1 || l.y < y0 || l.y > y1) continue;
       if (l.kind === 'gold') x.drawImage(GOLD, l.x - 6, l.y - 6);
+      else if (l.kind === 'gem') { const c = GEMS[l.gem.type].color; x.globalCompositeOperation = 'lighter'; x.drawImage(glow(c, 64), l.x - 24, l.y - 24, 48, 48); x.globalCompositeOperation = 'source-over'; x.drawImage(gemSprite(c), l.x - 9, l.y - 9 - Math.sin(this.t * 4 + l.x) * 2); }
       else { const c = RARITIES[l.item.rar].color; x.globalCompositeOperation = 'lighter'; x.drawImage(glow(c, 96), l.x - 40, l.y - 40, 80, 80); x.fillStyle = c; x.globalAlpha = 0.5; x.fillRect(l.x - 2, l.y - 70, 4, 70); x.globalAlpha = 1; x.globalCompositeOperation = 'source-over'; x.fillStyle = c; x.fillRect(l.x - 7, l.y - 7, 14, 14); x.strokeStyle = '#000'; x.lineWidth = 1; x.strokeRect(l.x - 7, l.y - 7, 14, 14); }
     }
     for (const z of this.zones) {
