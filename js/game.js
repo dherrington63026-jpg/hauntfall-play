@@ -34,7 +34,7 @@ export class Run {
     this.crew = (S.squad || []).map((id) => S.base.survivors.find((x) => x.id === id)).filter(Boolean).slice(0, 2).map((sv, i) => ({ sv, role: sv.main, sk: sv.skills[sv.main], x: i ? 34 : -34, y: 10 + i * 8, cd: rnd(1, 3), cd2: 6, face: 1, bob: rnd(0, 6), moving: false, age: 0 }));
     for (const c of this.crew) { if (c.role === 'scout') { this.magnetMul *= 1 + 0.03 * c.sk; this.luckMul *= 1 + 0.02 * c.sk; } else if (c.role === 'cook') this.regen += 0.25 * c.sk; else if (c.role === 'trade') this.goldMul *= 1 + 0.04 * c.sk; else if (c.role === 'faith') this.dmgTaken *= Math.max(0.7, 1 - 0.03 * c.sk); }
     this.decals = []; this.corpses = []; this.hitstop = 0; this.fogT = 0; this.punch = 0; this.enemies = []; this.bullets = []; this.gems = []; this.loot = []; this.fx = []; this.texts = []; this.ebul = []; this.zones = []; this.drops = [];
-    this.cool = 0; this.spawnAcc = 0; this.nextElite = 90; this.bossOut = false; this.boss = null; this.won = false; this.lootItems = []; this.lootGems = []; this.waveTick = 0;
+    this.cool = 0; this.spawnAcc = 0; this.nextElite = 28; this.nextWave = 30; this.wave = 0; this.bossOut = false; this.boss = null; this.won = false; this.lootItems = []; this.lootGems = []; this.waveTick = 0;
     this.input = { x: 0, y: 0 }; this.keys = {}; this.joy = null; this.sw = 0; this.sh = 0; this.scale = 1; this.cam = { x: 0, y: 0 };
     this.light = document.createElement('canvas'); this.lx = this.light.getContext('2d');
     this.q = 0; this.props = new Map(); this.saltAng = 0; this.beamT = 0; this.fireT = 2; this.tickMap = new WeakMap();
@@ -111,24 +111,25 @@ export class Run {
     const t = this.t, dm = 1 + 0.16 * (this.district - 1);
     if (t >= this.runLen && !this.bossOut) { this.spawnBoss(); }
     if (!this.bossOut) {
-      const rate = (0.8 + t / 48) * (1 + 0.4 * (this.district - 1)); this.spawnAcc += rate * dt;
-      const cap = 70 + Math.min(120, t * 0.45);
+      const rate = (1.2 + t / 36) * (1 + 0.5 * (this.district - 1)); this.spawnAcc += rate * dt;
+      const cap = 90 + Math.min(150, t * 0.55);
       while (this.spawnAcc >= 1 && this.enemies.length < cap) { this.spawnAcc -= 1; this.spawnOne(); }
       if (this.spawnAcc > 3) this.spawnAcc = 3;
-      if (t >= this.nextElite && this.nextElite < this.runLen) { this.spawnOne(this.theme.elite); this.nextElite += 90; this.ui.toast(`${ENEMIES[this.theme.elite].name} is hunting you!`); sfx('boom', this.sound); this.shake = 0.5; }
+      if (t >= this.nextElite && this.nextElite < this.runLen - 10) { const n = 1 + Math.floor(t / 110) + Math.floor((this.district - 1) / 3); for (let i = 0; i < n; i++) this.spawnOne(Math.random() < 0.25 ? (this.theme.elite === 'brute' ? 'wraithlord' : 'brute') : this.theme.elite); this.nextElite += 32; this.ui.toast(n > 1 ? `${n} elites are hunting you!` : `${ENEMIES[this.theme.elite].name} is hunting you!`); sfx('boom', this.sound); this.shake = 0.5; }
+      if (t >= this.nextWave && this.nextWave < this.runLen - 8) { this.wave++; this.nextWave += 38; const n = 16 + this.wave * 5 + (this.district - 1) * 4, a0 = rnd(0, TAU); for (let i = 0; i < n; i++) { const e = this.spawnOne(); const a = a0 + (i / n) * TAU, R = Math.hypot(this.sw, this.sh) / 2 / this.scale + 60; e.x = this.hero.x + Math.cos(a) * R; e.y = this.hero.y + Math.sin(a) * R; } if (this.ui.banner) this.ui.banner(`Wave ${this.wave}`, 'They surround you'); sfx('boom', this.sound); this.shake = 0.4; }
     }
   }
   spawnPos() { const a = rnd(0, TAU), R = Math.hypot(this.sw, this.sh) / 2 / this.scale + 70; return [this.hero.x + Math.cos(a) * R, this.hero.y + Math.sin(a) * R]; }
   spawnOne(type) {
     const t = this.t;
     if (!type) { const tab = this.theme.mix.filter((m) => t >= m[2]); let tot = 0; for (const m of tab) tot += m[1]; let r = Math.random() * tot; type = tab[0][0]; for (const m of tab) { if (r < m[1]) { type = m[0]; break; } r -= m[1]; } }
-    const def = ENEMIES[type], [x, y] = this.spawnPos(), sc = (1 + t / 150) * Math.pow(1.95, this.district - 1) * this.hauntScale;
-    this.enemies.push({ def, x, y, hp: def.hp * sc, maxHp: def.hp * sc, dmg: def.dmg * (1 + t / 260) * Math.pow(1.4, this.district - 1), r: def.r, vx: 0, vy: 0, flash: 0, ph: rnd(0, TAU), v: rint(1, 2), dash: rnd(1, 3), age: 0, face: 1, cd: rnd(2, 4) });
+    const def = ENEMIES[type], [x, y] = this.spawnPos(), sc = (1 + t / 100) * Math.pow(2.15, this.district - 1) * this.hauntScale;
+    this.enemies.push({ def, x, y, hp: def.hp * sc, maxHp: def.hp * sc, dmg: def.dmg * (1 + t / 190) * Math.pow(1.5, this.district - 1) * 1.2, r: def.r, vx: 0, vy: 0, flash: 0, ph: rnd(0, TAU), v: rint(1, 2), dash: rnd(1, 3), age: 0, face: 1, cd: rnd(2, 4) });
     return this.enemies[this.enemies.length - 1];
   }
   spawnBoss() {
     this.bossOut = true; for (const e of this.enemies) if (!e.def.boss) e.hp = Math.min(e.hp, 1);
-    const def = this.mode === 'haunt' ? ENEMIES.revenant : ENEMIES[this.theme.boss], sc = Math.pow(2.1, this.district - 1) * (this.mode === 'haunt' ? this.hauntScale : 1), a = rnd(0, TAU), R = 460;
+    const def = this.mode === 'haunt' ? ENEMIES.revenant : ENEMIES[this.theme.boss], sc = Math.pow(2.4, this.district - 1) * (this.mode === 'haunt' ? this.hauntScale : 1), a = rnd(0, TAU), R = 460;
     const b = { def, x: this.hero.x + Math.cos(a) * R, y: this.hero.y + Math.sin(a) * R, hp: def.hp * sc, maxHp: def.hp * sc, dmg: def.dmg * Math.pow(1.4, this.district - 1), r: def.r, vx: 0, vy: 0, flash: 0, ph: 0, v: 1, dash: 0, age: 0, face: 1, cd: 3, cd2: 5, slam: 0 };
     this.enemies.push(b); this.boss = b; this.ui.toast(this.mode === 'haunt' ? 'THE REVENANT COMES FOR THE CHURCH' : `${def.name.toUpperCase()} RISES`); this.ui.bossBar(true, def.name.toUpperCase()); if (this.ui.banner) this.ui.banner(def.name, this.mode === 'haunt' ? 'The church is under attack' : 'A boss approaches'); this.punch = 1.2; this.shake = 1; sfx('boom', this.sound);
   }

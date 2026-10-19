@@ -173,6 +173,14 @@ export const DISTRICTS = [
   { name: 'Bone Orchard', tint: '#7a6a44', boss: 'boneking', elite: 'brute', road: 0.05, puddle: 0.2, tree: 0.5, mix: [['ghoul', 35, 0], ['hound', 25, 10], ['crawler', 20, 30], ['drowned', 15, 60], ['spitter', 15, 50]] },
   { name: 'Black Cathedral', tint: '#5a3d78', boss: 'hollowpriest', elite: 'wraithlord', road: 0.12, puddle: 0.5, tree: 0.1, mix: [['cultist', 30, 0], ['ghost', 25, 0], ['crawler', 15, 20], ['hound', 15, 40], ['drowned', 15, 70]] },
 ];
+DISTRICTS.push(
+  { name: 'Rotting Docks', tint: '#4a6a6a', boss: 'bride', elite: 'wraithlord', road: 0.3, puddle: 0.85, tree: 0.03, mix: [['drowned', 35, 0], ['crow', 20, 0], ['ghoul', 25, 10], ['spitter', 15, 40], ['crawler', 12, 60]] },
+  { name: 'Burned Orphanage', tint: '#8a4a30', boss: 'gravekeeper', elite: 'brute', road: 0.2, puddle: 0.1, tree: 0.08, mix: [['child', 40, 0], ['ghost', 25, 0], ['crawler', 20, 20], ['cultist', 15, 50], ['hound', 12, 60]] },
+  { name: 'Sunken Subway', tint: '#3d4a5a', boss: 'surgeon', elite: 'brute', road: 0.7, puddle: 0.7, tree: 0.0, mix: [['crawler', 35, 0], ['hound', 25, 0], ['ghoul', 25, 10], ['drowned', 15, 40], ['spitter', 15, 30]] },
+  { name: 'Plague Market', tint: '#6a7a3a', boss: 'houndmaster', elite: 'wraithlord', road: 0.5, puddle: 0.3, tree: 0.04, mix: [['ghoul', 30, 0], ['spitter', 25, 0], ['crow', 20, 10], ['cultist', 20, 30], ['brute', 5, 90]] },
+  { name: 'Iron Asylum', tint: '#7a7a86', boss: 'boneking', elite: 'brute', road: 0.25, puddle: 0.2, tree: 0.02, mix: [['cultist', 30, 0], ['crawler', 25, 0], ['ghost', 20, 0], ['hound', 18, 30], ['spitter', 15, 40]] },
+  { name: 'Crimson Throne', tint: '#8a2a40', boss: 'hollowpriest', elite: 'wraithlord', road: 0.15, puddle: 0.5, tree: 0.1, mix: [['cultist', 30, 0], ['ghoul', 25, 0], ['hound', 20, 10], ['drowned', 15, 30], ['brute', 8, 60], ['ghost', 15, 0]] },
+);
 export const districtOf = (d) => DISTRICTS[(d - 1) % DISTRICTS.length];
 export const districtName = (d) => d > DISTRICTS.length ? `${districtOf(d).name} ${['', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'][Math.min(9, Math.floor((d - 1) / DISTRICTS.length))]}` : districtOf(d).name;
 // ---------- in-run upgrades (picked on level up) ----------
