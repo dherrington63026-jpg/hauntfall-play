@@ -143,3 +143,5 @@ button.rc.crew { cursor: pointer; }
 
 .squadrow { display: flex; align-items: center; gap: 8px; margin-top: 6px; flex-wrap: wrap; font-size: 12px; color: #d8d4cc; } .squadrow button { padding: 6px 10px; font-size: 12px; } .chipx { display: inline-flex; align-items: center; gap: 4px; background: #0008; border-radius: 16px; padding: 2px 8px 2px 2px; } .chipx .pt { width: 26px; height: 26px; border-radius: 50%; } .chipx em { font-style: normal; font-weight: 700; }
 .svbtn .role { font-size: 10.5px; color: #9ee6a0; text-align: center; max-width: 110px; }
+
+.stepper { display: flex; align-items: center; gap: 10px; margin-top: 6px; font-size: 12px; } .stepper button { padding: 6px 12px; } .stepper span { flex: 1; text-align: center; font-weight: 700; }

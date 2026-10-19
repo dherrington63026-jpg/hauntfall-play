@@ -1,5 +1,5 @@
 // Hauntfall screens and HUD (plain DOM over the canvas).
-import { RARITIES, SLOTS, SLOT_NAME, STAT_LABEL, PCT, WEAPONS, ROOMS, ROOM_ORDER, SKILLS, SKILL_KEYS, SKILL_BOOST, COLS, heroStats, itemStat, itemScore, upCost, salvageValue, autoEquip, writeSave, tickBase, startUpgrade, startBuild, openSlots, newRoomCost, upgradeCost, upgradeSecs, topFloor, slotKey, parseKey, staffSlots, staffOf, survivorById, assign, recruit, beds, capacity, flows, jobOf, makeItem, tickHaunt, resolveHaunt, defense, hauntStrength, cleanse, cleanseCost } from './data.js';
+import { districtName, districtOf, ENEMIES, RARITIES, SLOTS, SLOT_NAME, STAT_LABEL, PCT, WEAPONS, ROOMS, ROOM_ORDER, SKILLS, SKILL_KEYS, SKILL_BOOST, COLS, heroStats, itemStat, itemScore, upCost, salvageValue, autoEquip, writeSave, tickBase, startUpgrade, startBuild, openSlots, newRoomCost, upgradeCost, upgradeSecs, topFloor, slotKey, parseKey, staffSlots, staffOf, survivorById, assign, recruit, beds, capacity, flows, jobOf, makeItem, tickHaunt, resolveHaunt, defense, hauntStrength, cleanse, cleanseCost } from './data.js';
 import { iconUrl } from './art.js';
 
 const $ = (s) => document.querySelector(s);
@@ -146,9 +146,9 @@ function renderCamp() {
     <div class="banner" style="background-image:linear-gradient(rgba(5,7,10,.2), rgba(5,7,10,.88)), url(art/bg_church.jpg)"><div class="bleft"><img src="art/hero_${S.hero}_1.png" onerror="this.style.display='none'" alt=""></div>
       <div class="bright"><h2>Hauntfall Church</h2><p>${WEAPONS[hs.weaponKind].name} · ${hs.hp} health · might ${hs.power} · best ${S.best} kills · ${S.wins} boss kills</p>
       <label class="chk"><input type="checkbox" id="afkChk" ${S.opts.afk ? 'checked' : ''}> AFK combat: explore, fight and loot by itself, then start the next run</label>
-      <button class="big" data-act="run">Enter the graveyard <small>district ${S.district}</small></button>
+      <button class="big" data-act="run">Enter ${districtName(S.district)} <small>district ${S.district} · boss: ${ENEMIES[districtOf(S.district).boss].name}</small></button>
       <div class="squadrow"><span>Crew ${squadOf().length}/2</span>${squadOf().map((sv) => `<span class="chipx">${portrait(sv)}<em>${sv.name.split(' ')[0]}</em></span>`).join('')}<button data-act="squadpick">${squadOf().length ? 'Change' : '+ Bring survivors'}</button></div>
-      ${S.maxDistrict > 1 ? `<div class="row">${Array.from({ length: S.maxDistrict }, (_, i) => `<button data-act="district" data-d="${i + 1}" class="${S.district === i + 1 ? 'on' : ''}">District ${i + 1}</button>`).join('')}</div>` : ''}</div></div>
+      ${S.maxDistrict > 1 ? `<div class="stepper"><button data-act="dstep" data-s="-1" ${S.district <= 1 ? 'disabled' : ''}>&#9664;</button><span>District ${S.district} of ${S.maxDistrict}</span><button data-act="dstep" data-s="1" ${S.district >= S.maxDistrict ? 'disabled' : ''}>&#9654;</button></div>` : ''}</div></div>
     ${resBar()}${hauntBanner()}
     <div class="chart" style="aspect-ratio:500/${H}">${outlineSvg(F, H, ROOF)}${Array.from({ length: F }, (_, f) => Array.from({ length: COLS }, (_, c) => cellHtml({ key: slotKey(f, c), f, c }, open, F, ROOF, H))).flat().join('')}
       <button class="door ${waiting ? 'knock' : ''}" data-act="door" style="top:${(ROOF + F * 100 + 6) / H * 100}%"><span class="dr">&#128682;</span>${waiting ? `<b class="bdg">${waiting}</b>` : ''}<small>${waiting ? 'Someone is at the door!' : 'Front door'}</small></button></div>
@@ -191,6 +191,7 @@ function handle(act, d) {
   if (!$('#screen').classList.contains('on') && act !== 'again') return;
   if (act === 'tab') { tab = d.t; sel = null; tab === 'camp' ? renderCamp() : renderGear(); return; }
   if (act === 'run') { cb.start(); return; }
+  if (act === 'dstep') { S.district = Math.max(1, Math.min(S.maxDistrict, S.district + +d.s)); save(); renderCamp(); return; }
   if (act === 'district') { S.district = +d.d; save(); renderCamp(); return; }
   if (act === 'defend') { if (S.base.haunt && S.base.haunt.active) cb.startHaunt(); return; }
   if (act === 'hold') { const H = S.base.haunt && S.base.haunt.active; if (!H) return; const win = defense(S) * (0.85 + Math.random() * 0.3) >= H.strength; sheet = { kind: 'hauntreport', rep: resolveHaunt(S, win, false) }; save(); renderCamp(); return; }
@@ -236,12 +237,12 @@ function hauntDone(r) {
 UI.done = (r) => {
   if (r.mode === 'haunt') return hauntDone(r);
   const won = r.won, items = r.lootItems.slice().sort((a, b) => b.rar - a.rar), earned = r.gold + (won ? 120 * S.district : Math.floor(r.t / 10));
-  S.gold += earned; S.scrap = (S.scrap || 0) + r.scrap; S.runs++; S.best = Math.max(S.best, r.kills); if (won) { S.wins++; if (S.district === S.maxDistrict && S.maxDistrict < 6) { S.maxDistrict++; } }
+  S.gold += earned; S.scrap = (S.scrap || 0) + r.scrap; S.runs++; S.best = Math.max(S.best, r.kills); if (won) { S.wins++; if (S.district === S.maxDistrict) { S.maxDistrict++; } }
   for (const it of items) if (S.bag.length < 120) S.bag.push(it); else S.gold += salvageValue(it);
   if (S.opts.afk) autoEquip(S);
   S.lastSeen = Date.now(); save();
   if (r.retreated) S.opts.afk = false; save(); const afk = !!S.opts.afk; r.destroy();
-  screen(`<div class="result ${won ? 'win' : 'lose'}"><h1>${won ? 'THE GRAVEKEEPER FALLS' : r.retreated ? 'YOU GOT OUT' : 'YOU DIED'}</h1><p class="sub">${won ? 'The graveyard is quiet. For now.' : r.retreated ? 'You slipped away with what you found.' : 'The dead take another one...'}</p>
+  screen(`<div class="result ${won ? 'win' : 'lose'}"><h1>${won ? (r.boss ? r.boss.def.name.toUpperCase() + ' FALLS' : 'VICTORY') : r.retreated ? 'YOU GOT OUT' : 'YOU DIED'}</h1><p class="sub">${won ? 'The district is quiet. For now. A new district opens.' : r.retreated ? 'You slipped away with what you found.' : 'The dead take another one...'}</p>
     <div class="stats"><div><small>Time</small><b>${Math.floor(r.t / 60)}:${String(Math.floor(r.t % 60)).padStart(2, '0')}</b></div><div><small>Kills</small><b>${r.kills}</b></div><div><small>Gold</small><b>${earned}</b></div><div><small>Scrap</small><b>${r.scrap}</b></div><div><small>Gear</small><b>${items.length}</b></div></div>
     <div class="bag small">${items.map((it) => cardHtml(it)).join('') || '<p class="dim">No gear this time.</p>'}</div>
     <div class="btns"><button class="go big" data-act="again">Run again</button><button class="big2" data-act="camp">Camp &amp; gear</button></div>${afk ? '<p class="dim" id="afkCount">AFK is on: the next run starts in 6 seconds. Tap <b>Camp &amp; gear</b> to stop it and look at your loot.</p>' : ''}</div>`);

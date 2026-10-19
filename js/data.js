@@ -84,10 +84,32 @@ export const ENEMIES = {
   crow: { name: 'Crow', sprite: 'en_crow', hp: 12, speed: 150, dmg: 7, r: 12, size: 62, eye: '#ff3a3a', xp: 2, fx: 'swoop' },
   child: { name: 'Screamer', sprite: 'en_child', hp: 16, speed: 118, dmg: 8, r: 11, size: 66, eye: '#ff3a3a', xp: 2, fx: 'ghost' },
   brute: { name: 'Butcher', sprite: 'en_brute', hp: 520, speed: 50, dmg: 26, r: 30, size: 150, eye: '#ff3a3a', xp: 30, fx: 'walk', elite: true },
+  spitter: { name: 'Plague Spitter', sprite: 'en_spitter', hp: 30, speed: 60, dmg: 8, r: 15, size: 92, xp: 3, fx: 'shooter', shot: { n: 1, spd: 150, dmg: 0.8, cd: 2.4 }, eye: '#7dff6a' },
+  hound: { name: 'Ghost Hound', sprite: 'en_hound', hp: 26, speed: 105, dmg: 10, r: 15, size: 62, xp: 2, fx: 'dash', eye: '#ff3a3a' },
+  drowned: { name: 'Drowned', sprite: 'en_drowned', hp: 120, speed: 44, dmg: 16, r: 18, size: 100, xp: 6, fx: 'walk', eye: '#9ad0ff' },
+  crawler: { name: 'Crawler', sprite: 'en_crawler', hp: 20, speed: 125, dmg: 7, r: 13, size: 60, xp: 2, fx: 'walk', eye: '#ff3a3a' },
+  cultist: { name: 'Cultist', sprite: 'en_cultist', hp: 44, speed: 56, dmg: 9, r: 15, size: 94, xp: 4, fx: 'shooter', shot: { n: 3, spd: 170, spread: 0.35, dmg: 0.6, cd: 3 }, eye: '#c27dff' },
+  wraithlord: { name: 'Wraith Lord', sprite: 'en_wraithlord', hp: 700, speed: 48, dmg: 24, r: 30, size: 160, xp: 40, fx: 'shooter', hover: true, elite: true, shot: { n: 8, ring: true, spd: 150, dmg: 0.5, cd: 3.6 }, eye: '#9ad0ff' },
+  houndmaster: { name: 'The Hound Master', sprite: 'boss_houndmaster', hp: 3300, speed: 58, dmg: 32, r: 44, size: 215, xp: 150, fx: 'boss', boss: true, summon: 'hound', eye: '#ff3a3a' },
+  bride: { name: 'The Drowned Bride', sprite: 'boss_bride', hp: 3500, speed: 44, dmg: 32, r: 40, size: 225, xp: 150, fx: 'boss', boss: true, summon: 'drowned', eye: '#9ad0ff' },
+  surgeon: { name: 'The Surgeon', sprite: 'boss_surgeon', hp: 3600, speed: 50, dmg: 36, r: 40, size: 225, xp: 150, fx: 'boss', boss: true, summon: 'crawler', eye: '#ff3a3a' },
+  boneking: { name: 'The Bone King', sprite: 'boss_boneking', hp: 4200, speed: 42, dmg: 40, r: 46, size: 235, xp: 150, fx: 'boss', boss: true, summon: 'ghoul', eye: '#ffa040' },
+  hollowpriest: { name: 'The Hollow Priest', sprite: 'boss_priest', hp: 4600, speed: 40, dmg: 40, r: 44, size: 235, xp: 200, fx: 'boss', boss: true, summon: 'cultist', eye: '#c27dff' },
   revenant: { name: 'The Revenant', sprite: 'en_brute', hp: 1500, speed: 52, dmg: 28, r: 34, size: 175, xp: 80, fx: 'boss', boss: true, eye: '#ff3a3a' },
   gravekeeper: { name: 'The Gravekeeper', sprite: 'boss_gravekeeper', hp: 3800, speed: 42, dmg: 34, r: 42, size: 225, eye: '#6dff6d', xp: 150, fx: 'boss', boss: true },
 };
 
+// ---------- districts: each has its own look, monsters and boss; past the sixth they repeat, ever tougher ----------
+export const DISTRICTS = [
+  { name: 'Graveyard Gate', tint: null, boss: 'gravekeeper', elite: 'brute', road: 0.16, puddle: 0.45, tree: 0.18, mix: [['ghost', 40, 0], ['child', 25, 0], ['ghoul', 25, 40], ['crow', 20, 90]] },
+  { name: 'Ashen Streets', tint: '#6a5a4a', boss: 'houndmaster', elite: 'brute', road: 0.55, puddle: 0.35, tree: 0.06, mix: [['ghoul', 30, 0], ['hound', 30, 15], ['spitter', 20, 50], ['crow', 15, 30], ['ghost', 10, 0]] },
+  { name: 'Drowned Chapel', tint: '#4d7088', boss: 'bride', elite: 'wraithlord', road: 0.1, puddle: 0.95, tree: 0.12, mix: [['drowned', 30, 0], ['ghost', 30, 0], ['child', 20, 10], ['spitter', 12, 60], ['crow', 10, 40]] },
+  { name: 'Hollow Hospital', tint: '#5d7a66', boss: 'surgeon', elite: 'brute', road: 0.3, puddle: 0.4, tree: 0.05, mix: [['crawler', 35, 0], ['ghoul', 25, 0], ['spitter', 20, 40], ['child', 10, 0], ['hound', 12, 70]] },
+  { name: 'Bone Orchard', tint: '#7a6a44', boss: 'boneking', elite: 'brute', road: 0.05, puddle: 0.2, tree: 0.5, mix: [['ghoul', 35, 0], ['hound', 25, 10], ['crawler', 20, 30], ['drowned', 15, 60], ['spitter', 15, 50]] },
+  { name: 'Black Cathedral', tint: '#5a3d78', boss: 'hollowpriest', elite: 'wraithlord', road: 0.12, puddle: 0.5, tree: 0.1, mix: [['cultist', 30, 0], ['ghost', 25, 0], ['crawler', 15, 20], ['hound', 15, 40], ['drowned', 15, 70]] },
+];
+export const districtOf = (d) => DISTRICTS[(d - 1) % DISTRICTS.length];
+export const districtName = (d) => d > DISTRICTS.length ? `${districtOf(d).name} ${['', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'][Math.min(9, Math.floor((d - 1) / DISTRICTS.length))]}` : districtOf(d).name;
 // ---------- in-run upgrades (picked on level up) ----------
 export const UPGRADES = [
   { id: 'dmg', name: 'Sharpened', desc: '+20% damage', max: 8, apply: (R) => { R.dmgMul *= 1.2; } },

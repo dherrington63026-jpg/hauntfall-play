@@ -1,5 +1,5 @@
 // A single Hauntfall run: movement, auto-weapons, swarm, loot, level-ups, boss. Drawn on a canvas, HUD lives in the DOM (ui.js).
-import { rnd, rint, pick, clamp, ENEMIES, WEAPONS, UPGRADES, RARITIES, heroStats, makeItem, baseBonus } from './data.js';
+import { rnd, rint, pick, clamp, districtOf, ENEMIES, WEAPONS, UPGRADES, RARITIES, heroStats, makeItem, baseBonus } from './data.js';
 import { spr, sprite, flashOf, flipped, glow, SHADOW, GEM, GOLD, KNIFE, AXE, HOLE, CONE, SPLAT, LEAF, FOG, FLARE, PUDDLE, TUFT, PATCH, frames, FRAME_PAD, TEX } from './art.js';
 const WEAPON_LEN = { knife: 14, machete: 26, axe: 22, bat: 28, crowbar: 26, pistol: 16, revolver: 18, smg: 24, shotgun: 32, rifle: 38 };
 const PROP_H = { prop_tree: 230, prop_car: 130, prop_lamp: 150, prop_tomb3: 100, prop_fence: 70, prop_bush: 60, prop_pumpkin: 40, prop_tomb1: 74, prop_tomb2: 74 };
@@ -22,7 +22,7 @@ export function sfx(kind, on = true) {
 
 export class Run {
   constructor(S, canvas, ui, opts = {}) {
-    this.mode = opts.mode || 'run'; this.runLen = this.mode === 'haunt' ? 100 : RUN_LEN; this.hauntScale = this.mode === 'haunt' ? 1 + (opts.strength || 100) / 220 : 1;
+    this.theme = districtOf(S.district); this.mode = opts.mode || 'run'; this.runLen = this.mode === 'haunt' ? 100 : RUN_LEN; this.hauntScale = this.mode === 'haunt' ? 1 + (opts.strength || 100) / 220 : 1;
     this.S = S; this.cv = canvas; this.x = canvas.getContext('2d'); this.ui = ui; this.afk = !!opts.afk; this.sound = S.opts.sound !== false;
     this.hs = heroStats(S); this.district = S.district;
     this.scrap = 0; this.xpMul = 1 + baseBonus(S).xp; this.t = 0; this.over = false; this.paused = false; this.shake = 0; this.kills = 0; this.gold = 0; this.xp = 0; this.level = 1; this.xpNeed = this.needFor(1);
@@ -112,22 +112,22 @@ export class Run {
       const cap = 70 + Math.min(120, t * 0.45);
       while (this.spawnAcc >= 1 && this.enemies.length < cap) { this.spawnAcc -= 1; this.spawnOne(); }
       if (this.spawnAcc > 3) this.spawnAcc = 3;
-      if (t >= this.nextElite && this.nextElite < this.runLen) { this.spawnOne('brute'); this.nextElite += 90; this.ui.toast('A Butcher is hunting you!'); sfx('boom', this.sound); this.shake = 0.5; }
+      if (t >= this.nextElite && this.nextElite < this.runLen) { this.spawnOne(this.theme.elite); this.nextElite += 90; this.ui.toast(`${ENEMIES[this.theme.elite].name} is hunting you!`); sfx('boom', this.sound); this.shake = 0.5; }
     }
   }
   spawnPos() { const a = rnd(0, TAU), R = Math.hypot(this.sw, this.sh) / 2 / this.scale + 70; return [this.hero.x + Math.cos(a) * R, this.hero.y + Math.sin(a) * R]; }
   spawnOne(type) {
     const t = this.t;
-    if (!type) { const r = Math.random(); type = t < 40 ? (r < 0.65 ? 'ghost' : 'child') : t < 90 ? (r < 0.4 ? 'ghost' : r < 0.65 ? 'ghoul' : 'child') : (r < 0.3 ? 'ghoul' : r < 0.5 ? 'ghost' : r < 0.7 ? 'crow' : r < 0.85 ? 'child' : 'ghoul'); }
+    if (!type) { const tab = this.theme.mix.filter((m) => t >= m[2]); let tot = 0; for (const m of tab) tot += m[1]; let r = Math.random() * tot; type = tab[0][0]; for (const m of tab) { if (r < m[1]) { type = m[0]; break; } r -= m[1]; } }
     const def = ENEMIES[type], [x, y] = this.spawnPos(), sc = (1 + t / 150) * Math.pow(1.95, this.district - 1) * this.hauntScale;
     this.enemies.push({ def, x, y, hp: def.hp * sc, maxHp: def.hp * sc, dmg: def.dmg * (1 + t / 260) * Math.pow(1.4, this.district - 1), r: def.r, vx: 0, vy: 0, flash: 0, ph: rnd(0, TAU), v: rint(1, 2), dash: rnd(1, 3), age: 0, face: 1, cd: rnd(2, 4) });
     return this.enemies[this.enemies.length - 1];
   }
   spawnBoss() {
     this.bossOut = true; for (const e of this.enemies) if (!e.def.boss) e.hp = Math.min(e.hp, 1);
-    const def = this.mode === 'haunt' ? ENEMIES.revenant : ENEMIES.gravekeeper, sc = Math.pow(2.1, this.district - 1) * (this.mode === 'haunt' ? this.hauntScale : 1), a = rnd(0, TAU), R = 460;
+    const def = this.mode === 'haunt' ? ENEMIES.revenant : ENEMIES[this.theme.boss], sc = Math.pow(2.1, this.district - 1) * (this.mode === 'haunt' ? this.hauntScale : 1), a = rnd(0, TAU), R = 460;
     const b = { def, x: this.hero.x + Math.cos(a) * R, y: this.hero.y + Math.sin(a) * R, hp: def.hp * sc, maxHp: def.hp * sc, dmg: def.dmg * Math.pow(1.4, this.district - 1), r: def.r, vx: 0, vy: 0, flash: 0, ph: 0, v: 1, dash: 0, age: 0, face: 1, cd: 3, cd2: 5, slam: 0 };
-    this.enemies.push(b); this.boss = b; this.ui.toast(this.mode === 'haunt' ? 'THE REVENANT COMES FOR THE CHURCH' : 'THE GRAVEKEEPER RISES'); this.ui.bossBar(true, def.name.toUpperCase()); this.shake = 1; sfx('boom', this.sound);
+    this.enemies.push(b); this.boss = b; this.ui.toast(this.mode === 'haunt' ? 'THE REVENANT COMES FOR THE CHURCH' : `${def.name.toUpperCase()} RISES`); this.ui.bossBar(true, def.name.toUpperCase()); this.shake = 1; sfx('boom', this.sound);
   }
   // ---------- enemies ----------
   buildGrid() { const g = this.grid || (this.grid = new Map()); if (g.size > 500) g.clear(); else for (const a of g.values()) a.length = 0; for (const e of this.enemies) { const k = Math.floor(e.x / CELL) * 100003 + Math.floor(e.y / CELL); let a = g.get(k); if (!a) g.set(k, (a = [])); a.push(e); } }
@@ -142,6 +142,12 @@ export class Run {
       for (let zi = 0; zi < this.zones.length; zi++) { const z = this.zones[zi]; if (z.slow && (e.x - z.x) ** 2 + (e.y - z.y) ** 2 < z.r * z.r) { sp *= 0.5; break; } }
       if (fxk === 'ghost') { const w = Math.sin(e.age * 2.2 + e.ph) * 0.7; mx = dx - dy * w; my = dy + dx * w; }
       else if (fxk === 'swoop') { e.dash -= dt; if (e.dash < 0) { e.dash = rnd(1.6, 2.8); e.dashT = 0.45; } if (e.dashT > 0) { e.dashT -= dt; sp *= 2.4; } else sp *= 0.55; const w = Math.sin(e.age * 5 + e.ph) * 0.6; mx = dx - dy * w; my = dy + dx * w; }
+      else if (fxk === 'dash') { e.dash -= dt; if (e.dash < 0) { e.dash = rnd(1.8, 3); e.dashT = 0.4; } if (e.dashT > 0) { e.dashT -= dt; sp *= 3.2; } else sp *= 0.6; }
+      else if (fxk === 'shooter') {
+        const sh = e.def.shot; e.cd -= dt;
+        if (d > 300) { /* close in */ } else if (d < 210) { mx = -dx; my = -dy; sp *= 0.8; } else { sp = 0; }
+        if (e.cd <= 0 && d < 520) { e.cd = sh.cd * rnd(0.85, 1.2); const base = Math.atan2(h.y - e.y, h.x - e.x); for (let i = 0; i < sh.n; i++) { const a = sh.ring ? base + i * TAU / sh.n : base + (sh.n === 1 ? 0 : (i - (sh.n - 1) / 2) * (sh.spread || 0.3)); this.ebul.push({ x: e.x, y: e.y - e.def.size * 0.4, vx: Math.cos(a) * sh.spd, vy: Math.sin(a) * sh.spd, life: 4, dmg: e.dmg * sh.dmg, r: 8 }); } sfx('shoot', this.sound && Math.random() < 0.3); }
+      }
       else if (fxk === 'boss') this.bossAi(e, dt, dx, dy, d);
       if (fxk === 'boss' && e.slam > 0) sp = 0;
       // push apart from crowd neighbours
@@ -159,7 +165,7 @@ export class Run {
   bossAi(e, dt, dx, dy, d) {
     e.cd -= dt; e.cd2 -= dt; if (e.slam > 0) { e.slam -= dt; if (e.slam <= 0) { this.ring(e.x, e.y, 150, e.dmg * 1.6); this.shake = 0.8; this.puff(e.x, e.y, '#7dff9a', 30); sfx('boom', this.sound); } }
     if (e.cd <= 0) { e.cd = 3.2; const n = 10, off = rnd(0, TAU); for (let i = 0; i < n; i++) { const a = off + i * TAU / n; this.ebul.push({ x: e.x, y: e.y, vx: Math.cos(a) * 170, vy: Math.sin(a) * 170, life: 4, dmg: e.dmg * 0.55, r: 9 }); } sfx('shoot', this.sound); }
-    if (e.cd2 <= 0) { e.cd2 = 6.5; if (d < 260) { e.slam = 0.9; this.zones.push({ x: e.x, y: e.y, r: 150, t: 0.9, tele: true, col: '#ff3b3b' }); } else { for (let i = 0; i < 5; i++) { const a = rnd(0, TAU), ne = this.spawnOne('ghoul'); ne.x = e.x + Math.cos(a) * 80; ne.y = e.y + Math.sin(a) * 80; } this.ui.toast('The dead answer his call'); } }
+    if (e.cd2 <= 0) { e.cd2 = 6.5; if (d < 260) { e.slam = 0.9; this.zones.push({ x: e.x, y: e.y, r: 150, t: 0.9, tele: true, col: '#ff3b3b' }); } else { for (let i = 0; i < 5; i++) { const a = rnd(0, TAU), ne = this.spawnOne(e.def.summon || 'ghoul'); ne.x = e.x + Math.cos(a) * 80; ne.y = e.y + Math.sin(a) * 80; } this.ui.toast('The dead answer his call'); } }
   }
   ring(x, y, r, dmg) { const h = this.hero; if (Math.hypot(h.x - x, h.y - y) < r + 10) this.hurt(dmg, null); }
   hurt(dmg, from) {
@@ -290,10 +296,10 @@ export class Run {
     let s = (cx * 73856093) ^ (cy * 19349663); const r = () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296), list = [], C = 520;
     if (Math.abs(cx) + Math.abs(cy) > 0) {
       const n = 3 + Math.floor(r() * 5);
-      for (let i = 0; i < n; i++) { const q = r(), x = cx * C + r() * C, y = cy * C + r() * C; const t = q < 0.34 ? 'prop_tomb1' : q < 0.5 ? 'prop_tomb2' : q < 0.6 ? 'prop_tomb3' : q < 0.78 ? 'prop_tree' : q < 0.84 ? 'prop_lamp' : q < 0.88 ? 'prop_car' : q < 0.93 ? 'prop_fence' : q < 0.96 ? 'prop_pumpkin' : 'prop_bush'; list.push({ t, x, y, f: r() < 0.5 ? 1 : -1 }); }
+      for (let i = 0; i < n; i++) { const q0 = r(), x = cx * C + r() * C, y = cy * C + r() * C, q = q0 < this.theme.tree ? 0.7 : q0 < this.theme.tree + (this.theme.road > 0.4 ? 0.3 : 0) ? 0.86 : r(); const t = q < 0.34 ? 'prop_tomb1' : q < 0.5 ? 'prop_tomb2' : q < 0.6 ? 'prop_tomb3' : q < 0.78 ? 'prop_tree' : q < 0.84 ? 'prop_lamp' : q < 0.88 ? 'prop_car' : q < 0.93 ? 'prop_fence' : q < 0.96 ? 'prop_pumpkin' : 'prop_bush'; list.push({ t, x, y, f: r() < 0.5 ? 1 : -1 }); }
     }
-    const road = r() < 0.16 ? { h: r() < 0.5, o: Math.floor(r() * 300) } : null, leaves = []; for (let i = 0; i < 9; i++) leaves.push({ x: cx * C + r() * C, y: cy * C + r() * C, v: Math.floor(r() * 3) });
-    const patches = [], puddles = [], tufts = []; for (let i = 0; i < 2; i++) patches.push({ x: cx * C + r() * C, y: cy * C + r() * C, v: Math.floor(r() * 3), s: 220 + r() * 220 }); if (r() < 0.45) puddles.push({ x: cx * C + 60 + r() * (C - 120), y: cy * C + 60 + r() * (C - 120), s: 70 + r() * 60 }); for (let i = 0; i < 12; i++) tufts.push({ x: cx * C + r() * C, y: cy * C + r() * C, v: Math.floor(r() * 3) });
+    const road = r() < this.theme.road ? { h: r() < 0.5, o: Math.floor(r() * 300) } : null, leaves = []; for (let i = 0; i < 9; i++) leaves.push({ x: cx * C + r() * C, y: cy * C + r() * C, v: Math.floor(r() * 3) });
+    const patches = [], puddles = [], tufts = []; for (let i = 0; i < 2; i++) patches.push({ x: cx * C + r() * C, y: cy * C + r() * C, v: Math.floor(r() * 3), s: 220 + r() * 220 }); if (r() < this.theme.puddle) puddles.push({ x: cx * C + 60 + r() * (C - 120), y: cy * C + 60 + r() * (C - 120), s: 70 + r() * 60 }); for (let i = 0; i < 12; i++) tufts.push({ x: cx * C + r() * C, y: cy * C + r() * C, v: Math.floor(r() * 3) });
     (this.cinfo || (this.cinfo = new Map())).set(key, { road, leaves, patches, puddles, tufts }); if (this.cinfo.size > 200) this.cinfo.delete(this.cinfo.keys().next().value);
     this.props.set(key, list); if (this.props.size > 160) this.props.delete(this.props.keys().next().value); return list;
   }
@@ -307,6 +313,7 @@ export class Run {
     const tex = TEX.tex_ground;
     if (tex) { if (!this.pat) { this.pat = x.createPattern(tex, 'repeat'); this.pat.setTransform(new DOMMatrix().scale(0.5)); } x.fillStyle = this.pat; } else x.fillStyle = '#1b2220';
     x.fillRect(x0, y0, x1 - x0, y1 - y0);
+    if (this.theme.tint) { x.globalCompositeOperation = 'multiply'; x.fillStyle = this.theme.tint; x.fillRect(x0, y0, x1 - x0, y1 - y0); x.globalCompositeOperation = 'source-over'; }
     // ground dressing: roads, fallen leaves, blood and ectoplasm stains
     for (let cx = Math.floor(x0 / 520) - 1; cx <= Math.floor(x1 / 520) + 1; cx++) for (let cy = Math.floor(y0 / 520) - 1; cy <= Math.floor(y1 / 520) + 1; cy++) {
       this.props_at(cx, cy); const ci = this.cinfo.get(cx + ',' + cy); if (!ci) continue;
@@ -390,7 +397,7 @@ export class Run {
     x.drawImage(SHADOW, p.x - s.width * 0.4, p.y - 8, s.width * 0.8, 16); x.drawImage(s, p.x - s.width / 2, p.y - s.height);
   }
   drawEnemy(x, e) {
-    const d = e.def, ghost = d.fx === 'ghost', bob = Math.sin(e.age * (ghost ? 3 : 7) + e.ph) * (ghost ? 6 : 2.5), lift = ghost ? 16 : d.fx === 'swoop' ? 26 : 0;
+    const d = e.def, ghost = d.fx === 'ghost' || d.hover, bob = Math.sin(e.age * (ghost ? 3 : 7) + e.ph) * (ghost ? 6 : 2.5), lift = ghost ? 16 : d.fx === 'swoop' ? 26 : 0;
     const kind = ghost ? 'ghost' : d.fx === 'swoop' ? 'flap' : 'walk', fr = frames(d.sprite, e.v, d.size, kind), s0 = fr[Math.floor(e.age * (ghost ? 5 : kind === 'flap' ? 14 : 9 * (d.speed / 70) + 4)) % fr.length], s = e.face < 0 ? flipped(s0) : s0, yy = e.y - lift - (ghost ? bob : 0) + FRAME_PAD(d.size), jx = e.slam > 0 ? rnd(-2, 2) : 0;
     x.drawImage(SHADOW, e.x - d.r * 1.2, e.y - d.r * 0.45, d.r * 2.4, d.r * 0.9);
     if (ghost) x.globalAlpha = 0.88;
