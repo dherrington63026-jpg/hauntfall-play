@@ -22,6 +22,7 @@ export function sfx(kind, on = true) {
 
 export class Run {
   constructor(S, canvas, ui, opts = {}) {
+    this.mode = opts.mode || 'run'; this.runLen = this.mode === 'haunt' ? 100 : RUN_LEN; this.hauntScale = this.mode === 'haunt' ? 1 + (opts.strength || 100) / 220 : 1;
     this.S = S; this.cv = canvas; this.x = canvas.getContext('2d'); this.ui = ui; this.afk = !!opts.afk; this.sound = S.opts.sound !== false;
     this.hs = heroStats(S); this.district = S.district;
     this.scrap = 0; this.xpMul = 1 + baseBonus(S).xp; this.t = 0; this.over = false; this.paused = false; this.shake = 0; this.kills = 0; this.gold = 0; this.xp = 0; this.level = 1; this.xpNeed = this.needFor(1);
@@ -102,28 +103,28 @@ export class Run {
   // ---------- spawning ----------
   direct(dt) {
     const t = this.t, dm = 1 + 0.16 * (this.district - 1);
-    if (t >= RUN_LEN && !this.bossOut) { this.spawnBoss(); }
+    if (t >= this.runLen && !this.bossOut) { this.spawnBoss(); }
     if (!this.bossOut) {
       const rate = (0.8 + t / 48) * (1 + 0.4 * (this.district - 1)); this.spawnAcc += rate * dt;
       const cap = 70 + Math.min(120, t * 0.45);
       while (this.spawnAcc >= 1 && this.enemies.length < cap) { this.spawnAcc -= 1; this.spawnOne(); }
       if (this.spawnAcc > 3) this.spawnAcc = 3;
-      if (t >= this.nextElite && this.nextElite < RUN_LEN) { this.spawnOne('brute'); this.nextElite += 90; this.ui.toast('A Butcher is hunting you!'); sfx('boom', this.sound); this.shake = 0.5; }
+      if (t >= this.nextElite && this.nextElite < this.runLen) { this.spawnOne('brute'); this.nextElite += 90; this.ui.toast('A Butcher is hunting you!'); sfx('boom', this.sound); this.shake = 0.5; }
     }
   }
   spawnPos() { const a = rnd(0, TAU), R = Math.hypot(this.sw, this.sh) / 2 / this.scale + 70; return [this.hero.x + Math.cos(a) * R, this.hero.y + Math.sin(a) * R]; }
   spawnOne(type) {
     const t = this.t;
     if (!type) { const r = Math.random(); type = t < 40 ? (r < 0.65 ? 'ghost' : 'child') : t < 90 ? (r < 0.4 ? 'ghost' : r < 0.65 ? 'ghoul' : 'child') : (r < 0.3 ? 'ghoul' : r < 0.5 ? 'ghost' : r < 0.7 ? 'crow' : r < 0.85 ? 'child' : 'ghoul'); }
-    const def = ENEMIES[type], [x, y] = this.spawnPos(), sc = (1 + t / 150) * Math.pow(1.95, this.district - 1);
+    const def = ENEMIES[type], [x, y] = this.spawnPos(), sc = (1 + t / 150) * Math.pow(1.95, this.district - 1) * this.hauntScale;
     this.enemies.push({ def, x, y, hp: def.hp * sc, maxHp: def.hp * sc, dmg: def.dmg * (1 + t / 260) * Math.pow(1.4, this.district - 1), r: def.r, vx: 0, vy: 0, flash: 0, ph: rnd(0, TAU), v: rint(1, 2), dash: rnd(1, 3), age: 0, face: 1, cd: rnd(2, 4) });
     return this.enemies[this.enemies.length - 1];
   }
   spawnBoss() {
     this.bossOut = true; for (const e of this.enemies) if (!e.def.boss) e.hp = Math.min(e.hp, 1);
-    const def = ENEMIES.gravekeeper, sc = Math.pow(2.1, this.district - 1), a = rnd(0, TAU), R = 460;
+    const def = this.mode === 'haunt' ? ENEMIES.revenant : ENEMIES.gravekeeper, sc = Math.pow(2.1, this.district - 1) * (this.mode === 'haunt' ? this.hauntScale : 1), a = rnd(0, TAU), R = 460;
     const b = { def, x: this.hero.x + Math.cos(a) * R, y: this.hero.y + Math.sin(a) * R, hp: def.hp * sc, maxHp: def.hp * sc, dmg: def.dmg * Math.pow(1.4, this.district - 1), r: def.r, vx: 0, vy: 0, flash: 0, ph: 0, v: 1, dash: 0, age: 0, face: 1, cd: 3, cd2: 5, slam: 0 };
-    this.enemies.push(b); this.boss = b; this.ui.toast('THE GRAVEKEEPER RISES'); this.ui.bossBar(true); this.shake = 1; sfx('boom', this.sound);
+    this.enemies.push(b); this.boss = b; this.ui.toast(this.mode === 'haunt' ? 'THE REVENANT COMES FOR THE CHURCH' : 'THE GRAVEKEEPER RISES'); this.ui.bossBar(true, def.name.toUpperCase()); this.shake = 1; sfx('boom', this.sound);
   }
   // ---------- enemies ----------
   buildGrid() { const g = this.grid || (this.grid = new Map()); if (g.size > 500) g.clear(); else for (const a of g.values()) a.length = 0; for (const e of this.enemies) { const k = Math.floor(e.x / CELL) * 100003 + Math.floor(e.y / CELL); let a = g.get(k); if (!a) g.set(k, (a = [])); a.push(e); } }

@@ -84,6 +84,7 @@ export const ENEMIES = {
   crow: { name: 'Crow', sprite: 'en_crow', hp: 12, speed: 150, dmg: 7, r: 12, size: 62, eye: '#ff3a3a', xp: 2, fx: 'swoop' },
   child: { name: 'Screamer', sprite: 'en_child', hp: 16, speed: 118, dmg: 8, r: 11, size: 66, eye: '#ff3a3a', xp: 2, fx: 'ghost' },
   brute: { name: 'Butcher', sprite: 'en_brute', hp: 520, speed: 50, dmg: 26, r: 30, size: 150, eye: '#ff3a3a', xp: 30, fx: 'walk', elite: true },
+  revenant: { name: 'The Revenant', sprite: 'en_brute', hp: 1500, speed: 52, dmg: 28, r: 34, size: 175, xp: 80, fx: 'boss', boss: true, eye: '#ff3a3a' },
   gravekeeper: { name: 'The Gravekeeper', sprite: 'boss_gravekeeper', hp: 3800, speed: 42, dmg: 34, r: 42, size: 225, eye: '#6dff6d', xp: 150, fx: 'boss', boss: true },
 };
 
@@ -170,18 +171,46 @@ export function capacity(S) { return 300 + roomsOfType(S, 'store').reduce((n, [,
 export function flows(S) {
   const rooms = S.base.rooms, res = S.base.res, pop = S.base.survivors.length, out = { rooms: {}, supply: 0, demand: 0, rate: { water: -0.8 * pop, food: -0.8 * pop, scrap: 0, gold: 0 }, powerEff: 1, hungry: false, thirsty: false };
   const boost = (k, R) => { if (!R.skill) return 0; let b = 0; for (const sv of staffOf(S, k)) b += sv.skills[R.skill] * SKILL_BOOST; return Math.min(2, b); };
-  for (const [k, r] of Object.entries(rooms)) { if (r.lvl < 1) continue; const R = ROOMS[r.type], b = boost(k, R), p = R.pow(r.lvl); out.rooms[k] = { boost: b, eff: 1 }; if (p > 0) out.supply += p * (1 + b); else out.demand += -p; }
+  for (const [k, r] of Object.entries(rooms)) { if (r.lvl < 1) continue; const R = ROOMS[r.type], b = boost(k, R), p = R.pow(r.lvl); out.rooms[k] = { boost: b, eff: 1 }; if (p > 0) out.supply += p * (1 + b) * (r.haunted ? 0.4 : 1); else out.demand += -p; }
   out.powerEff = out.demand > 0 ? Math.min(1, out.supply / out.demand) : 1;
   out.thirsty = res.water <= 0 && pop > 0; out.hungry = res.food <= 0 && pop > 0;
   const morale = (out.thirsty ? 0.7 : 1) * (out.hungry ? 0.7 : 1);
   for (const [k, r] of Object.entries(rooms)) {
     if (r.lvl < 1) continue; const R = ROOMS[r.type], o = out.rooms[k]; let eff = R.pow(r.lvl) > 0 ? 1 : out.powerEff;
+    if (r.haunted) eff *= 0.4;
     if (R.use) for (const [res2, f] of Object.entries(R.use)) if (res2 !== 'scrap' && res[res2] <= 0) eff *= 0.3; else if (res2 === 'scrap' && S.scrap <= 0) eff *= 0.3;
     eff *= morale; o.eff = eff;
     if (R.make) for (const [res2, f] of Object.entries(R.make)) out.rate[res2] += f(r.lvl) * (1 + o.boost) * eff;
     if (R.use) for (const [res2, f] of Object.entries(R.use)) out.rate[res2] -= f(r.lvl) * eff;
   }
   return out;
+}
+// ----- haunted nights: ghosts besiege the church every few hours -----
+export const hauntStrength = (S) => { const rs = Object.values(S.base.rooms).filter((r) => r.lvl > 0); return Math.round(60 + 10 * rs.length + 4 * rs.reduce((n, r) => n + r.lvl, 0) + 8 * Math.max(0, S.maxDistrict - 1)); };
+export function defense(S) {
+  const F = flows(S); let d = 0;
+  for (const [k, r] of Object.entries(S.base.rooms)) { if (r.lvl < 1) continue; const m = roomMult(S, k, F); if (r.type === 'armory') d += r.lvl * 10 * m; else if (r.type === 'watch') d += r.lvl * 6 * m; else if (r.type === 'chapel') d += r.lvl * 5 * m; }
+  for (const sv of S.base.survivors) { const guard = sv.room && ['armory', 'watch', 'chapel'].includes(S.base.rooms[sv.room] && S.base.rooms[sv.room].type); d += sv.skills.weap * (guard ? 5 : 2); }
+  return Math.round(d + heroStats(S).power * 0.4);
+}
+export const cleanseCost = (S, key) => ({ scrap: 6 + 3 * S.base.rooms[key].lvl });
+export function cleanse(S, key) { const r = S.base.rooms[key]; if (!r || !r.haunted) return 'bad'; const c = cleanseCost(S, key); if ((S.scrap || 0) < c.scrap) return 'poor'; S.scrap -= c.scrap; delete r.haunted; return 'ok'; }
+// outcome: win = the church held. Returns what happened, for the message.
+export function resolveHaunt(S, won, byHand) {
+  const B = S.base, H = B.haunt, st = H.active ? H.active.strength : hauntStrength(S), rep = { won, strength: st, byHand, gold: 0, scrap: 0, haunted: [], lost: 0, survivor: false };
+  if (won) { rep.gold = Math.round(st * 2.2 * (byHand ? 1.5 : 1)); rep.scrap = Math.round(st / 7 * (byHand ? 1.5 : 1)); S.gold += rep.gold; S.scrap = (S.scrap || 0) + rep.scrap; if (Math.random() < (byHand ? 0.6 : 0.35) && B.door.length < 3) { B.door.push(makeSurvivor(S)); rep.survivor = true; } }
+  else {
+    const pool = Object.entries(B.rooms).filter(([, r]) => r.lvl > 0 && !r.haunted); for (let i = 0; i < (byHand ? 1 : 2) && pool.length; i++) { const j = Math.floor(Math.random() * pool.length), [k, r] = pool.splice(j, 1)[0]; r.haunted = true; rep.haunted.push(ROOMS[r.type].name); }
+    rep.lost = 25; B.res.water *= 0.75; B.res.food *= 0.75;
+  }
+  H.active = null; H.next = Date.now() + (5 + Math.random() * 4) * 3600000; return rep;
+}
+export function tickHaunt(S, now = Date.now()) {
+  const B = S.base; if (!B.haunt) B.haunt = { next: now + 45 * 60000, active: null };
+  const H = B.haunt, free = !B.survivors.length && Object.keys(B.rooms).length < 2; // brand-new churches get a quiet start
+  if (!H.active && now >= H.next && !free) H.active = { strength: hauntStrength(S), start: now, end: now + 3 * 3600000 };
+  if (H.active && now >= H.active.end) { const win = defense(S) * (0.85 + Math.random() * 0.3) >= H.active.strength; return resolveHaunt(S, win, false); }
+  return null;
 }
 export const roomMult = (S, key, f) => { const o = (f || flows(S)).rooms[key]; return o ? o.eff * (1 + Math.min(1, o.boost)) : 0; };
 export function baseBonus(S) {
@@ -224,7 +253,7 @@ function fixBase(S) {
     for (const k of Object.keys(old)) { const o = old[k]; if (o.lvl > 0 && OLD_MAP[o.type]) rooms[k] = { type: OLD_MAP[o.type], lvl: o.lvl }; }
     if (!Object.keys(rooms).length) rooms.f0c2 = { type: 'gen', lvl: 1 };
     // a new church always has a power source and a pump so the chain makes sense
-    S.base = { v: 3, rooms, build: null, res: { water: 120, food: 120 }, last: Date.now(), survivors: [], door: [], nextArrival: Date.now() + 45000 };
+    S.base = { v: 3, haunt: null, rooms, build: null, res: { water: 120, food: 120 }, last: Date.now(), survivors: [], door: [], nextArrival: Date.now() + 45000 };
     if (!had) S.scrap += 30;
   }
   return S;

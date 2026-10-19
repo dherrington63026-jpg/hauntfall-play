@@ -6,9 +6,9 @@ import { UI } from './ui.js';
 const $ = (s) => document.querySelector(s), cv = $('#cv');
 const S = loadSave() || newSave();
 let run = null, last = 0;
-function start() {
+function start(o = {}) {
   UI.stopAfkTimer(); UI.hideAll(); if (run) run.destroy();
-  run = new Run(S, cv, UI, { afk: S.opts.afk }); UI.showHud();
+  run = new Run(S, cv, UI, { afk: S.opts.afk, ...o }); UI.showHud();
   window.__run = run;
 }
 function pause() { if (!run || run.over) return; run.paused = true; $('#pause').classList.add('on'); }
@@ -16,7 +16,7 @@ $('#pause').addEventListener('click', (e) => {
   const b = e.target.closest('[data-pa]'); if (!b) return; $('#pause').classList.remove('on');
   if (b.dataset.pa === 'resume') { if (run) run.paused = false; } else if (run) { run.retreat(); }
 });
-UI.init(S, { start, pause, run: () => run, makeDrop: () => makeItem(S, 1 + S.maxDistrict * 2, Math.random() < 0.25 ? 2 : Math.random() < 0.6 ? 1 : 0) });
+UI.init(S, { start: () => start(), startHaunt: () => { const H = S.base.haunt && S.base.haunt.active; if (H) start({ mode: 'haunt', strength: H.strength }); }, pause, run: () => run, makeDrop: () => makeItem(S, 1 + S.maxDistrict * 2, Math.random() < 0.25 ? 2 : Math.random() < 0.6 ? 1 : 0) });
 let ema = 16.7, slow = 0;
 function frame(t) {
   requestAnimationFrame(frame); const raw = Math.min(250, (t - last) || 16.7); last = t;

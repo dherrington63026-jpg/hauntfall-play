@@ -1,5 +1,5 @@
 // Hauntfall screens and HUD (plain DOM over the canvas).
-import { RARITIES, SLOTS, SLOT_NAME, STAT_LABEL, PCT, WEAPONS, ROOMS, ROOM_ORDER, SKILLS, SKILL_KEYS, SKILL_BOOST, COLS, heroStats, itemStat, itemScore, upCost, salvageValue, autoEquip, writeSave, tickBase, startUpgrade, startBuild, openSlots, newRoomCost, upgradeCost, upgradeSecs, topFloor, slotKey, parseKey, staffSlots, staffOf, survivorById, assign, recruit, beds, capacity, flows, jobOf, makeItem } from './data.js';
+import { RARITIES, SLOTS, SLOT_NAME, STAT_LABEL, PCT, WEAPONS, ROOMS, ROOM_ORDER, SKILLS, SKILL_KEYS, SKILL_BOOST, COLS, heroStats, itemStat, itemScore, upCost, salvageValue, autoEquip, writeSave, tickBase, startUpgrade, startBuild, openSlots, newRoomCost, upgradeCost, upgradeSecs, topFloor, slotKey, parseKey, staffSlots, staffOf, survivorById, assign, recruit, beds, capacity, flows, jobOf, makeItem, tickHaunt, resolveHaunt, defense, hauntStrength, cleanse, cleanseCost } from './data.js';
 import { iconUrl } from './art.js';
 
 const $ = (s) => document.querySelector(s);
@@ -28,12 +28,12 @@ UI.hud = (r) => {
   const now = performance.now(); if (now - lastHud < 50) return; lastHud = now;
   $('#hpFill').style.width = Math.max(0, r.hero.hp / r.maxHp * 100) + '%'; $('#hpText').textContent = `${Math.ceil(Math.max(0, r.hero.hp))} / ${r.maxHp}`;
   $('#xpFill').style.width = (r.xp / r.xpNeed * 100) + '%'; $('#lvl').textContent = r.level;
-  const t = Math.max(0, Math.floor(r.bossOut ? r.t - 300 : 300 - r.t)); $('#timer').textContent = r.bossOut ? 'BOSS' : `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
+  const t = Math.max(0, Math.floor(r.bossOut ? r.t - r.runLen : r.runLen - r.t)); $('#timer').textContent = r.bossOut ? 'BOSS' : `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
   $('#gold').textContent = r.gold; $('#kills').textContent = r.kills; document.body.classList.toggle('low', r.hero.hp < r.maxHp * 0.3);
 };
 UI.toast = (msg) => { const d = document.createElement('div'); d.className = 'toast'; d.textContent = msg; $('#toasts').appendChild(d); setTimeout(() => d.remove(), 2200); while ($('#toasts').children.length > 3) $('#toasts').firstChild.remove(); };
 UI.lootToast = (it) => { const d = document.createElement('div'); d.className = 'toast loot'; d.style.setProperty('--r', RARITIES[it.rar].color); d.innerHTML = `${icon(it)}<span>${it.name}</span>`; $('#toasts').appendChild(d); setTimeout(() => d.remove(), 2600); while ($('#toasts').children.length > 4) $('#toasts').firstChild.remove(); };
-UI.bossBar = (on) => { $('#bossbar').classList.toggle('on', on); if (on) $('#bossFill').style.width = '100%'; };
+UI.bossBar = (on, name) => { $('#bossbar').classList.toggle('on', on); if (on) { $('#bossFill').style.width = '100%'; if (name) $('#bossbar b').textContent = name; } };
 UI.bossHp = (f) => { $('#bossFill').style.width = Math.max(0, f * 100) + '%'; };
 UI.joyShow = (x, y) => { const j = $('#joy'); j.style.left = x + 'px'; j.style.top = y + 'px'; j.classList.add('on'); $('#joy i').style.transform = ''; };
 UI.joyMove = (dx, dy) => { $('#joy i').style.transform = `translate(${dx * 46}px, ${dy * 46}px)`; };
@@ -50,7 +50,7 @@ UI.showHud = () => { $('#hud').classList.add('on'); syncAfk(); };
 const screen = (html, bg = 'camp') => { const s = $('#screen'); s.innerHTML = html; s.className = 'on bg-' + bg; s.scrollTop = 0; };
 let tab = 'camp', sel = null, msg = '';
 
-UI.camp = () => { tab = 'camp'; sel = null; sheet = null; const d = tickBase(S); save(); if (d) { const r = S.base.rooms[d]; msg = `${ROOMS[r.type].name} ${r.lvl === 1 ? 'is ready' : 'is now level ' + r.lvl}!`; } renderCamp(); };
+UI.camp = () => { tab = 'camp'; sel = null; sheet = null; const d = tickBase(S); const ev = tickHaunt(S); if (ev) sheet = { kind: 'hauntreport', rep: ev }; save(); if (d) { const r = S.base.rooms[d]; msg = `${ROOMS[r.type].name} ${r.lvl === 1 ? 'is ready' : 'is now level ' + r.lvl}!`; } renderCamp(); };
 function top() {
   const hs = heroStats(S);
   return `<div class="top"><h1>HAUNTFALL</h1><div class="tabs"><button data-act="tab" data-t="camp" class="${tab === 'camp' ? 'on' : ''}">Church</button><button data-act="tab" data-t="gear" class="${tab === 'gear' ? 'on' : ''}">Gear</button></div><div class="stat"><span class="gold">${S.gold.toLocaleString()} gold</span><span class="scrap">${Math.floor(S.scrap || 0).toLocaleString()} scrap</span><span>Might ${hs.power}</span></div></div>`;
@@ -65,6 +65,12 @@ function resBar() {
     <div class="rc ${r.water <= 0 ? 'bad' : ''}" data-r="water">&#128167; <b>${Math.floor(r.water)}</b><small>${rate1(F.rate.water)}</small></div>
     <div class="rc ${r.food <= 0 ? 'bad' : ''}" data-r="food">&#127830; <b>${Math.floor(r.food)}</b><small>${rate1(F.rate.food)}</small></div>
     <button class="rc crew" data-act="crew">&#128101; <b>${pop}</b>/${bd}<small>survivors</small></button></div>${F.demand > F.supply ? '<p class="warn">Not enough electricity: rooms are running slow. Build or upgrade a Generator.</p>' : ''}`;
+}
+function hauntBanner() {
+  const H = S.base.haunt && S.base.haunt.active; if (!H) return '';
+  const def = defense(S), left = (H.end - Date.now()) / 1000;
+  return `<div class="haunt"><h3>&#128123; GHOSTS ARE BESIEGING THE CHURCH</h3><p>Their strength <b>${H.strength}</b> against your defense <b>${def}</b>. ${def >= H.strength * 1.1 ? 'You should hold.' : def >= H.strength * 0.8 ? 'It will be close.' : 'You are outmatched. Fight them yourself, or build the Armory.'} They break through in <b data-hleft>${fmtDur(left)}</b>.</p>
+    <div class="btns"><button class="go" data-act="defend">Fight them off yourself<small>about 2 minutes, bigger rewards</small></button><button data-act="hold">Hold the line<small>let your defenses decide</small></button></div></div>`;
 }
 function outlineSvg(F, H, ROOF) {
   const bodyH = F * 100, glow = [];
@@ -81,7 +87,7 @@ function cellHtml(sl, open, F, ROOF, H, FL) {
   const r = S.base.rooms[sl.key], top = (ROOF + (F - 1 - sl.f) * 100) / H * 100, pos = `left:${sl.c * 20}%;top:${top}%;width:20%;height:${100 / H * 100}%`;
   if (r && r.lvl === 0) { const R = ROOMS[r.type]; return `<div class="cell scaffold" style="${pos}"><span>${R.name}</span><b data-build="${sl.key}">${fmtDur((S.base.build.end - Date.now()) / 1000)}</b></div>`; }
   if (r) { const R = ROOMS[r.type], up = S.base.build && S.base.build.key === sl.key && S.base.build.kind === 'up', staff = R.skill ? staffOf(S, sl.key).length : 0, slots = R.skill ? staffSlots(r.lvl) : 0;
-    return `<button class="cell room ${cellStatus(sl.key)}" data-act="open" data-key="${sl.key}" style="${pos};background-image:url(art/room_${R.art}.jpg)"><b class="lv">${r.lvl}</b>${slots ? `<i class="crewdot">${'&#9679;'.repeat(staff)}${'&#9675;'.repeat(slots - staff)}</i>` : ''}<span class="nm">${R.name}</span>${up ? '<em data-up="' + sl.key + '">' + fmtDur((S.base.build.end - Date.now()) / 1000) + '</em>' : ''}</button>`; }
+    return `<button class="cell room ${cellStatus(sl.key)} ${r.haunted ? 'haunted' : ''}" data-act="open" data-key="${sl.key}" style="${pos};background-image:url(art/room_${R.art}.jpg)"><b class="lv">${r.lvl}</b>${r.haunted ? '<i class="ghost">&#128123;</i>' : ''}${slots ? `<i class="crewdot">${'&#9679;'.repeat(staff)}${'&#9675;'.repeat(slots - staff)}</i>` : ''}<span class="nm">${R.name}</span>${up ? '<em data-up="' + sl.key + '">' + fmtDur((S.base.build.end - Date.now()) / 1000) + '</em>' : ''}</button>`; }
   if (open.includes(sl.key)) { const b = (f, c) => { const x = S.base.rooms[slotKey(f, c)]; return x && x.lvl > 0; }, L = b(sl.f, sl.c - 1), Rr = b(sl.f, sl.c + 1), D = sl.f > 0 && b(sl.f - 1, sl.c), arrow = D ? '&#9650;' : L && !Rr ? '&#9654;' : Rr && !L ? '&#9664;' : '';
     return `<button class="cell slot" data-act="slot" data-key="${sl.key}" style="${pos}"><span>${arrow}</span><b>+</b></button>`; }
   return `<div class="cell empty" style="${pos}"></div>`;
@@ -92,6 +98,7 @@ function skillBars(sv, only) { return SKILL_KEYS.filter((k) => (only ? only.incl
 function svRow(sv, extra = '') { return `<div class="svrow">${portrait(sv)}<div class="svi"><h4>${sv.name} <small>${jobOf(sv)}</small></h4><div class="sks">${skillBars(sv)}</div><p class="dim">${sv.room && S.base.rooms[sv.room] ? 'Working: ' + ROOMS[S.base.rooms[sv.room].type].name : 'Idle'}</p></div>${extra}</div>`; }
 function sheetHtml() {
   if (!sheet) return '';
+  if (sheet.kind === 'hauntreport') { const p = sheet.rep; return `<div class="sheetbg" data-act="closesheet"><div class="sheet"><div class="shead"><h3>${p.won ? 'THE CHURCH HELD' : 'THE CHURCH WAS OVERRUN'}</h3><button data-act="closesheet">Close</button></div><p>${p.won ? `The ghosts (strength ${p.strength}) were driven back${p.byHand ? ' by your own hand' : ''}.` : `The ghosts (strength ${p.strength}) broke through.`}</p>${p.won ? `<p class="bonus">+${p.gold} gold, +${p.scrap} scrap${p.survivor ? ', and a survivor is knocking at the door!' : ''}</p>` : `<p class="warn">${p.haunted.length ? p.haunted.join(' and ') + (p.haunted.length > 1 ? ' are' : ' is') + ' haunted (output down 60% until cleansed). ' : ''}A quarter of the water and food spoiled.</p>`}</div></div>`; }
   const wrap = (inner) => `<div class="sheetbg" data-act="closesheet"><div class="sheet">${inner}</div></div>`;
   if (sheet.kind === 'build') {
     const c = newRoomCost(S), busy = !!S.base.build, poor = S.gold < c.gold || (S.scrap || 0) < c.scrap;
@@ -120,7 +127,8 @@ function sheetHtml() {
   const mult = fo.eff * (1 + Math.min(1, fo.boost));
   return wrap(`<div class="sart" style="background-image:linear-gradient(transparent 30%, #0e1218), url(art/room_${R.art}.jpg)"></div><div class="shead"><h3>${R.name} <em>Lv ${l}</em></h3><button data-act="closesheet">Close</button></div>
     <p>${R.desc}</p>${makes(R, l) ? `<p class="bonus">Makes: ${makes(R, l)}${fo.boost ? ` <b>(+${Math.round(fo.boost * 100)}% from staff)</b>` : ''}</p>` : ''}${R.bonus ? `<p class="bonus">Bonus: ${R.bonus(l, mult)}</p>` : ''}${need(R, l) ? `<p class="dim">Uses: ${need(R, l)}</p>` : ''}
-    ${fo.eff < 0.98 ? `<p class="warn">Running at ${Math.round(fo.eff * 100)}%: ${F.demand > F.supply ? 'not enough electricity. ' : ''}${F.rate.water < 0 && S.base.res.water <= 0 ? 'out of water. ' : ''}${S.base.res.food <= 0 ? 'people are hungry.' : ''}</p>` : ''}
+    ${r.haunted ? `<div class="hauntbox"><b>&#128123; HAUNTED</b> output is down 60%. <button data-act="cleanse" data-key="${sheet.key}" ${(S.scrap || 0) >= cleanseCost(S, sheet.key).scrap ? 'class="go"' : 'disabled'}>Cleanse (${cleanseCost(S, sheet.key).scrap} scrap)</button></div>` : ''}
+    ${fo.eff < 0.98 && !r.haunted ? `<p class="warn">Running at ${Math.round(fo.eff * 100)}%: ${F.demand > F.supply ? 'not enough electricity. ' : ''}${F.rate.water < 0 && S.base.res.water <= 0 ? 'out of water. ' : ''}${S.base.res.food <= 0 ? 'people are hungry.' : ''}</p>` : ''}
     ${R.skill ? `<div class="crewbox"><h4>Staff <small>${staff.length}/${slots} spots · skill: ${SKILLS[R.skill]}</small></h4>${staff.map((sv) => `<div class="svmini">${portrait(sv)}<span>${sv.name}<small>${SKILLS[R.skill]} ${sv.skills[R.skill]} &rarr; +${Math.round(sv.skills[R.skill] * SKILL_BOOST * 100)}%</small></span><button data-act="assignto" data-id="${sv.id}" data-key="">Remove</button></div>`).join('')}${staff.length < slots ? `<button data-act="staffpick" data-key="${sheet.key}">+ Assign a survivor</button>` : ''}</div>` : ''}
     ${building ? `<div class="build"><span>Upgrading... <b data-build="${sheet.key}">${fmtDur((S.base.build.end - Date.now()) / 1000)}</b></span><div class="bar"><i data-buildbar="${sheet.key}" style="width:${Math.min(100, (1 - (S.base.build.end - Date.now()) / 1000 / upgradeSecs(l)) * 100)}%"></i></div></div>`
       : `<button class="upg ${can && !busy ? 'go' : ''}" data-act="room" data-key="${sheet.key}" ${can && !busy ? '' : 'disabled'}>Upgrade to level ${l + 1}<small>${c.gold.toLocaleString()} gold · ${c.scrap} scrap · ${fmtDur(upgradeSecs(l))}${busy ? ' · builders busy' : !can ? ' · not enough yet' : ''}</small></button>`}`);
@@ -133,7 +141,7 @@ function renderCamp() {
       <label class="chk"><input type="checkbox" id="afkChk" ${S.opts.afk ? 'checked' : ''}> AFK combat: explore, fight and loot by itself, then start the next run</label>
       <button class="big" data-act="run">Enter the graveyard <small>district ${S.district}</small></button>
       ${S.maxDistrict > 1 ? `<div class="row">${Array.from({ length: S.maxDistrict }, (_, i) => `<button data-act="district" data-d="${i + 1}" class="${S.district === i + 1 ? 'on' : ''}">District ${i + 1}</button>`).join('')}</div>` : ''}</div></div>
-    ${resBar()}
+    ${resBar()}${hauntBanner()}
     <div class="chart" style="aspect-ratio:500/${H}">${outlineSvg(F, H, ROOF)}${Array.from({ length: F }, (_, f) => Array.from({ length: COLS }, (_, c) => cellHtml({ key: slotKey(f, c), f, c }, open, F, ROOF, H))).flat().join('')}
       <button class="door ${waiting ? 'knock' : ''}" data-act="door" style="top:${(ROOF + F * 100 + 6) / H * 100}%"><span class="dr">&#128682;</span>${waiting ? `<b class="bdg">${waiting}</b>` : ''}<small>${waiting ? 'Someone is at the door!' : 'Front door'}</small></button></div>
     <p class="hint">Tap a room to upgrade it and staff it. Tap a <b>+</b> to build a new room beside or above. The church can grow forever.</p></div>${sheetHtml()}${msg ? `<div class="msg">${msg}</div>` : ''}`);
@@ -142,11 +150,12 @@ function renderCamp() {
   flashMsg(); clearInterval(UI.baseT); UI.baseT = setInterval(refreshBase, 1000);
 }
 let lastSig = '';
-function baseSig() { return S.base.door.length + '|' + S.base.survivors.length + '|' + (S.base.build ? 1 : 0); }
+function baseSig() { return S.base.door.length + '|' + S.base.survivors.length + '|' + (S.base.build ? 1 : 0) + '|' + (S.base.haunt && S.base.haunt.active ? 1 : 0); }
 function refreshBase() {
   if (tab !== 'camp' || !$('#screen').classList.contains('on') || !$('.chart')) { clearInterval(UI.baseT); return; }
-  const before = baseSig(), done = tickBase(S); if (done) { save(); const r = S.base.rooms[done]; msg = `${ROOMS[r.type].name} ${r.lvl === 1 ? 'is ready' : 'is now level ' + r.lvl}!`; renderCamp(); return; }
+  const before = baseSig(), done = tickBase(S), hev = tickHaunt(S); if (hev) { sheet = { kind: 'hauntreport', rep: hev }; save(); renderCamp(); return; } if (done) { save(); const r = S.base.rooms[done]; msg = `${ROOMS[r.type].name} ${r.lvl === 1 ? 'is ready' : 'is now level ' + r.lvl}!`; renderCamp(); return; }
   if (baseSig() !== before) { save(); renderCamp(); return; }
+  const hl = $('[data-hleft]'); if (hl && S.base.haunt && S.base.haunt.active) hl.textContent = fmtDur((S.base.haunt.active.end - Date.now()) / 1000);
   const F = flows(S), r = S.base.res, rb = $('.resbar'); if (rb) { const set = (sel, html, bad) => { const el = rb.querySelector(sel); if (el) { el.innerHTML = html; el.classList.toggle('bad', !!bad); } }; set('[data-r="pow"]', `&#9889; <b>${Math.round(F.supply)}</b>/${Math.round(F.demand)}<small>power</small>`, F.demand > F.supply); set('[data-r="water"]', `&#128167; <b>${Math.floor(r.water)}</b><small>${rate1(F.rate.water)}</small>`, r.water <= 0); set('[data-r="food"]', `&#127830; <b>${Math.floor(r.food)}</b><small>${rate1(F.rate.food)}</small>`, r.food <= 0); }
   const top2 = $('.top .stat'); if (top2) { const g = top2.querySelector('.gold'), sc = top2.querySelector('.scrap'); if (g) g.textContent = `${Math.floor(S.gold).toLocaleString()} gold`; if (sc) sc.textContent = `${Math.floor(S.scrap || 0).toLocaleString()} scrap`; }
   const bd = S.base.build; if (bd) { const left = (bd.end - Date.now()) / 1000; for (const sel of [`[data-build="${bd.key}"]`, `[data-up="${bd.key}"]`]) { const t = $(sel); if (t) t.textContent = fmtDur(left); } const bar = $(`[data-buildbar="${bd.key}"]`); if (bar) bar.style.width = Math.min(100, (1 - left / upgradeSecs(S.base.rooms[bd.key].lvl)) * 100) + '%'; }
@@ -175,6 +184,9 @@ function handle(act, d) {
   if (act === 'tab') { tab = d.t; sel = null; tab === 'camp' ? renderCamp() : renderGear(); return; }
   if (act === 'run') { cb.start(); return; }
   if (act === 'district') { S.district = +d.d; save(); renderCamp(); return; }
+  if (act === 'defend') { if (S.base.haunt && S.base.haunt.active) cb.startHaunt(); return; }
+  if (act === 'hold') { const H = S.base.haunt && S.base.haunt.active; if (!H) return; const win = defense(S) * (0.85 + Math.random() * 0.3) >= H.strength; sheet = { kind: 'hauntreport', rep: resolveHaunt(S, win, false) }; save(); renderCamp(); return; }
+  if (act === 'cleanse') { const r = cleanse(S, d.key); msg = r === 'ok' ? 'The room is cleansed.' : 'Not enough scrap.'; if (r === 'ok') save(); renderCamp(); return; }
   if (act === 'open') { sheet = { kind: 'room', key: d.key }; renderCamp(); return; }
   if (act === 'slot') { sheet = { kind: 'build', key: d.key }; renderCamp(); return; }
   if (act === 'door') { sheet = { kind: 'door' }; renderCamp(); return; }
@@ -201,7 +213,18 @@ document.addEventListener('click', (e) => { const b = e.target.closest('.itc[dat
 UI.gearTab = () => { tab = 'gear'; renderGear(); };
 
 // ---------- results ----------
+function hauntDone(r) {
+  const won = r.won, items = r.lootItems.slice().sort((a, b) => b.rar - a.rar); S.gold += r.gold; S.scrap = (S.scrap || 0) + r.scrap;
+  for (const it of items) if (S.bag.length < 120) S.bag.push(it); else S.gold += salvageValue(it);
+  const rep = resolveHaunt(S, won, true); save(); r.destroy(); UI.stopAfkTimer();
+  screen(`<div class="result ${won ? 'win' : 'lose'}"><h1>${won ? 'THE CHURCH HOLDS' : 'THE CHURCH FALLS'}</h1><p class="sub">${won ? 'You drove the ghosts back from the doors.' : 'The ghosts broke through while you fought.'}</p>
+    <div class="stats"><div><small>Kills</small><b>${r.kills}</b></div><div><small>Gold</small><b>${r.gold + (won ? rep.gold : 0)}</b></div><div><small>Scrap</small><b>${r.scrap + (won ? rep.scrap : 0)}</b></div><div><small>Gear</small><b>${items.length}</b></div><div><small>Result</small><b>${won ? 'Held' : 'Lost'}</b></div></div>
+    ${won ? `<p class="sub">Church reward: +${rep.gold} gold, +${rep.scrap} scrap${rep.survivor ? ' · a survivor is at the door!' : ''}</p>` : `<p class="sub">${rep.haunted.length ? rep.haunted.join(' and ') + ' haunted. ' : ''}Some food and water spoiled.</p>`}
+    <div class="bag small">${items.map((it) => cardHtml(it)).join('')}</div><div class="btns"><button class="go big" data-act="camp">Back to the church</button></div></div>`);
+  $('#hud').classList.remove('on');
+}
 UI.done = (r) => {
+  if (r.mode === 'haunt') return hauntDone(r);
   const won = r.won, items = r.lootItems.slice().sort((a, b) => b.rar - a.rar), earned = r.gold + (won ? 120 * S.district : Math.floor(r.t / 10));
   S.gold += earned; S.scrap = (S.scrap || 0) + r.scrap; S.runs++; S.best = Math.max(S.best, r.kills); if (won) { S.wins++; if (S.district === S.maxDistrict && S.maxDistrict < 6) { S.maxDistrict++; } }
   for (const it of items) if (S.bag.length < 120) S.bag.push(it); else S.gold += salvageValue(it);

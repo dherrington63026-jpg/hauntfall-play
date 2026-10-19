@@ -134,3 +134,9 @@ button.rc.crew { cursor: pointer; }
 .svmini { display: grid; grid-template-columns: 40px 1fr auto; gap: 8px; align-items: center; } .svmini .pt { width: 40px; height: 40px; border-radius: 8px; } .svmini span { font-size: 13px; font-weight: 700; display: grid; } .svmini small { font-weight: 500; color: #9ee6a0; font-size: 11px; } .svmini button { padding: 6px 8px; font-size: 11px; }
 .sheet p.warn { text-align: left; }
 .sks { gap: 5px !important; } .sk { height: 16px !important; } .sk em { line-height: 16px !important; } .svi p { margin-top: 6px !important; }
+
+/* haunted nights */
+.haunt { max-width: 560px; width: 100%; margin: 6px auto; background: linear-gradient(#2a1018, #14080c); border: 2px solid #c0392b; border-radius: 14px; padding: 10px 12px; box-shadow: 0 0 24px #c0392b55; animation: hauntPulse 2s ease-in-out infinite; } @keyframes hauntPulse { 50% { box-shadow: 0 0 34px #c0392baa; } }
+.haunt h3 { font-size: 15px; color: #ff8a7a; margin-bottom: 4px; } .haunt p { margin: 0 0 8px; font-size: 12.5px; color: #ecd0cc; } .haunt .btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; } .haunt button small { display: block; font: 500 10px Inter; opacity: 0.8; }
+.cell.room.haunted { border-color: #9b59b6; box-shadow: inset 0 0 18px #9b59b6aa; filter: saturate(0.7); } .cell .ghost { position: absolute; right: 4px; top: 22px; font-size: 16px; font-style: normal; animation: floaty 1.6s ease-in-out infinite; } @keyframes floaty { 50% { transform: translateY(-4px); } }
+.hauntbox { background: #1f1226; border: 1px solid #9b59b6; border-radius: 10px; padding: 8px 10px; display: flex; gap: 8px; align-items: center; justify-content: space-between; flex-wrap: wrap; font-size: 12.5px; }
