@@ -156,3 +156,4 @@ button.rc.crew { cursor: pointer; }
 .cell.room { animation: lampFlicker 4.5s infinite; } .cell.room:nth-child(3n) { animation-delay: -1.2s; animation-duration: 5.7s; } .cell.room:nth-child(3n+1) { animation-delay: -2.7s; animation-duration: 3.9s; }
 @keyframes lampFlicker { 0%, 100% { filter: brightness(1); } 8% { filter: brightness(0.86); } 12% { filter: brightness(1.06); } 40% { filter: brightness(0.96); } 44% { filter: brightness(1.1); } 70% { filter: brightness(0.92); } }
 .cell.room.bad { animation: lampFlicker 1.2s infinite; } .cell.room.haunted { animation: none; }
+#screen { overflow-x: hidden !important; } .chart::before { inset: -10% 0 0 !important; overflow: hidden; }
