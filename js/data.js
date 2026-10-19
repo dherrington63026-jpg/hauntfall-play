@@ -105,34 +105,67 @@ export const UPGRADES = [
 ];
 
 // ---------- the haunted church (base) ----------
-// producers (gen, workshop) fill a bank over time; the others give permanent bonuses. Upgrades take real time, one at a time.
+// A cutaway of the church: floor 0 has 5 slots, floor 1 has 3, floor 2 (the bell tower) has 1. You start with one room and unlock a slot
+// to the left, right or above an existing room. Each room is one preset type (9 types, 9 slots). Rooms level up; building takes real time.
 export const ROOMS = {
-  gen: { name: 'Old Generator', icon: 'GEN', desc: 'Keeps the church powered and earns gold while you are away.', prod: 'gold', rate: 45, pow: 1.3 },
-  workshop: { name: 'Workshop', icon: 'WRK', desc: 'Makes scrap for building, and gear upgrades cost less.', prod: 'scrap', rate: 6, pow: 1.2, bonus: (l) => `Gear upgrades -${Math.min(50, l * 3)}%` },
-  armory: { name: 'Armory', icon: 'ARM', desc: 'Better weapons for every run.', bonus: (l) => `+${l * 4}% damage` },
-  infirmary: { name: 'Infirmary', icon: 'MED', desc: 'Patches you up before you go out.', bonus: (l) => `+${l * 14} health, +${(l * 0.2).toFixed(1)} regen/s` },
-  tower: { name: 'Bell Tower', icon: 'TWR', desc: 'A watchman spots loot from far away.', bonus: (l) => `+${l * 4}% loot luck, +${l * 5}% pickup range` },
-  store: { name: 'Storeroom', icon: 'STO', desc: 'Production banks hold more while you are away.', bonus: (l) => `Banks hold ${4 + l * 2} hours` },
-  chapel: { name: 'Prayer Hall', icon: 'PRY', desc: 'Faith makes you steadier in the dark.', bonus: (l) => `+${(l * 1.5).toFixed(1)}% crit, +${l * 6}% XP` },
+  gen: { name: 'Generator Room', art: 'gen', desc: 'Keeps the church powered and earns gold while you are away.', prod: 'gold', rate: 45, pow: 1.3 },
+  workshop: { name: 'Workshop', art: 'workshop', desc: 'Makes scrap for building, and gear upgrades cost less.', prod: 'scrap', rate: 6, pow: 1.2, bonus: (l) => `Gear upgrades -${Math.min(50, l * 3)}%` },
+  kitchen: { name: 'Kitchen', art: 'kitchen', desc: 'Hot meals keep you on your feet out there.', bonus: (l) => `+${l * 28} health` },
+  bedroom: { name: 'Bedroom', art: 'bedroom', desc: 'Rested survivors learn faster.', bonus: (l) => `+${l * 6}% XP` },
+  armory: { name: 'Armory', art: 'armory', desc: 'Better weapons for every run.', bonus: (l) => `+${l * 4}% damage` },
+  infirmary: { name: 'Infirmary', art: 'infirmary', desc: 'Patches you up while you fight.', bonus: (l) => `+${(l * 0.3).toFixed(1)} regen/s, +${l * 8} health` },
+  watch: { name: 'Bell Tower', art: 'tower', desc: 'A watchman spots loot from far away.', bonus: (l) => `+${l * 4}% loot luck, +${l * 5}% pickup range` },
+  store: { name: 'Storeroom', art: 'store', desc: 'Production banks hold more while you are away.', bonus: (l) => `Banks hold ${4 + l * 2} hours` },
+  chapel: { name: 'Prayer Hall', art: 'chapel', desc: 'Faith makes you steadier in the dark.', bonus: (l) => `+${(l * 1.5).toFixed(1)}% crit chance` },
 };
-export const ROOM_ORDER = ['gen', 'workshop', 'armory', 'infirmary', 'tower', 'store', 'chapel'];
+export const ROOM_ORDER = Object.keys(ROOMS);
 export const ROOM_MAX = 20;
-export const roomLvl = (S, id) => (S.base && S.base.rooms[id] ? S.base.rooms[id].lvl : 0);
+// slots: key f<floor>c<column>; columns 0..4 across the nave
+export const SLOT_LIST = [[0, 0], [0, 1], [0, 2], [0, 3], [0, 4], [1, 1], [1, 2], [1, 3], [2, 2]].map(([f, c]) => ({ key: `f${f}c${c}`, f, c }));
+export const roomKeys = (S) => Object.keys(S.base.rooms);
+export const typeLvl = (S, type) => { let n = 0; for (const k in S.base.rooms) { const r = S.base.rooms[k]; if (r.type === type && r.lvl > 0) n += r.lvl; } return n; };
+export const roomOfType = (S, type) => { for (const k in S.base.rooms) if (S.base.rooms[k].type === type) return k; return null; };
 export function baseBonus(S) {
-  const g = (id) => roomLvl(S, id);
-  return { dmg: g('armory') * 0.04, hp: g('infirmary') * 14, regen: g('infirmary') * 0.2, luck: g('tower') * 0.04, magnet: g('tower') * 0.05, crit: g('chapel') * 0.015, xp: g('chapel') * 0.06, disc: Math.min(0.5, g('workshop') * 0.03), capHours: 4 + g('store') * 2 };
+  const g = (t) => typeLvl(S, t);
+  return { dmg: g('armory') * 0.04, hp: g('kitchen') * 28 + g('infirmary') * 8, regen: g('infirmary') * 0.3, luck: g('watch') * 0.04, magnet: g('watch') * 0.05, crit: g('chapel') * 0.015, xp: g('bedroom') * 0.06, disc: Math.min(0.5, g('workshop') * 0.03), capHours: 4 + g('store') * 2 };
 }
+// which empty slots can be unlocked now: next to (left/right) or above a finished room
+export function openSlots(S) {
+  const built = (f, c) => { const r = S.base.rooms[`f${f}c${c}`]; return r && r.lvl > 0; }, out = [];
+  for (const sl of SLOT_LIST) { if (S.base.rooms[sl.key]) continue; if (built(sl.f, sl.c - 1) || built(sl.f, sl.c + 1) || (sl.f > 0 && built(sl.f - 1, sl.c))) out.push(sl.key); }
+  return out;
+}
+export const newRoomCost = (S) => { const n = Object.keys(S.base.rooms).length; return { gold: Math.round(90 * Math.pow(2.1, n - 1)), scrap: Math.round(6 * Math.pow(1.7, n - 1)), secs: Math.round(30 * Math.pow(1.9, n - 1)) }; };
 export const upgradeCost = (lvl) => ({ gold: Math.round(50 * Math.pow(1.75, lvl)), scrap: Math.round(4 * Math.pow(1.6, lvl)) });
-export const upgradeSecs = (lvl) => Math.round(20 * Math.pow(1.7, lvl)); // level 0 -> 1: 20 s, 5 -> 6: about 6 min, 10 -> 11: about 1.6 h
-export const roomRate = (S, id) => { const R = ROOMS[id], l = roomLvl(S, id); return R.prod && l ? R.rate * Math.pow(l, R.pow) : 0; };
-export function roomBank(S, id) { const r = S.base.rooms[id]; if (!r || !r.lvl || !ROOMS[id].prod) return 0; const hrs = Math.min(baseBonus(S).capHours, (Date.now() - r.t) / 3600000); return Math.floor(hrs * roomRate(S, id)); }
-export function collectRoom(S, id) { const n = roomBank(S, id); if (n <= 0) return 0; S[ROOMS[id].prod === 'gold' ? 'gold' : 'scrap'] += n; S.base.rooms[id].t = Date.now(); return n; }
-export function tickBase(S) { const b = S.base.build; if (b && Date.now() >= b.end) { const r = S.base.rooms[b.id]; if (r.lvl === 0 && ROOMS[b.id].prod) r.t = Date.now(); r.lvl++; S.base.build = null; return b.id; } return null; }
-export function startUpgrade(S, id) {
-  const r = S.base.rooms[id]; if (S.base.build || r.lvl >= ROOM_MAX) return 'busy'; const c = upgradeCost(r.lvl);
-  if (S.gold < c.gold || (S.scrap || 0) < c.scrap) return 'poor'; S.gold -= c.gold; S.scrap -= c.scrap; S.base.build = { id, end: Date.now() + upgradeSecs(r.lvl) * 1000 }; return 'ok';
+export const upgradeSecs = (lvl) => Math.round(20 * Math.pow(1.7, lvl));
+export const roomRate = (S, key) => { const r = S.base.rooms[key], R = r && ROOMS[r.type]; return R && R.prod && r.lvl ? R.rate * Math.pow(r.lvl, R.pow) : 0; };
+export function roomBank(S, key) { const r = S.base.rooms[key]; if (!r || !r.lvl || !ROOMS[r.type].prod) return 0; const hrs = Math.min(baseBonus(S).capHours, (Date.now() - r.t) / 3600000); return Math.floor(hrs * roomRate(S, key)); }
+export function collectRoom(S, key) { const n = roomBank(S, key); if (n <= 0) return 0; const r = S.base.rooms[key]; S[ROOMS[r.type].prod === 'gold' ? 'gold' : 'scrap'] += n; r.t = Date.now(); return n; }
+export function tickBase(S) {
+  const b = S.base.build; if (!b || Date.now() < b.end) return null;
+  const r = S.base.rooms[b.key]; if (b.kind === 'new') { r.lvl = 1; r.t = Date.now(); delete r.building; } else r.lvl++; S.base.build = null; return b.key;
 }
-function fixBase(S) { if (!S.base) { S.base = { rooms: {}, build: null }; S.scrap = (typeof S.scrap === 'number' ? S.scrap : 0) + 30; } if (typeof S.scrap !== 'number') S.scrap = 0; for (const id of ROOM_ORDER) if (!S.base.rooms[id]) S.base.rooms[id] = { lvl: id === 'gen' || id === 'workshop' ? 1 : 0, t: Date.now() }; return S; }
+export function startBuild(S, key, type) {
+  if (S.base.build) return 'busy'; if (S.base.rooms[key] || !ROOMS[type] || roomOfType(S, type)) return 'bad'; const c = newRoomCost(S);
+  if (S.gold < c.gold || (S.scrap || 0) < c.scrap) return 'poor'; S.gold -= c.gold; S.scrap -= c.scrap;
+  S.base.rooms[key] = { type, lvl: 0, building: true, t: Date.now() }; S.base.build = { key, kind: 'new', end: Date.now() + c.secs * 1000 }; return 'ok';
+}
+export function startUpgrade(S, key) {
+  const r = S.base.rooms[key]; if (S.base.build || !r || r.lvl >= ROOM_MAX) return 'busy'; const c = upgradeCost(r.lvl);
+  if (S.gold < c.gold || (S.scrap || 0) < c.scrap) return 'poor'; S.gold -= c.gold; S.scrap -= c.scrap; S.base.build = { key, kind: 'up', end: Date.now() + upgradeSecs(r.lvl) * 1000 }; return 'ok';
+}
+const OLD_SLOTS = ['f0c2', 'f0c3', 'f0c1', 'f1c2', 'f0c4', 'f0c0', 'f1c1', 'f1c3', 'f2c2'];
+const OLD_MAP = { gen: 'gen', workshop: 'workshop', armory: 'armory', infirmary: 'infirmary', tower: 'watch', store: 'store', chapel: 'chapel' };
+function fixBase(S) {
+  const had = !!S.base; if (typeof S.scrap !== 'number') S.scrap = 0;
+  if (!S.base || S.base.v !== 2) {
+    const old = S.base && S.base.rooms ? S.base.rooms : {}, rooms = {}; let i = 0;
+    for (const id of Object.keys(old)) { if (old[id].lvl > 0 && OLD_MAP[id]) { rooms[OLD_SLOTS[i++]] = { type: OLD_MAP[id], lvl: old[id].lvl, t: old[id].t || Date.now() }; } }
+    if (!Object.keys(rooms).length) rooms.f0c2 = { type: 'gen', lvl: 1, t: Date.now() };
+    S.base = { v: 2, rooms, build: null }; if (!had) S.scrap += 30;
+  }
+  return S;
+}
 // ---------- save ----------
 const KEY = 'hauntfall_v1';
 export function newSave() {
