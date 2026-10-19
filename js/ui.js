@@ -48,7 +48,7 @@ UI.levelUp = (choices, pick) => {
 // ---------- screens ----------
 UI.hideAll = () => { document.body.classList.remove('low', 'hurt'); $('#screen').classList.remove('on'); $('#screen').innerHTML = ''; $('#hud').classList.remove('on'); $('#levelup').classList.remove('on'); $('#bossbar').classList.remove('on'); };
 UI.showHud = () => { $('#hud').classList.add('on'); syncAfk(); };
-const screen = (html, bg = 'camp') => { const s = $('#screen'); s.innerHTML = html; s.className = 'on bg-' + bg; s.scrollTop = 0; };
+const screen = (html, bg = 'camp', key = '') => { const s = $('#screen'), keep = key && s.dataset.k === key, y = s.scrollTop; s.innerHTML = html; s.className = 'on bg-' + bg; s.dataset.k = key; s.scrollTop = keep ? y : 0; };
 let tab = 'camp', sel = null, msg = '';
 
 UI.camp = () => { tab = 'camp'; sel = null; sheet = null; const d = tickBase(S); const ev = tickHaunt(S); if (ev) sheet = { kind: 'hauntreport', rep: ev }; save(); if (d) { const r = S.base.rooms[d]; msg = `${ROOMS[r.type].name} ${r.lvl === 1 ? 'is ready' : 'is now level ' + r.lvl}!`; } renderCamp(); };
@@ -187,19 +187,19 @@ function renderGear() {
   const detail = sel ? detailHtml(sel) : `<p class="dim">Tap an item to see it. Your stats: damage x${hs.dmgPct.toFixed(2)} · fire rate x${hs.ratePct.toFixed(2)} · ${hs.hp} health · ${hs.armor} armor · ${Math.round(hs.crit * 100)}% crit · speed ${Math.round(hs.speed)}.</p>`;
   screen(`${top()}${gsub()}<div class="body gear"><div class="col"><div class="panel"><h2>Equipped</h2><div class="slots">${eq}</div>${setSummary()}</div><div class="panel detail">${detail}</div></div>
     <div class="col"><div class="panel"><div class="bagtop"><h2>Bag <small>${S.bag.length}</small></h2><div class="btns"><button data-act="auto">Auto equip</button><button data-act="sellr" data-r="0">Sell white</button><button data-act="sellr" data-r="1">Sell green</button><button data-act="sellr" data-r="2">Sell blue</button><button data-act="sellr" data-r="3">Sell purple</button></div></div>
-    <div class="bag">${bag.map((it) => cardHtml(it)).join('') || '<p class="dim">Nothing yet. Loot drops during runs.</p>'}</div></div></div></div>${sheetHtml()}${msg ? `<div class="msg">${msg}</div>` : ''}`);
+    <div class="bag">${bag.map((it) => cardHtml(it)).join('') || '<p class="dim">Nothing yet. Loot drops during runs.</p>'}</div></div></div></div>${sheetHtml()}${msg ? `<div class="msg">${msg}</div>` : ''}`, 'camp', 'g-gear');
   flashMsg();
 }
 function renderGems() {
   const groups = {}; for (const g of S.gems) { const k = g.type + '|' + g.tier; (groups[k] = groups[k] || []).push(g); }
   const rows = Object.entries(groups).sort((a, b) => a[0].split('|')[0].localeCompare(b[0].split('|')[0]) || b[1][0].tier - a[1][0].tier).map(([k, arr]) => { const g = arr[0], can = arr.length >= 3 && g.tier < GEM_MAX; return `<div class="gemrow">${gemChip(g)}<div><b>${gemName(g)}</b><small>${gemText(g)}</small></div><span class="cnt">x${arr.length}</span><button class="${can ? 'go' : ''}" data-act="fuse" data-type="${g.type}" data-tier="${g.tier}" ${can && S.gold >= fuseCost(g.tier) ? '' : 'disabled'}>${g.tier >= GEM_MAX ? 'Max' : `Fuse 3 &rarr; ${GEM_TIER[g.tier + 1]}<small>${fuseCost(g.tier)} gold</small>`}</button></div>`; }).join('');
-  screen(`${top()}${gsub()}<div class="body gear"><div class="panel"><h2>Gems</h2><p class="dim">Gems drop from elites and bosses. Socket them into blue, purple, gold and red gear (blue has 1 socket, red has 4). Fuse 3 of the same gem into one better one.</p>${rows || '<p class="dim">No gems yet. Beat elites and bosses to find them.</p>'}</div></div>${msg ? `<div class="msg">${msg}</div>` : ''}`);
+  screen(`${top()}${gsub()}<div class="body gear"><div class="panel"><div class="bagtop"><h2>Gems</h2><div class="btns"><button class="go" data-act="fuseall">Fuse all</button></div></div><p class="dim">Gems drop from elites and bosses. Socket them into blue, purple, gold and red gear (blue has 1 socket, red has 4). Fuse 3 of the same gem into one better one.</p>${rows || '<p class="dim">No gems yet. Beat elites and bosses to find them.</p>'}</div></div>${msg ? `<div class="msg">${msg}</div>` : ''}`, 'camp', 'g-gems');
   flashMsg();
 }
 function renderForge() {
   const names = RARITIES.map((r) => r.name), rows = [0, 1, 2, 3, 4].map((r) => { const n = loose(S, r).length, c = transmuteCost(r); return `<div class="gemrow"><span class="rtag" style="--r:${RARITIES[r].color}">${names[r]}</span><div><b>3 ${names[r]} &rarr; 1 ${names[r + 1]}</b><small>You have ${n} in the bag · ${r >= 1 ? '50% chance of a set piece' : 'new random piece'}</small></div><button class="${n >= 3 && (S.scrap || 0) >= c.scrap ? 'go' : ''}" data-act="transmute" data-r="${r}" ${n >= 3 && (S.scrap || 0) >= c.scrap ? '' : 'disabled'}>Transmute<small>${c.scrap} scrap</small></button></div>`; }).join('');
   screen(`${top()}${gsub()}<div class="body gear"><div class="panel"><h2>The Forge</h2><p class="dim">Turn spare gear into something better. Transmute eats the three weakest items of a rarity from your bag (not the ones you wear).</p>${rows}</div>
-    <div class="panel"><h2>Other tools</h2><p class="dim">On any item in the Gear tab you can also: <b>Ascend</b> a maxed item for endless levels, <b>Reforge</b> its bonuses, <b>Change set</b> on blue and better gear to chase the set you want, and <b>Dismantle</b> it into scrap.</p></div></div>${msg ? `<div class="msg">${msg}</div>` : ''}`);
+    <div class="panel"><h2>Other tools</h2><p class="dim">On any item in the Gear tab you can also: <b>Ascend</b> a maxed item for endless levels, <b>Reforge</b> its bonuses, <b>Change set</b> on blue and better gear to chase the set you want, and <b>Dismantle</b> it into scrap.</p></div></div>${msg ? `<div class="msg">${msg}</div>` : ''}`, 'camp', 'g-forge');
   flashMsg();
 }
 function setSummary() { const cnt = setCounts(S), ids = Object.keys(cnt).filter((id) => cnt[id] >= 2); if (!ids.length) return Object.keys(cnt).length ? '<p class="dim">Wear 2, 4 or 6 pieces of the same set for bonuses.</p>' : '<p class="dim">Set pieces (marked with a coloured dot) give bonuses when you wear several of the same set.</p>'; return ids.map((id) => `<div class="setbox" style="--sc:${SETS[id].color}"><b>${SETS[id].name}</b> <small>${cnt[id]}/6</small>${setBonus(S).active.filter((a) => a.set === +id).map((a) => `<p class="on">&#10003; ${a.tier}: ${a.desc}</p>`).join('')}</div>`).join(''); }
@@ -211,7 +211,7 @@ function detailHtml(it) {
   return `<div class="dhead" style="--r:${R.color}">${icon(it)}<div><h3>${it.name}</h3><small>${R.name} ${SLOT_NAME[it.slot]} · level ${it.ilvl}${it.up ? ' · +' + it.up : ''}${it.asc ? ' · ' + '&#9733;'.repeat(it.asc) : ''}</small></div></div>${rows}${sk}${setBox}
     ${!isEq && cur ? `<p class="cmp ${diff >= 0 ? 'up' : 'down'}">${diff >= 0 ? 'Better' : 'Worse'} than equipped</p>` : ''}
     <div class="btns">${isEq ? `<button data-act="unequip" data-id="${it.id}">Unequip</button>` : `<button class="go" data-act="equip" data-id="${it.id}">Equip</button>`}
-    ${atMax ? `<button class="go" data-act="ascend" data-id="${it.id}" ${S.gold >= ascendCost(it, S).gold && (S.scrap || 0) >= ascendCost(it, S).scrap ? '' : 'disabled'}>Ascend &#9733; ${ascendCost(it, S).gold.toLocaleString()}g + ${ascendCost(it, S).scrap} scrap</button>` : `<button data-act="upgrade" data-id="${it.id}" ${S.gold >= upCost(it, S) ? '' : 'disabled'}>Upgrade ${upCost(it, S)}g</button>`}
+    ${atMax ? `<button class="go" data-act="ascend" data-id="${it.id}" ${S.gold >= ascendCost(it, S).gold && (S.scrap || 0) >= ascendCost(it, S).scrap ? '' : 'disabled'}>Ascend &#9733; ${ascendCost(it, S).gold.toLocaleString()}g + ${ascendCost(it, S).scrap} scrap</button>` : `<button data-act="upgrade" data-id="${it.id}" ${S.gold >= upCost(it, S) ? '' : 'disabled'}>Upgrade ${upCost(it, S)}g</button><button data-act="upmax" data-id="${it.id}" ${S.gold >= upCost(it, S) ? '' : 'disabled'}>Auto upgrade</button>`}
     ${it.rar >= 2 ? `<button data-act="setpick" data-id="${it.id}">Change set ${reattuneCost(it).scrap} scrap</button>` : ''}${isEq ? '' : `<button data-act="dismantle" data-id="${it.id}">Dismantle +${dismantleValue(it)} scrap</button>`}
     ${Object.keys(it.stats).length > 1 ? `<button data-act="reforge" data-id="${it.id}" ${(S.scrap || 0) >= reforgeCost(it).scrap ? '' : 'disabled'}>Reforge bonuses ${reforgeCost(it).scrap} scrap</button>` : ''}${isEq ? '' : `<button data-act="sell" data-id="${it.id}">Sell ${salvageValue(it)}g</button>`}</div>`;
 }
@@ -248,6 +248,7 @@ function handle(act, d) {
   if (act === 'unequip') { const it = find(d.id); if (!it) return; S.gear[it.slot] = null; S.bag.push(it); sel = it; save(); renderGear(); return; }
   if (act === 'ascend') { const it = find(d.id); if (it) { const r = ascend(S, it); msg = r === 'ok' ? `${it.name} ascended! Max level is now +${maxUp(it)}.` : 'Not enough gold or scrap.'; if (r === 'ok') save(); } renderGear(); return; }
   if (act === 'reforge') { const it = find(d.id); if (it) { const r = reforge(S, it); msg = r === 'ok' ? 'The bonuses were reforged.' : 'Not enough scrap.'; if (r === 'ok') save(); } renderGear(); return; }
+  if (act === 'upmax') { const it = find(d.id); if (!it) return; const a = it.up; while (it.up < maxUp(it) && S.gold >= upCost(it, S)) { S.gold -= upCost(it, S); it.up++; } msg = it.up > a ? `${it.name} went from +${a} to +${it.up}.` : ''; save(); renderGear(); return; }
   if (act === 'upgrade') { const it = find(d.id); if (!it || S.gold < upCost(it, S) || it.up >= maxUp(it)) return; S.gold -= upCost(it, S); it.up++; msg = `${it.name} is now +${it.up}.`; save(); renderGear(); return; }
   if (act === 'gtab') { gtab = d.g; sel = null; renderGear(); return; }
   if (act === 'socketpick') { sheet = { kind: 'gempick', id: +d.id, i: +d.i }; renderGear(); return; }
@@ -256,6 +257,7 @@ function handle(act, d) {
   if (act === 'setpick') { sheet = { kind: 'setpick', id: +d.id }; renderGear(); return; }
   if (act === 'setdo') { const it = find(sheet.id); if (it) { const r = reattune(S, it, +d.set); msg = r === 'ok' ? `${it.name}` : 'Not enough scrap.'; if (r === 'ok') save(); } sheet = null; renderGear(); return; }
   if (act === 'dismantle') { const it = find(d.id); if (it) { const n = dismantle(S, it); msg = `Dismantled for ${n} scrap.`; sel = null; save(); } renderGear(); return; }
+  if (act === 'fuseall') { let n = 0, go = true; while (go) { go = false; for (const g of S.gems.slice()) if (g.tier < GEM_MAX && S.gems.filter((x) => x.type === g.type && x.tier === g.tier).length >= 3 && fuseGems(S, g.type, g.tier) === 'ok') { n++; go = true; break; } } msg = n ? `Fused ${n} time${n > 1 ? 's' : ''}.` : 'Nothing to fuse (need 3 of a kind and gold).'; if (n) save(); renderGear(); return; }
   if (act === 'fuse') { const r = fuseGems(S, d.type, +d.tier); msg = r === 'ok' ? 'Fused into a better gem!' : 'Not enough gems or gold.'; if (r === 'ok') save(); renderGear(); return; }
   if (act === 'transmute') { const o = transmute(S, +d.r); if (o.r === 'ok') { msg = `Forged: ${o.item.name}`; save(); } else msg = 'Not enough items or scrap.'; renderGear(); return; }
   if (act === 'sell') { const it = find(d.id); if (!it) return; releaseGems(S, it); S.gold += salvageValue(it); S.bag.splice(S.bag.indexOf(it), 1); sel = null; save(); renderGear(); return; }
