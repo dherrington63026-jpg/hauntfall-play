@@ -27,7 +27,7 @@ UI.syncAfk = syncAfk;
 let lastHud = 0;
 UI.hud = (r) => {
   const now = performance.now(); if (now - lastHud < 50) return; lastHud = now;
-  $('#hpFill').style.width = Math.max(0, r.hero.hp / r.maxHp * 100) + '%'; $('#hpText').textContent = `${Math.ceil(Math.max(0, r.hero.hp))} / ${r.maxHp}`;
+  $('#hpFill').style.width = Math.max(0, r.hero.hp / r.maxHp * 100) + '%'; $('#hpText').textContent = `${Math.ceil(Math.max(0, r.hero.hp))} / ${Math.round(r.maxHp)}`;
   $('#xpFill').style.width = (r.xp / r.xpNeed * 100) + '%'; $('#lvl').textContent = r.level;
   const t = Math.max(0, Math.floor(r.bossOut ? r.t - r.runLen : r.runLen - r.t)); $('#timer').textContent = r.bossOut ? 'BOSS' : `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
   $('#gold').textContent = r.gold; $('#kills').textContent = r.kills; document.body.classList.toggle('low', r.hero.hp < r.maxHp * 0.3);
@@ -153,7 +153,7 @@ function renderCamp() {
   const hs = heroStats(S), open = openSlots(S), keep = $('#screen').scrollTop, tf = topFloor(S), F = tf + 2, ROOF = 70, H = ROOF + F * 100 + 60, waiting = S.base.door.length;
   screen(`${top()}<div class="body church">
     <div class="banner" style="background-image:linear-gradient(rgba(5,7,10,.2), rgba(5,7,10,.88)), url(art/bg_church.jpg)"><div class="bleft"><img src="art/hero_${S.hero}_1.png" onerror="this.style.display='none'" alt=""></div>
-      <div class="bright"><h2>Hauntfall Church</h2><p>${WEAPONS[hs.weaponKind].name} · ${hs.hp} health · might ${hs.power} · best ${S.best} kills · ${S.wins} boss kills</p>
+      <div class="bright"><h2>Hauntfall Church</h2><p>${WEAPONS[hs.weaponKind].name} · ${Math.round(hs.hp)} health · might ${hs.power} · best ${S.best} kills · ${S.wins} boss kills</p>
       <label class="chk"><input type="checkbox" id="afkChk" ${S.opts.afk ? 'checked' : ''}> AFK combat: explore, fight and loot by itself, then start the next run</label>
       <button class="big" data-act="run">Enter ${districtName(S.district)} <small>district ${S.district} · boss: ${ENEMIES[districtOf(S.district).boss].name}</small></button>
       <div class="squadrow"><span>Crew ${squadOf().length}/2</span>${squadOf().map((sv) => `<span class="chipx">${portrait(sv)}<em>${sv.name.split(' ')[0]}</em></span>`).join('')}<button data-act="squadpick">${squadOf().length ? 'Change' : '+ Bring survivors'}</button></div>
@@ -184,7 +184,7 @@ function renderGear() {
   if (gtab === 'gems') return renderGems(); if (gtab === 'forge') return renderForge();
   const hs = heroStats(S), bag = S.bag.slice().sort((a, b) => b.rar - a.rar || itemScore(b) - itemScore(a));
   const eq = SLOTS.map((sl) => S.gear[sl] ? cardHtml(S.gear[sl], `<b class="sl">${SLOT_NAME[sl]}</b>`) : `<div class="itc empty"><b class="sl">${SLOT_NAME[sl]}</b></div>`).join('');
-  const detail = sel ? detailHtml(sel) : `<p class="dim">Tap an item to see it. Your stats: damage x${hs.dmgPct.toFixed(2)} · fire rate x${hs.ratePct.toFixed(2)} · ${hs.hp} health · ${hs.armor} armor · ${Math.round(hs.crit * 100)}% crit · speed ${Math.round(hs.speed)}.</p>`;
+  const detail = sel ? detailHtml(sel) : `<p class="dim">Tap an item to see it. Your stats: damage x${hs.dmgPct.toFixed(2)} · fire rate x${hs.ratePct.toFixed(2)} · ${Math.round(hs.hp)} health · ${hs.armor} armor · ${Math.round(hs.crit * 100)}% crit · speed ${Math.round(hs.speed)}.</p>`;
   screen(`${top()}${gsub()}<div class="body gear"><div class="col"><div class="panel"><h2>Equipped</h2><div class="slots">${eq}</div>${setSummary()}</div><div class="panel detail">${detail}</div></div>
     <div class="col"><div class="panel"><div class="bagtop"><h2>Bag <small>${S.bag.length}</small></h2><div class="btns"><button data-act="auto">Auto equip</button><button data-act="sellr" data-r="0">Sell white</button><button data-act="sellr" data-r="1">Sell green</button><button data-act="sellr" data-r="2">Sell blue</button><button data-act="sellr" data-r="3">Sell purple</button></div></div>
     <div class="bag">${bag.map((it) => cardHtml(it)).join('') || '<p class="dim">Nothing yet. Loot drops during runs.</p>'}</div></div></div></div>${sheetHtml()}${msg ? `<div class="msg">${msg}</div>` : ''}`, 'camp', 'g-gear');
