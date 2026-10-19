@@ -145,3 +145,14 @@ button.rc.crew { cursor: pointer; }
 .svbtn .role { font-size: 10.5px; color: #9ee6a0; text-align: center; max-width: 110px; }
 
 .stepper { display: flex; align-items: center; gap: 10px; margin-top: 6px; font-size: 12px; } .stepper button { padding: 6px 12px; } .stepper span { flex: 1; text-align: center; font-weight: 700; }
+
+/* boss entrance */
+#banner { position: fixed; left: 0; right: 0; top: 30%; text-align: center; pointer-events: none; z-index: 25; opacity: 0; }
+#banner b { display: block; font: 900 clamp(28px, 8vw, 54px) Cinzel; letter-spacing: 0.1em; color: #ff6a5a; text-shadow: 0 0 24px #ff2a1a, 0 4px 12px #000; } #banner small { display: block; font: 700 13px Inter; letter-spacing: 0.3em; text-transform: uppercase; color: #ffd0c8; text-shadow: 0 2px 6px #000; margin-bottom: 4px; }
+#banner.on { animation: bossIn 2.6s ease-out forwards; } @keyframes bossIn { 0% { opacity: 0; transform: scale(1.4); letter-spacing: 0.4em; } 12% { opacity: 1; transform: scale(1); } 75% { opacity: 1; } 100% { opacity: 0; transform: scale(0.96); } }
+/* church screen comes alive */
+.chart::before { content: ''; position: absolute; inset: -10% -20% 0; pointer-events: none; z-index: 3; background: radial-gradient(ellipse 40% 18% at 30% 70%, rgba(170, 190, 215, 0.16), transparent 70%), radial-gradient(ellipse 45% 16% at 70% 45%, rgba(170, 190, 215, 0.12), transparent 70%); animation: fogDrift 18s ease-in-out infinite alternate; }
+@keyframes fogDrift { from { transform: translateX(-6%); } to { transform: translateX(8%); } }
+.cell.room { animation: lampFlicker 4.5s infinite; } .cell.room:nth-child(3n) { animation-delay: -1.2s; animation-duration: 5.7s; } .cell.room:nth-child(3n+1) { animation-delay: -2.7s; animation-duration: 3.9s; }
+@keyframes lampFlicker { 0%, 100% { filter: brightness(1); } 8% { filter: brightness(0.86); } 12% { filter: brightness(1.06); } 40% { filter: brightness(0.96); } 44% { filter: brightness(1.1); } 70% { filter: brightness(0.92); } }
+.cell.room.bad { animation: lampFlicker 1.2s infinite; } .cell.room.haunted { animation: none; }

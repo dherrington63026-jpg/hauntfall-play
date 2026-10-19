@@ -17,6 +17,7 @@ function bindStatic() {
   $('#btnPause').onclick = () => cb.pause(); $('#btnLeave').onclick = () => cb.pause();
   document.addEventListener('click', (e) => { const b = e.target.closest('[data-act]'); if (!b) return; if (b.classList.contains('sheetbg') && e.target !== b) return; handle(b.dataset.act, b.dataset); });
 }
+UI.banner = (title, sub) => { const b = $('#banner'); if (!b) return; b.innerHTML = `<small>${sub || ''}</small><b>${title}</b>`; b.classList.remove('on'); void b.offsetWidth; b.classList.add('on'); };
 UI.hurt = () => { document.body.classList.add('hurt'); clearTimeout(UI.hurtT); UI.hurtT = setTimeout(() => document.body.classList.remove('hurt'), 160); };
 UI.toggleAfk = () => { S.opts.afk = !S.opts.afk; save(); if (cb.run()) cb.run().afk = S.opts.afk; syncAfk(); };
 function syncAfk() { const b = $('#btnAfk'); b.classList.toggle('on', !!S.opts.afk); b.textContent = S.opts.afk ? 'AFK ON' : 'AFK'; }

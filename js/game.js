@@ -32,7 +32,7 @@ export class Run {
     // survivors who came along: each fights in their own way, scaled by their main skill
     this.crew = (S.squad || []).map((id) => S.base.survivors.find((x) => x.id === id)).filter(Boolean).slice(0, 2).map((sv, i) => ({ sv, role: sv.main, sk: sv.skills[sv.main], x: i ? 34 : -34, y: 10 + i * 8, cd: rnd(1, 3), cd2: 6, face: 1, bob: rnd(0, 6), moving: false, age: 0 }));
     for (const c of this.crew) { if (c.role === 'scout') { this.magnetMul *= 1 + 0.03 * c.sk; this.luckMul *= 1 + 0.02 * c.sk; } else if (c.role === 'cook') this.regen += 0.25 * c.sk; else if (c.role === 'trade') this.goldMul *= 1 + 0.04 * c.sk; else if (c.role === 'faith') this.dmgTaken *= Math.max(0.7, 1 - 0.03 * c.sk); }
-    this.decals = []; this.fogT = 0; this.punch = 0; this.enemies = []; this.bullets = []; this.gems = []; this.loot = []; this.fx = []; this.texts = []; this.ebul = []; this.zones = []; this.drops = [];
+    this.decals = []; this.corpses = []; this.hitstop = 0; this.fogT = 0; this.punch = 0; this.enemies = []; this.bullets = []; this.gems = []; this.loot = []; this.fx = []; this.texts = []; this.ebul = []; this.zones = []; this.drops = [];
     this.cool = 0; this.spawnAcc = 0; this.nextElite = 90; this.bossOut = false; this.boss = null; this.won = false; this.lootItems = []; this.waveTick = 0;
     this.input = { x: 0, y: 0 }; this.keys = {}; this.joy = null; this.sw = 0; this.sh = 0; this.scale = 1; this.cam = { x: 0, y: 0 };
     this.light = document.createElement('canvas'); this.lx = this.light.getContext('2d');
@@ -62,6 +62,7 @@ export class Run {
   // ---------- main update ----------
   update(dt) {
     if (this.paused || this.over) return;
+    if (this.hitstop > 0) { this.hitstop -= dt; dt *= 0.12; }
     this.t += dt; this.frame = (this.frame || 0) + 1; const h = this.hero;
     // movement
     let ix = 0, iy = 0;
@@ -72,6 +73,7 @@ export class Run {
     const L = Math.hypot(ix, iy); if (L > 1) { ix /= L; iy /= L; }
     const sp = this.hs.speed * this.speedMul; h.x += ix * sp * dt; h.y += iy * sp * dt; h.moving = L > 0.1; if (h.moving && this.q < 2 && (this.frame % 7) === 0 && this.fx.length < 260) this.fx.push({ k: 'p', x: h.x + rnd(-6, 6), y: h.y - 2, vx: rnd(-14, 14), vy: rnd(-16, -4), t: 0, life: 0.45, col: '#4a4a44', r: 3 }); if (Math.abs(ix) > 0.1) h.face = ix > 0 ? 1 : -1; h.bob += dt * (L > 0.1 ? 12 : 3);
     h.inv = Math.max(0, h.inv - dt); h.flash = Math.max(0, h.flash - dt); h.fire = Math.max(0, (h.fire || 0) - dt); h.recoil = (h.recoil || 0) * Math.pow(0.001, dt); this.punch = Math.max(0, this.punch - dt * 2.2); this.fogT += dt;
+    for (const c of this.corpses) c.t += dt; if (this.corpses.length && this.corpses[0].t > this.corpses[0].life) this.corpses.shift();
     for (const d of this.decals) d.t += dt; if (this.decals.length && this.decals[0].t > this.decals[0].life) this.decals.shift();
     if (this.regen > 0) h.hp = Math.min(this.maxHp, h.hp + this.regen * dt);
     // director
@@ -127,7 +129,7 @@ export class Run {
     this.bossOut = true; for (const e of this.enemies) if (!e.def.boss) e.hp = Math.min(e.hp, 1);
     const def = this.mode === 'haunt' ? ENEMIES.revenant : ENEMIES[this.theme.boss], sc = Math.pow(2.1, this.district - 1) * (this.mode === 'haunt' ? this.hauntScale : 1), a = rnd(0, TAU), R = 460;
     const b = { def, x: this.hero.x + Math.cos(a) * R, y: this.hero.y + Math.sin(a) * R, hp: def.hp * sc, maxHp: def.hp * sc, dmg: def.dmg * Math.pow(1.4, this.district - 1), r: def.r, vx: 0, vy: 0, flash: 0, ph: 0, v: 1, dash: 0, age: 0, face: 1, cd: 3, cd2: 5, slam: 0 };
-    this.enemies.push(b); this.boss = b; this.ui.toast(this.mode === 'haunt' ? 'THE REVENANT COMES FOR THE CHURCH' : `${def.name.toUpperCase()} RISES`); this.ui.bossBar(true, def.name.toUpperCase()); this.shake = 1; sfx('boom', this.sound);
+    this.enemies.push(b); this.boss = b; this.ui.toast(this.mode === 'haunt' ? 'THE REVENANT COMES FOR THE CHURCH' : `${def.name.toUpperCase()} RISES`); this.ui.bossBar(true, def.name.toUpperCase()); if (this.ui.banner) this.ui.banner(def.name, this.mode === 'haunt' ? 'The church is under attack' : 'A boss approaches'); this.punch = 1.2; this.shake = 1; sfx('boom', this.sound);
   }
   // ---------- enemies ----------
   buildGrid() { const g = this.grid || (this.grid = new Map()); if (g.size > 500) g.clear(); else for (const a of g.values()) a.length = 0; for (const e of this.enemies) { const k = Math.floor(e.x / CELL) * 100003 + Math.floor(e.y / CELL); let a = g.get(k); if (!a) g.set(k, (a = [])); a.push(e); } }
@@ -176,10 +178,11 @@ export class Run {
   kill(e) {
     this.kills++; const d = e.def, luck = this.luck(); this.scrap += d.boss ? 25 : d.elite ? 5 : (Math.random() < 0.06 ? 1 : 0);
     this.puff(e.x, e.y, d.fx === 'ghost' ? '#cfe4ff' : '#8a5a5a', d.boss ? 40 : d.elite ? 18 : 6); sfx('kill', this.sound);
+    if (this.q < 2 && d.fx !== 'ghost' && !d.hover && this.corpses.length < 30) this.corpses.push({ x: e.x, y: e.y, s: sprite(d.sprite, e.v, d.size), face: e.face, t: 0, life: d.boss ? 2.4 : 1.1, dir: Math.random() < 0.5 ? 1 : -1 });
     if (this.q < 2) { const gh = d.fx === 'ghost'; if (gh) this.fx.push({ k: 'gf', x: e.x, y: e.y - 16, s: sprite(d.sprite, e.v, d.size), face: e.face, t: 0, life: 0.7 }); else if (this.decals.length < 70) this.decals.push({ x: e.x, y: e.y, t: 0, life: 9, s: pick(SPLAT.r), sc: d.boss ? 3 : d.elite ? 1.8 : 1 }); if (gh && this.decals.length < 70) this.decals.push({ x: e.x, y: e.y, t: 0, life: 6, s: pick(SPLAT.g), sc: 1 }); }
     const xp = d.xp; this.gems.push({ x: e.x + rnd(-6, 6), y: e.y + rnd(-6, 6), v: xp, t: 0 });
     if (Math.random() < 0.22 * luck) this.loot.push({ kind: 'gold', x: e.x + rnd(-14, 14), y: e.y + rnd(-14, 14), v: Math.round(rint(1, 3) * (1 + this.district) * this.goldMul), t: 0 });
-    if (d.boss) { this.won = true; for (let i = 0; i < 4; i++) this.dropItem(e.x + rnd(-40, 40), e.y + rnd(-40, 40), true, true); this.ui.bossBar(false); this.shake = 1; setTimeout(() => this.end(true), 2200); this.slowmo = 1; }
+    if (d.boss) { this.won = true; this.hitstop = 0.35; for (let i = 0; i < 4; i++) this.dropItem(e.x + rnd(-40, 40), e.y + rnd(-40, 40), true, true); this.ui.bossBar(false); this.shake = 1; setTimeout(() => this.end(true), 2200); this.slowmo = 1; }
     else if (d.elite) { for (let i = 0; i < 2; i++) this.dropItem(e.x + rnd(-24, 24), e.y + rnd(-24, 24), true); }
     else if (Math.random() < 0.012 * luck) this.dropItem(e.x, e.y, false);
   }
@@ -322,6 +325,7 @@ export class Run {
       if (this.q < 2) { for (const lf of ci.leaves) x.drawImage(LEAF[lf.v], lf.x, lf.y); for (const tf of ci.tufts) x.drawImage(TUFT[tf.v], tf.x, tf.y); x.globalAlpha = 0.8; for (const pd of ci.puddles) x.drawImage(PUDDLE, pd.x - pd.s / 2, pd.y - pd.s * 0.2, pd.s, pd.s * 0.42); x.globalAlpha = 1; }
     }
     for (const d of this.decals) { const a = Math.min(1, (d.life - d.t) / 2) * 0.75; if (d.x < x0 || d.x > x1 || d.y < y0 || d.y > y1) continue; x.globalAlpha = a; const w = 44 * d.sc; x.drawImage(d.s, d.x - w / 2, d.y - w * 0.3, w, w * 0.6); } x.globalAlpha = 1;
+    for (const c of this.corpses) { if (c.x < x0 || c.x > x1 || c.y < y0 || c.y > y1) continue; const k = c.t / c.life, ease = Math.min(1, k * 4), s0 = c.face < 0 ? flipped(c.s) : c.s; x.save(); x.translate(c.x, c.y); x.rotate(c.dir * 1.45 * ease); x.globalAlpha = k > 0.55 ? 1 - (k - 0.55) / 0.45 : 1; x.drawImage(s0, -s0.width / 2, -s0.height * (1 - 0.35 * ease)); x.restore(); } x.globalAlpha = 1;
     // things standing on the ground, drawn back to front (list is reused every frame)
     const list = this.dl || (this.dl = []); list.length = 0; const C = 520;
     for (let cx = Math.floor(x0 / C) - 1; cx <= Math.floor(x1 / C) + 1; cx++) for (let cy = Math.floor(y0 / C) - 1; cy <= Math.floor(y1 / C) + 1; cy++) for (const p of this.props_at(cx, cy)) if (p.x > x0 - 100 && p.x < x1 + 100 && p.y > y0 - 120 && p.y < y1 + 200) list.push(p);
