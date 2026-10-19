@@ -28,7 +28,10 @@ export class Run {
     this.scrap = 0; this.xpMul = 1 + baseBonus(S).xp; this.t = 0; this.over = false; this.paused = false; this.shake = 0; this.kills = 0; this.gold = 0; this.xp = 0; this.level = 1; this.xpNeed = this.needFor(1);
     this.hero = { x: 0, y: 0, hp: this.hs.hp, face: 1, inv: 0, flash: 0, vx: 0, vy: 0, aim: 0, bob: 0 };
     this.maxHp = this.hs.hp; this.dmgMul = 1; this.rateMul = 1; this.extraN = 0; this.extraPierce = 0; this.speedMul = 1; this.magnetMul = 1; this.regen = this.hs.regen; this.crit = this.hs.crit; this.luckMul = 1;
-    this.salt = 0; this.beam = 0; this.fire = 0; this.picked = {};
+    this.salt = 0; this.beam = 0; this.fire = 0; this.picked = {}; this.goldMul = 1; this.dmgTaken = 1; this.turrets = [];
+    // survivors who came along: each fights in their own way, scaled by their main skill
+    this.crew = (S.squad || []).map((id) => S.base.survivors.find((x) => x.id === id)).filter(Boolean).slice(0, 2).map((sv, i) => ({ sv, role: sv.main, sk: sv.skills[sv.main], x: i ? 34 : -34, y: 10 + i * 8, cd: rnd(1, 3), cd2: 6, face: 1, bob: rnd(0, 6), moving: false, age: 0 }));
+    for (const c of this.crew) { if (c.role === 'scout') { this.magnetMul *= 1 + 0.03 * c.sk; this.luckMul *= 1 + 0.02 * c.sk; } else if (c.role === 'cook') this.regen += 0.25 * c.sk; else if (c.role === 'trade') this.goldMul *= 1 + 0.04 * c.sk; else if (c.role === 'faith') this.dmgTaken *= Math.max(0.7, 1 - 0.03 * c.sk); }
     this.decals = []; this.fogT = 0; this.punch = 0; this.enemies = []; this.bullets = []; this.gems = []; this.loot = []; this.fx = []; this.texts = []; this.ebul = []; this.zones = []; this.drops = [];
     this.cool = 0; this.spawnAcc = 0; this.nextElite = 90; this.bossOut = false; this.boss = null; this.won = false; this.lootItems = []; this.waveTick = 0;
     this.input = { x: 0, y: 0 }; this.keys = {}; this.joy = null; this.sw = 0; this.sh = 0; this.scale = 1; this.cam = { x: 0, y: 0 };
@@ -77,7 +80,7 @@ export class Run {
     this.updateEnemies(dt);
     this.updateWeapons(dt);
     this.updateBullets(dt);
-    this.updatePassives(dt);
+    this.updatePassives(dt); this.updateCrew(dt);
     this.updatePickups(dt);
     this.updateFx(dt);
     if (this.shake > 0) this.shake = Math.max(0, this.shake - dt * 2.5);
@@ -136,6 +139,7 @@ export class Run {
       e.age += dt; e.flash = Math.max(0, e.flash - dt);
       let dx = h.x - e.x, dy = h.y - e.y, d = Math.hypot(dx, dy) || 1; dx /= d; dy /= d;
       let sp = e.def.speed, mx = dx, my = dy; const fxk = e.def.fx;
+      for (let zi = 0; zi < this.zones.length; zi++) { const z = this.zones[zi]; if (z.slow && (e.x - z.x) ** 2 + (e.y - z.y) ** 2 < z.r * z.r) { sp *= 0.5; break; } }
       if (fxk === 'ghost') { const w = Math.sin(e.age * 2.2 + e.ph) * 0.7; mx = dx - dy * w; my = dy + dx * w; }
       else if (fxk === 'swoop') { e.dash -= dt; if (e.dash < 0) { e.dash = rnd(1.6, 2.8); e.dashT = 0.45; } if (e.dashT > 0) { e.dashT -= dt; sp *= 2.4; } else sp *= 0.55; const w = Math.sin(e.age * 5 + e.ph) * 0.6; mx = dx - dy * w; my = dy + dx * w; }
       else if (fxk === 'boss') this.bossAi(e, dt, dx, dy, d);
@@ -160,7 +164,7 @@ export class Run {
   ring(x, y, r, dmg) { const h = this.hero; if (Math.hypot(h.x - x, h.y - y) < r + 10) this.hurt(dmg, null); }
   hurt(dmg, from) {
     const h = this.hero; if (h.inv > 0 || this.over) return;
-    const taken = dmg * (100 / (100 + this.hs.armor)); h.hp -= taken; h.inv = 0.55; h.flash = 0.2; this.shake = Math.max(this.shake, 0.25); sfx('hurt', this.sound);
+    const taken = dmg * (100 / (100 + this.hs.armor)) * this.dmgTaken; h.hp -= taken; h.inv = 0.55; h.flash = 0.2; this.shake = Math.max(this.shake, 0.25); sfx('hurt', this.sound);
     this.text(h.x, h.y - 40, '-' + Math.round(taken), '#ff6a6a', 1); if (this.ui.hurt) this.ui.hurt();
   }
   kill(e) {
@@ -168,7 +172,7 @@ export class Run {
     this.puff(e.x, e.y, d.fx === 'ghost' ? '#cfe4ff' : '#8a5a5a', d.boss ? 40 : d.elite ? 18 : 6); sfx('kill', this.sound);
     if (this.q < 2) { const gh = d.fx === 'ghost'; if (gh) this.fx.push({ k: 'gf', x: e.x, y: e.y - 16, s: sprite(d.sprite, e.v, d.size), face: e.face, t: 0, life: 0.7 }); else if (this.decals.length < 70) this.decals.push({ x: e.x, y: e.y, t: 0, life: 9, s: pick(SPLAT.r), sc: d.boss ? 3 : d.elite ? 1.8 : 1 }); if (gh && this.decals.length < 70) this.decals.push({ x: e.x, y: e.y, t: 0, life: 6, s: pick(SPLAT.g), sc: 1 }); }
     const xp = d.xp; this.gems.push({ x: e.x + rnd(-6, 6), y: e.y + rnd(-6, 6), v: xp, t: 0 });
-    if (Math.random() < 0.22 * luck) this.loot.push({ kind: 'gold', x: e.x + rnd(-14, 14), y: e.y + rnd(-14, 14), v: rint(1, 3) * (1 + this.district), t: 0 });
+    if (Math.random() < 0.22 * luck) this.loot.push({ kind: 'gold', x: e.x + rnd(-14, 14), y: e.y + rnd(-14, 14), v: Math.round(rint(1, 3) * (1 + this.district) * this.goldMul), t: 0 });
     if (d.boss) { this.won = true; for (let i = 0; i < 4; i++) this.dropItem(e.x + rnd(-40, 40), e.y + rnd(-40, 40), true, true); this.ui.bossBar(false); this.shake = 1; setTimeout(() => this.end(true), 2200); this.slowmo = 1; }
     else if (d.elite) { for (let i = 0; i < 2; i++) this.dropItem(e.x + rnd(-24, 24), e.y + rnd(-24, 24), true); }
     else if (Math.random() < 0.012 * luck) this.dropItem(e.x, e.y, false);
@@ -315,7 +319,7 @@ export class Run {
     const list = this.dl || (this.dl = []); list.length = 0; const C = 520;
     for (let cx = Math.floor(x0 / C) - 1; cx <= Math.floor(x1 / C) + 1; cx++) for (let cy = Math.floor(y0 / C) - 1; cy <= Math.floor(y1 / C) + 1; cy++) for (const p of this.props_at(cx, cy)) if (p.x > x0 - 100 && p.x < x1 + 100 && p.y > y0 - 120 && p.y < y1 + 200) list.push(p);
     for (const e of this.enemies) if (e.x > x0 - 80 && e.x < x1 + 80 && e.y > y0 - 80 && e.y < y1 + 80) list.push(e);
-    list.push(h); list.sort((a, b) => a.y - b.y);
+    list.push(h); for (const c of this.crew) list.push(c); for (const t of this.turrets) list.push(t); list.sort((a, b) => a.y - b.y);
     // gems and loot first (pre-made sprites, no gradients)
     for (const g of this.gems) { const s = g.v >= 5 ? GEM.p : g.v >= 2 ? GEM.b : GEM.g; if (g.x > x0 && g.x < x1 && g.y > y0 && g.y < y1) x.drawImage(s, g.x - 7, g.y - 7); }
     for (const l of this.loot) {
@@ -325,9 +329,10 @@ export class Run {
     }
     for (const z of this.zones) {
       if (z.tele) { x.fillStyle = `rgba(255,50,50,${0.12 + 0.2 * (1 - z.t / 0.9)})`; x.strokeStyle = '#ff4a4a'; x.lineWidth = 3; x.beginPath(); x.arc(z.x, z.y, z.r, 0, TAU); x.fill(); x.stroke(); }
+      else if (z.slow) { x.globalCompositeOperation = 'lighter'; x.globalAlpha = 0.55; x.drawImage(glow('#3a9aff', 128), z.x - z.r, z.y - z.r, z.r * 2, z.r * 2); x.globalAlpha = 1; x.globalCompositeOperation = 'source-over'; }
       else { x.globalCompositeOperation = 'lighter'; const r = z.r * (0.95 + Math.sin(this.t * 14) * 0.05); x.drawImage(glow('#ff8a2a', 128), z.x - r * 1.2, z.y - r * 1.2, r * 2.4, r * 2.4); x.globalCompositeOperation = 'source-over'; }
     }
-    for (let i = 0; i < list.length; i++) { const o = list[i]; if (o === h) this.drawHero(x); else if (o.def) this.drawEnemy(x, o); else this.drawProp(x, o); }
+    for (let i = 0; i < list.length; i++) { const o = list[i]; if (o === h) this.drawHero(x); else if (o.def) this.drawEnemy(x, o); else if (o.sv) this.drawCrew(x, o); else if (o.turret) this.drawTurret(x, o); else this.drawProp(x, o); }
     // bullets and effects (additive)
     x.globalCompositeOperation = 'lighter';
     for (const b of this.bullets) {
@@ -339,6 +344,7 @@ export class Run {
     if (this.salt > 0) { const n = 1 + this.salt, R = 78 + this.salt * 6, gs = glow('#c8e6ff', 64); for (let i = 0; i < n; i++) { const a = this.saltAng + i * TAU / n, px = h.x + Math.cos(a) * R, py = h.y + Math.sin(a) * R; x.drawImage(gs, px - 20, py - 20, 40, 40); x.fillStyle = '#fff'; x.fillRect(px - 5, py - 5, 10, 10); } }
     for (const f of this.fx) {
       if (f.k === 'slash') { const k = f.t / f.life; x.strokeStyle = `rgba(255,255,255,${1 - k})`; x.lineWidth = 10 * (1 - k) + 2; x.beginPath(); x.arc(f.x, f.y - 10, f.r * (0.7 + 0.3 * k), f.a - f.arc / 2, f.a + f.arc / 2); x.stroke(); }
+      else if (f.k === 'bolt') { x.globalAlpha = 1 - f.t / f.life; x.strokeStyle = '#bfe8ff'; x.lineWidth = 3; x.beginPath(); x.moveTo(f.x, f.y); const mx = (f.x + f.x2) / 2 + rnd(-10, 10), my = (f.y + f.y2) / 2 + rnd(-10, 10); x.lineTo(mx, my); x.lineTo(f.x2, f.y2); x.stroke(); }
       else if (f.k === 's') { x.globalAlpha = 1 - f.t / f.life; x.strokeStyle = f.col; x.lineWidth = 2; x.beginPath(); x.moveTo(f.x, f.y); x.lineTo(f.x - f.vx * 0.04, f.y - f.vy * 0.04); x.stroke(); }
       else if (f.k === 'p') { x.globalAlpha = 1 - f.t / f.life; x.fillStyle = f.col; x.fillRect(f.x - f.r, f.y - f.r, f.r * 2, f.r * 2); }
       else if (f.k === 'gf') { const k = f.t / f.life, s0 = f.face < 0 ? flipped(f.s) : f.s; x.globalAlpha = (1 - k) * 0.7; x.drawImage(s0, f.x - s0.width / 2, f.y - s0.height - k * 40); }
@@ -350,6 +356,34 @@ export class Run {
       x.setTransform(dpr * S, 0, 0, dpr * S, dpr * (W / 2 - camx * S + ox), dpr * (H / 2 - camy * S + oy)); x.textAlign = 'center';
       for (const t of this.texts) { x.globalAlpha = 1 - (t.t / 0.8) ** 2; x.font = `800 ${Math.round(15 * t.size)}px Inter, sans-serif`; x.fillStyle = '#000'; x.fillText(t.s, t.x + 1.5, t.y + 1.5); x.fillStyle = t.col; x.fillText(t.s, t.x, t.y); } x.globalAlpha = 1;
     }
+  }
+  updateCrew(dt) {
+    const h = this.hero, W = this.hs.weaponDmg * this.dmgMul;
+    this.crew.forEach((c, i) => {
+      c.age += dt; c.bob += dt * 9;
+      // follow the hero, a little behind and to the side
+      const tx = h.x - (i ? 72 : 40) * (h.face || 1), ty = h.y + 4 + i * 12, dx = tx - c.x, dy = ty - c.y, d = Math.hypot(dx, dy); c.moving = d > 6;
+      if (d > 5) { const sp = Math.min(d * 5, 200); c.x += dx / d * sp * dt; c.y += dy / d * sp * dt; } if (d > 600) { c.x = tx; c.y = ty; }
+      const tgt = (() => { let b = null, bd = 380 * 380; for (const e of this.enemies) { const q = (e.x - c.x) ** 2 + (e.y - c.y) ** 2; if (q < bd) { bd = q; b = e; } } return b; })();
+      if (tgt) c.face = tgt.x >= c.x ? 1 : -1; else if (Math.abs(dx) > 4) c.face = dx > 0 ? 1 : -1;
+      c.cd -= dt;
+      const r = c.role, k = c.sk;
+      if (r === 'weap' && c.cd <= 0 && tgt) { c.cd = Math.max(0.35, 1.1 - 0.07 * k); const a = Math.atan2(tgt.y - c.y, tgt.x - c.x); this.bullets.push({ x: c.x + Math.cos(a) * 14, y: c.y - 40 + Math.sin(a) * 6, vx: Math.cos(a) * 760, vy: Math.sin(a) * 760, a, life: 0.7, dmg: W * 0.5 * (0.7 + 0.12 * k), crit: false, pierce: 1, hit: new Set(), shape: 'bullet', r: 7, spin: 0 }); sfx('shoot', this.sound && Math.random() < 0.3); }
+      else if (r === 'med' && c.cd <= 0) { c.cd = Math.max(4, 9 - 0.5 * k); if (h.hp < this.maxHp) { const v = Math.round(this.maxHp * (0.04 + 0.01 * k)); h.hp = Math.min(this.maxHp, h.hp + v); this.text(h.x, h.y - 60, '+' + v, '#7dff9a', 1.2); this.puff(h.x, h.y - 30, '#7dff9a', 10); } }
+      else if (r === 'mech' && c.cd <= 0) { c.cd = Math.max(7, 14 - 0.6 * k); this.turrets.push({ turret: true, x: c.x + c.face * 24, y: c.y, life: 8 + 0.3 * k, cd: 0, k, aim: 0, y0: c.y }); this.puff(c.x + c.face * 24, c.y, '#ffd36a', 8); }
+      else if (r === 'elec' && c.cd <= 0 && this.enemies.length) { c.cd = Math.max(2.2, 5 - 0.3 * k); const near = this.enemies.filter((e) => (e.x - h.x) ** 2 + (e.y - h.y) ** 2 < 280 * 280).sort((p, q) => (p.x - h.x) ** 2 + (p.y - h.y) ** 2 - (q.x - h.x) ** 2 - (q.y - h.y) ** 2).slice(0, 2 + Math.floor(k / 3)); let px = c.x, py = c.y - 40; for (const e of near) { this.hitEnemy(e, W * 0.8 * (1 + 0.1 * k), false, 0, 0, 0); this.fx.push({ k: 'bolt', x: px, y: py, x2: e.x, y2: e.y - e.def.size * 0.4, t: 0, life: 0.18 }); px = e.x; py = e.y - e.def.size * 0.4; } }
+      else if (r === 'plumb' && c.cd <= 0 && tgt) { c.cd = Math.max(5, 10 - 0.5 * k); this.zones.push({ x: tgt.x, y: tgt.y, r: 90 + 4 * k, t: 4 + 0.2 * k, slow: true, tick: 0 }); }
+    });
+    for (const t of this.turrets) { t.life -= dt; t.cd -= dt; if (t.cd <= 0) { let b = null, bd = 340 * 340; for (const e of this.enemies) { const q = (e.x - t.x) ** 2 + (e.y - t.y) ** 2; if (q < bd) { bd = q; b = e; } } if (b) { t.cd = 0.45; t.aim = Math.atan2(b.y - t.y, b.x - t.x); this.bullets.push({ x: t.x + Math.cos(t.aim) * 12, y: t.y - 20, vx: Math.cos(t.aim) * 800, vy: Math.sin(t.aim) * 800, a: t.aim, life: 0.5, dmg: W * 0.35 * (1 + 0.1 * t.k), crit: false, pierce: 1, hit: new Set(), shape: 'bullet', r: 7, spin: 0 }); } } }
+    this.turrets = this.turrets.filter((t) => t.life > 0);
+  }
+  drawCrew(x, c) {
+    const job = c.sv.main, key = `cr_${job}_${c.sv.g}`, fr = frames(key, 1, 92, c.moving ? 'walk' : 'idle'), s0 = fr[Math.floor(c.bob * (c.moving ? 0.9 : 0.35)) % fr.length], s = c.face < 0 ? flipped(s0) : s0;
+    x.drawImage(SHADOW, c.x - 18, c.y - 7, 36, 14); x.drawImage(s, c.x - s.width / 2, c.y - s.height + FRAME_PAD(92));
+  }
+  drawTurret(x, t) {
+    x.drawImage(SHADOW, t.x - 14, t.y - 5, 28, 10); x.fillStyle = '#2a3038'; x.fillRect(t.x - 9, t.y - 16, 18, 14); x.fillStyle = '#9aa7b5'; x.fillRect(t.x - 6, t.y - 20, 12, 5);
+    x.strokeStyle = '#d8e0ea'; x.lineWidth = 3; x.beginPath(); x.moveTo(t.x, t.y - 18); x.lineTo(t.x + Math.cos(t.aim) * 16, t.y - 18 + Math.sin(t.aim) * 16); x.stroke();
   }
   drawProp(x, p) {
     const s0 = spr(p.t, PROP_H[p.t] || 74), s = p.f < 0 ? flipped(s0) : s0;

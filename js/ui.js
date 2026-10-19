@@ -58,6 +58,8 @@ function top() {
 const fmtDur = (sec) => { sec = Math.max(0, Math.ceil(sec)); const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), x = sec % 60; return h ? `${h}h ${String(m).padStart(2, '0')}m` : m ? `${m}m ${String(x).padStart(2, '0')}s` : `${x}s`; };
 let sheet = null; // { kind: 'room'|'build'|'door'|'crew'|'staff'|'assign', key?, id? }
 const portrait = (sv, cls = '') => `<img class="pt ${cls}" src="art/sv_${sv.main}_${sv.g}_${sv.v}.jpg" alt="" onerror="this.style.visibility='hidden'">`;
+const ROLE = { weap: 'Shoots enemies', med: 'Heals you now and then', mech: 'Builds turrets', elec: 'Zaps enemies with lightning', plumb: 'Floods the ground to slow enemies', scout: 'Spots loot from afar', cook: 'Hot meals: steady health regen', trade: 'Finds extra gold', faith: 'Blessings: you take less damage' };
+const squadOf = () => (S.squad || []).map((id) => survivorById(S, id)).filter(Boolean);
 const rate1 = (v) => (v >= 0 ? '+' : '') + (Math.abs(v) < 10 ? v.toFixed(1) : Math.round(v)) + '/h';
 function resBar() {
   const F = flows(S), cap = capacity(S), r = S.base.res, pop = S.base.survivors.length, bd = beds(S);
@@ -109,6 +111,11 @@ function sheetHtml() {
     const bd = beds(S), pop = S.base.survivors.length, rows = S.base.door.map((sv, i) => svRow(sv, `<div class="svbtn"><button class="${pop < bd ? 'go' : ''}" data-act="letin" data-i="${i}" ${pop < bd ? '' : 'disabled'}>Let in</button><button data-act="turnaway" data-i="${i}">Turn away</button></div>`)).join('');
     return wrap(`<div class="shead"><h3>At the front door</h3><button data-act="closesheet">Close</button></div><p>${rows ? 'Survivors knock at the door, asking to stay. Each one has skills. Put them in the matching room to boost it.' : 'Nobody is at the door right now. Survivors show up every so often (a Bell Tower helps them find you).'}</p><p class="cost">Beds: <b>${pop}/${bd}</b>${pop >= bd ? ' · <b style="color:#ff9a7a">full, build a Bedroom</b>' : ''}</p><div class="svlist">${rows}</div>`);
   }
+  if (sheet.kind === 'squad') {
+    const inSq = (sv) => (S.squad || []).includes(sv.id), full = squadOf().length >= 2;
+    const rows = S.base.survivors.map((sv) => svRow(sv, `<div class="svbtn"><span class="role">${ROLE[sv.main]}</span><button class="${inSq(sv) ? 'on' : full ? '' : 'go'}" data-act="squadtoggle" data-id="${sv.id}" ${!inSq(sv) && full ? 'disabled' : ''}>${inSq(sv) ? 'Bringing' : 'Bring'}</button></div>`)).join('');
+    return wrap(`<div class="shead"><h3>Who comes with you?</h3><button data-act="closesheet">Done</button></div><p class="dim">Up to 2 survivors fight beside you in the graveyard. Their job decides how: a nurse heals you, a mechanic builds turrets. They leave their room while they are out.</p><div class="svlist">${rows || '<p class="dim">No survivors yet. They knock at the front door.</p>'}</div>`);
+  }
   if (sheet.kind === 'crew') {
     const rows = S.base.survivors.map((sv) => svRow(sv, `<div class="svbtn"><button data-act="assignpick" data-id="${sv.id}">${sv.room ? 'Move' : 'Assign'}</button></div>`)).join('');
     return wrap(`<div class="shead"><h3>Survivors <em>${S.base.survivors.length}/${beds(S)} beds</em></h3><button data-act="closesheet">Close</button></div><p class="dim">Each survivor eats and drinks 0.8 a day-hour. Skill points boost the room they work in by ${SKILL_BOOST * 100}% each.</p><div class="svlist">${rows || '<p class="dim">No survivors yet. They arrive at the front door.</p>'}</div>`);
@@ -140,6 +147,7 @@ function renderCamp() {
       <div class="bright"><h2>Hauntfall Church</h2><p>${WEAPONS[hs.weaponKind].name} · ${hs.hp} health · might ${hs.power} · best ${S.best} kills · ${S.wins} boss kills</p>
       <label class="chk"><input type="checkbox" id="afkChk" ${S.opts.afk ? 'checked' : ''}> AFK combat: explore, fight and loot by itself, then start the next run</label>
       <button class="big" data-act="run">Enter the graveyard <small>district ${S.district}</small></button>
+      <div class="squadrow"><span>Crew ${squadOf().length}/2</span>${squadOf().map((sv) => `<span class="chipx">${portrait(sv)}<em>${sv.name.split(' ')[0]}</em></span>`).join('')}<button data-act="squadpick">${squadOf().length ? 'Change' : '+ Bring survivors'}</button></div>
       ${S.maxDistrict > 1 ? `<div class="row">${Array.from({ length: S.maxDistrict }, (_, i) => `<button data-act="district" data-d="${i + 1}" class="${S.district === i + 1 ? 'on' : ''}">District ${i + 1}</button>`).join('')}</div>` : ''}</div></div>
     ${resBar()}${hauntBanner()}
     <div class="chart" style="aspect-ratio:500/${H}">${outlineSvg(F, H, ROOF)}${Array.from({ length: F }, (_, f) => Array.from({ length: COLS }, (_, c) => cellHtml({ key: slotKey(f, c), f, c }, open, F, ROOF, H))).flat().join('')}
@@ -187,6 +195,8 @@ function handle(act, d) {
   if (act === 'defend') { if (S.base.haunt && S.base.haunt.active) cb.startHaunt(); return; }
   if (act === 'hold') { const H = S.base.haunt && S.base.haunt.active; if (!H) return; const win = defense(S) * (0.85 + Math.random() * 0.3) >= H.strength; sheet = { kind: 'hauntreport', rep: resolveHaunt(S, win, false) }; save(); renderCamp(); return; }
   if (act === 'cleanse') { const r = cleanse(S, d.key); msg = r === 'ok' ? 'The room is cleansed.' : 'Not enough scrap.'; if (r === 'ok') save(); renderCamp(); return; }
+  if (act === 'squadpick') { sheet = { kind: 'squad' }; renderCamp(); return; }
+  if (act === 'squadtoggle') { S.squad = S.squad || []; const id = +d.id, i = S.squad.indexOf(id); if (i >= 0) S.squad.splice(i, 1); else if (S.squad.length < 2) { S.squad.push(id); const sv = survivorById(S, id); if (sv) sv.room = null; } save(); renderCamp(); return; }
   if (act === 'open') { sheet = { kind: 'room', key: d.key }; renderCamp(); return; }
   if (act === 'slot') { sheet = { kind: 'build', key: d.key }; renderCamp(); return; }
   if (act === 'door') { sheet = { kind: 'door' }; renderCamp(); return; }

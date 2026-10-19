@@ -2,6 +2,7 @@
 const IMG = {}, SCALED = {}, FLASH = new WeakMap();
 const NAMES = ['hero_f_1', 'hero_f_2', 'hero_m_1', 'hero_m_2', 'en_ghost_1', 'en_ghost_2', 'en_ghoul_1', 'en_ghoul_2', 'en_crow_1', 'en_crow_2', 'en_child_1', 'en_child_2', 'en_brute_1', 'en_brute_2', 'boss_gravekeeper_1', 'boss_gravekeeper_2',
   'prop_tomb1', 'prop_tomb2', 'prop_tomb3', 'prop_tree', 'prop_lamp', 'prop_car', 'prop_fence', 'prop_pumpkin', 'prop_bush',
+  'cr_elec_f', 'cr_elec_m', 'cr_plumb_f', 'cr_plumb_m', 'cr_cook_f', 'cr_cook_m', 'cr_mech_f', 'cr_mech_m', 'cr_med_f', 'cr_med_m', 'cr_weap_f', 'cr_weap_m', 'cr_trade_f', 'cr_trade_m', 'cr_scout_f', 'cr_scout_m', 'cr_faith_f', 'cr_faith_m',
   'icon_knife', 'icon_machete', 'icon_axe', 'icon_bat', 'icon_crowbar', 'icon_pistol', 'icon_revolver', 'icon_smg', 'icon_shotgun', 'icon_rifle', 'icon_jacket', 'icon_vest', 'icon_helmet', 'icon_boots', 'icon_charm', 'icon_relic', 'icon_flashlight', 'icon_medkit', 'icon_ammo', 'icon_gloves'];
 export const TEX = {};
 function load(src) { return new Promise((res) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => res(null); i.src = src; }); }
