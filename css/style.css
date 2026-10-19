@@ -117,3 +117,20 @@ body.hurt #vig { background: radial-gradient(ellipse at 50% 50%, transparent 35%
 .banner .bleft img { width: 64px !important; max-height: 96px !important; } .banner h2 { font-size: 15px; margin: 0 0 2px; } .banner p { font-size: 11px; margin: 0 0 4px; }
 .banner .chk { font-size: 11px; margin-bottom: 4px; } .banner button.big { padding: 10px; font-size: 15px; } .banner .row { margin-top: 4px; }
 .chart { margin-top: 0 !important; }
+
+/* base v3: resources, crew, door */
+.resbar { display: flex; gap: 8px; max-width: 560px; margin: 8px auto 4px; width: 100%; } .rc { flex: 1; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 6px 4px; text-align: center; font-size: 13px; display: grid; gap: 1px; color: var(--ink); } .rc b { font: 800 15px Cinzel; } .rc small { color: var(--dim); font-size: 10.5px; } .rc.bad { border-color: #d9654a; background: #2a1411; } .rc.bad small { color: #ff9a7a; }
+button.rc.crew { cursor: pointer; }
+.warn { text-align: center; color: #ffb08a; font-size: 12px; margin: 2px 0; }
+.cell.room.warn { border-color: #e0a030; } .cell.room.bad { border-color: #e04a3a; box-shadow: inset 0 0 14px #e04a3a88; }
+.crewdot { position: absolute; right: 3px; bottom: 16px; font: 700 8px Inter; color: #9fd0ff; letter-spacing: 1px; font-style: normal; text-shadow: 0 1px 2px #000; }
+.door { position: absolute; left: 38%; width: 24%; height: 9%; min-height: 40px; display: grid; place-items: center; background: linear-gradient(#2a1c10, #120c07); border: 2px solid #8a6a3e; border-radius: 40px 40px 4px 4px; color: #fff; padding: 0; } .door .dr { font-size: 22px; line-height: 1; } .door small { font: 700 9px Inter; color: #d8c8a8; } .door .bdg { position: absolute; right: -6px; top: -8px; min-width: 22px; height: 22px; border-radius: 11px; background: #d9654a; font: 800 12px/22px Inter; text-align: center; }
+.door.knock { animation: knock 1s ease-in-out infinite; border-color: #ffd36a; } @keyframes knock { 50% { transform: translateY(-3px); box-shadow: 0 0 18px #ffd36a88; } }
+.svlist { display: grid; gap: 8px; } .svrow { display: grid; grid-template-columns: 64px 1fr auto; gap: 10px; align-items: center; background: #151b23; border: 1px solid #2c343e; border-radius: 12px; padding: 8px; } .pt { width: 64px; height: 64px; object-fit: cover; border-radius: 10px; border: 1px solid #ffffff22; background: #0a0d12; }
+.svi h4 { margin: 0; font: 800 14px Cinzel; } .svi h4 small { font: 600 11px Inter; color: var(--dim); margin-left: 4px; letter-spacing: 0; } .svi p { margin: 2px 0 0; font-size: 11px; } .sks { display: grid; gap: 3px; margin-top: 4px; }
+.sk { position: relative; display: block; height: 15px; background: #0b0f14; border-radius: 4px; overflow: hidden; } .sk i { position: absolute; inset: 0 auto 0 0; background: linear-gradient(90deg, #2a4a6a, #3f7fb0); } .sk.hi i { background: linear-gradient(90deg, #6a4a1a, #e0a030); } .sk em { position: relative; font: 700 10px/15px Inter; padding-left: 6px; font-style: normal; text-shadow: 0 1px 2px #000; }
+.svbtn { display: grid; gap: 6px; justify-items: stretch; } .svbtn button { padding: 8px 10px; font-size: 12px; }
+.crewbox { background: #151b23; border-radius: 12px; padding: 8px 10px; display: grid; gap: 6px; } .crewbox h4 { margin: 0; font: 800 13px Cinzel; } .crewbox h4 small { font: 600 11px Inter; color: var(--dim); margin-left: 4px; letter-spacing: 0; }
+.svmini { display: grid; grid-template-columns: 40px 1fr auto; gap: 8px; align-items: center; } .svmini .pt { width: 40px; height: 40px; border-radius: 8px; } .svmini span { font-size: 13px; font-weight: 700; display: grid; } .svmini small { font-weight: 500; color: #9ee6a0; font-size: 11px; } .svmini button { padding: 6px 8px; font-size: 11px; }
+.sheet p.warn { text-align: left; }
+.sks { gap: 5px !important; } .sk { height: 16px !important; } .sk em { line-height: 16px !important; } .svi p { margin-top: 6px !important; }

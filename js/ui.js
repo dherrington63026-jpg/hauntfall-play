@@ -1,5 +1,5 @@
 // Hauntfall screens and HUD (plain DOM over the canvas).
-import { RARITIES, SLOTS, SLOT_NAME, STAT_LABEL, PCT, WEAPONS, ROOMS, ROOM_ORDER, ROOM_MAX, SLOT_LIST, heroStats, itemStat, itemScore, upCost, salvageValue, autoEquip, writeSave, roomRate, roomBank, collectRoom, tickBase, startUpgrade, startBuild, openSlots, newRoomCost, roomOfType, upgradeCost, upgradeSecs, baseBonus, makeItem } from './data.js';
+import { RARITIES, SLOTS, SLOT_NAME, STAT_LABEL, PCT, WEAPONS, ROOMS, ROOM_ORDER, SKILLS, SKILL_KEYS, SKILL_BOOST, COLS, heroStats, itemStat, itemScore, upCost, salvageValue, autoEquip, writeSave, tickBase, startUpgrade, startBuild, openSlots, newRoomCost, upgradeCost, upgradeSecs, topFloor, slotKey, parseKey, staffSlots, staffOf, survivorById, assign, recruit, beds, capacity, flows, jobOf, makeItem } from './data.js';
 import { iconUrl } from './art.js';
 
 const $ = (s) => document.querySelector(s);
@@ -50,66 +50,105 @@ UI.showHud = () => { $('#hud').classList.add('on'); syncAfk(); };
 const screen = (html, bg = 'camp') => { const s = $('#screen'); s.innerHTML = html; s.className = 'on bg-' + bg; s.scrollTop = 0; };
 let tab = 'camp', sel = null, msg = '';
 
-UI.camp = () => { tab = 'camp'; sel = null; sheet = null; const d = tickBase(S); if (d) { save(); const r = S.base.rooms[d]; msg = `${ROOMS[r.type].name} ${r.lvl === 1 ? 'is ready' : 'is now level ' + r.lvl}!`; } renderCamp(); };
+UI.camp = () => { tab = 'camp'; sel = null; sheet = null; const d = tickBase(S); save(); if (d) { const r = S.base.rooms[d]; msg = `${ROOMS[r.type].name} ${r.lvl === 1 ? 'is ready' : 'is now level ' + r.lvl}!`; } renderCamp(); };
 function top() {
   const hs = heroStats(S);
-  return `<div class="top"><h1>HAUNTFALL</h1><div class="tabs"><button data-act="tab" data-t="camp" class="${tab === 'camp' ? 'on' : ''}">Church</button><button data-act="tab" data-t="gear" class="${tab === 'gear' ? 'on' : ''}">Gear</button></div><div class="stat"><span class="gold">${S.gold.toLocaleString()} gold</span><span class="scrap">${Math.floor(S.scrap || 0).toLocaleString()} scrap</span><span>Power ${hs.power}</span></div></div>`;
+  return `<div class="top"><h1>HAUNTFALL</h1><div class="tabs"><button data-act="tab" data-t="camp" class="${tab === 'camp' ? 'on' : ''}">Church</button><button data-act="tab" data-t="gear" class="${tab === 'gear' ? 'on' : ''}">Gear</button></div><div class="stat"><span class="gold">${S.gold.toLocaleString()} gold</span><span class="scrap">${Math.floor(S.scrap || 0).toLocaleString()} scrap</span><span>Might ${hs.power}</span></div></div>`;
 }
 const fmtDur = (sec) => { sec = Math.max(0, Math.ceil(sec)); const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), x = sec % 60; return h ? `${h}h ${String(m).padStart(2, '0')}m` : m ? `${m}m ${String(x).padStart(2, '0')}s` : `${x}s`; };
-let sheet = null; // { kind: 'room' | 'build', key }
-const OUTLINE = `<svg class="outline" viewBox="0 0 500 480" preserveAspectRatio="none" aria-hidden="true">
-  <defs><linearGradient id="wall" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1a212b"/><stop offset="1" stop-color="#0c1016"/></linearGradient></defs>
-  <path d="M0 340 L100 240 L200 140 L250 22 L300 140 L400 240 L500 340 L500 440 L0 440 Z" fill="url(#wall)" stroke="#4a586a" stroke-width="3" stroke-linejoin="round"/>
-  <path d="M250 22 L250 -2 M238 8 L262 8" stroke="#8a97a6" stroke-width="3" fill="none" transform="translate(0,4)"/>
-  <path d="M200 140 L300 140 M100 240 L400 240 M0 340 L500 340" stroke="#4a586a" stroke-width="2" opacity="0.7"/>
-  <path d="M0 440 L500 440 L500 480 L0 480 Z" fill="#06080b" stroke="#2c343e"/>
-  <g stroke="#3a4655" stroke-width="2" fill="none">${Array.from({ length: 21 }, (_, i) => `<path d="M${i * 25 + 6} 480 L${i * 25 + 6} 452 L${i * 25 + 12} 444 L${i * 25 + 18} 452 L${i * 25 + 18} 480"/>`).join('')}</g>
-  <g fill="#ffcf6a" opacity="0.55"><rect x="40" y="355" width="16" height="30" rx="8" opacity="0.5"/><rect x="444" y="355" width="16" height="30" rx="8" opacity="0.5"/></g></svg>`;
-const ROW_Y = [340, 240, 140];
-function slotPos(sl) { return `left:${sl.c * 20}%;top:${ROW_Y[sl.f] / 480 * 100}%;width:20%;height:${100 / 480 * 100}%`; }
-function arrowFor(sl) { const b = (f, c) => { const r = S.base.rooms[`f${f}c${c}`]; return r && r.lvl > 0; }; const L = b(sl.f, sl.c - 1), R = b(sl.f, sl.c + 1), D = sl.f > 0 && b(sl.f - 1, sl.c); return D ? '&#9650;' : L && !R ? '&#9654;' : R && !L ? '&#9664;' : ''; }
-function cellHtml(sl, open) {
-  const r = S.base.rooms[sl.key], pos = slotPos(sl);
+let sheet = null; // { kind: 'room'|'build'|'door'|'crew'|'staff'|'assign', key?, id? }
+const portrait = (sv, cls = '') => `<img class="pt ${cls}" src="art/sv_${sv.main}_${sv.g}_${sv.v}.jpg" alt="" onerror="this.style.visibility='hidden'">`;
+const rate1 = (v) => (v >= 0 ? '+' : '') + (Math.abs(v) < 10 ? v.toFixed(1) : Math.round(v)) + '/h';
+function resBar() {
+  const F = flows(S), cap = capacity(S), r = S.base.res, pop = S.base.survivors.length, bd = beds(S);
+  return `<div class="resbar"><div class="rc ${F.demand > F.supply ? 'bad' : ''}" data-r="pow">&#9889; <b>${Math.round(F.supply)}</b>/${Math.round(F.demand)}<small>power</small></div>
+    <div class="rc ${r.water <= 0 ? 'bad' : ''}" data-r="water">&#128167; <b>${Math.floor(r.water)}</b><small>${rate1(F.rate.water)}</small></div>
+    <div class="rc ${r.food <= 0 ? 'bad' : ''}" data-r="food">&#127830; <b>${Math.floor(r.food)}</b><small>${rate1(F.rate.food)}</small></div>
+    <button class="rc crew" data-act="crew">&#128101; <b>${pop}</b>/${bd}<small>survivors</small></button></div>${F.demand > F.supply ? '<p class="warn">Not enough electricity: rooms are running slow. Build or upgrade a Generator.</p>' : ''}`;
+}
+function outlineSvg(F, H, ROOF) {
+  const bodyH = F * 100, glow = [];
+  for (let f = 0; f < F; f++) for (const x of [14, 474]) glow.push(`<rect x="${x}" y="${ROOF + (F - 1 - f) * 100 + 30}" width="12" height="28" rx="6" fill="#ffcf6a" opacity="${f % 2 ? 0.25 : 0.4}"/>`);
+  return `<svg class="outline" viewBox="0 0 500 ${H}" preserveAspectRatio="none" aria-hidden="true"><defs><linearGradient id="wall" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1a212b"/><stop offset="1" stop-color="#0c1016"/></linearGradient></defs>
+    <path d="M0 ${ROOF} L250 6 L500 ${ROOF} L500 ${ROOF + bodyH} L0 ${ROOF + bodyH} Z" fill="url(#wall)" stroke="#4a586a" stroke-width="3" stroke-linejoin="round"/>
+    <path d="M250 6 L250 -20 M238 -8 L262 -8" stroke="#8a97a6" stroke-width="3" fill="none" transform="translate(0,26)"/>
+    ${Array.from({ length: F }, (_, i) => `<path d="M0 ${ROOF + (i + 1) * 100} L500 ${ROOF + (i + 1) * 100}" stroke="#4a586a" stroke-width="2" opacity="0.7"/>`).join('')}
+    <path d="M0 ${ROOF + bodyH} L500 ${ROOF + bodyH} L500 ${H} L0 ${H} Z" fill="#06080b" stroke="#2c343e"/>
+    <g stroke="#3a4655" stroke-width="2" fill="none">${Array.from({ length: 21 }, (_, i) => `<path d="M${i * 25 + 6} ${H} L${i * 25 + 6} ${H - 26} L${i * 25 + 12} ${H - 34} L${i * 25 + 18} ${H - 26} L${i * 25 + 18} ${H}"/>`).join('')}</g>${glow.join('')}</svg>`;
+}
+function cellStatus(k) { const f = flows(S).rooms[k]; return f ? (f.eff < 0.5 ? 'bad' : f.eff < 0.98 ? 'warn' : '') : ''; }
+function cellHtml(sl, open, F, ROOF, H, FL) {
+  const r = S.base.rooms[sl.key], top = (ROOF + (F - 1 - sl.f) * 100) / H * 100, pos = `left:${sl.c * 20}%;top:${top}%;width:20%;height:${100 / H * 100}%`;
   if (r && r.lvl === 0) { const R = ROOMS[r.type]; return `<div class="cell scaffold" style="${pos}"><span>${R.name}</span><b data-build="${sl.key}">${fmtDur((S.base.build.end - Date.now()) / 1000)}</b></div>`; }
-  if (r) { const R = ROOMS[r.type], bank = R.prod ? roomBank(S, sl.key) : 0, up = S.base.build && S.base.build.key === sl.key && S.base.build.kind === 'up';
-    return `<button class="cell room" data-act="open" data-key="${sl.key}" style="${pos};background-image:url(art/room_${R.art}.jpg)"><b class="lv">${r.lvl}</b>${bank > 0 ? '<i class="dot" data-dot="' + sl.key + '"></i>' : '<i class="dot off" data-dot="' + sl.key + '"></i>'}<span class="nm">${R.name}</span>${up ? '<em data-up="' + sl.key + '">' + fmtDur((S.base.build.end - Date.now()) / 1000) + '</em>' : ''}</button>`; }
-  if (open.includes(sl.key)) return `<button class="cell slot" data-act="slot" data-key="${sl.key}" style="${pos}"><span>${arrowFor(sl)}</span><b>+</b></button>`;
+  if (r) { const R = ROOMS[r.type], up = S.base.build && S.base.build.key === sl.key && S.base.build.kind === 'up', staff = R.skill ? staffOf(S, sl.key).length : 0, slots = R.skill ? staffSlots(r.lvl) : 0;
+    return `<button class="cell room ${cellStatus(sl.key)}" data-act="open" data-key="${sl.key}" style="${pos};background-image:url(art/room_${R.art}.jpg)"><b class="lv">${r.lvl}</b>${slots ? `<i class="crewdot">${'&#9679;'.repeat(staff)}${'&#9675;'.repeat(slots - staff)}</i>` : ''}<span class="nm">${R.name}</span>${up ? '<em data-up="' + sl.key + '">' + fmtDur((S.base.build.end - Date.now()) / 1000) + '</em>' : ''}</button>`; }
+  if (open.includes(sl.key)) { const b = (f, c) => { const x = S.base.rooms[slotKey(f, c)]; return x && x.lvl > 0; }, L = b(sl.f, sl.c - 1), Rr = b(sl.f, sl.c + 1), D = sl.f > 0 && b(sl.f - 1, sl.c), arrow = D ? '&#9650;' : L && !Rr ? '&#9654;' : Rr && !L ? '&#9664;' : '';
+    return `<button class="cell slot" data-act="slot" data-key="${sl.key}" style="${pos}"><span>${arrow}</span><b>+</b></button>`; }
   return `<div class="cell empty" style="${pos}"></div>`;
 }
+const need = (R, L) => { const bits = []; const p = R.pow(L); if (p < 0) bits.push(`&#9889; ${-p} power`); if (R.use) for (const [k, f] of Object.entries(R.use)) bits.push(`${k === 'water' ? '&#128167;' : '&#128297;'} ${f(L)} ${k}/h`); return bits.join(' · '); };
+const makes = (R, L) => { const bits = []; const p = R.pow(L); if (p > 0) bits.push(`&#9889; +${Math.round(p)} power`); if (R.make) for (const [k, f] of Object.entries(R.make)) bits.push(`${{ water: '&#128167;', food: '&#127830;', scrap: '&#128297;', gold: '&#129689;' }[k]} +${Math.round(f(L))} ${k}/h`); return bits.join(' · '); };
+function skillBars(sv, only) { return SKILL_KEYS.filter((k) => (only ? only.includes(k) : sv.skills[k] >= 3)).sort((a, b) => sv.skills[b] - sv.skills[a]).slice(0, 4).map((k) => `<span class="sk ${sv.skills[k] >= 7 ? 'hi' : ''}"><i style="width:${sv.skills[k] * 10}%"></i><em>${SKILLS[k]} ${sv.skills[k]}</em></span>`).join(''); }
+function svRow(sv, extra = '') { return `<div class="svrow">${portrait(sv)}<div class="svi"><h4>${sv.name} <small>${jobOf(sv)}</small></h4><div class="sks">${skillBars(sv)}</div><p class="dim">${sv.room && S.base.rooms[sv.room] ? 'Working: ' + ROOMS[S.base.rooms[sv.room].type].name : 'Idle'}</p></div>${extra}</div>`; }
 function sheetHtml() {
   if (!sheet) return '';
+  const wrap = (inner) => `<div class="sheetbg" data-act="closesheet"><div class="sheet">${inner}</div></div>`;
   if (sheet.kind === 'build') {
     const c = newRoomCost(S), busy = !!S.base.build, poor = S.gold < c.gold || (S.scrap || 0) < c.scrap;
-    const rows = ROOM_ORDER.filter((t) => !roomOfType(S, t)).map((t) => { const R = ROOMS[t]; return `<div class="opt"><img src="art/room_${R.art}.jpg" alt=""><div><h4>${R.name}</h4><p>${R.desc}</p><p class="bonus">${R.prod ? `Makes ${R.rate} ${R.prod}/hour` : R.bonus(1)}</p></div><button class="${!busy && !poor ? 'go' : ''}" data-act="build" data-type="${t}" ${busy || poor ? 'disabled' : ''}>Build</button></div>`; }).join('');
-    return `<div class="sheetbg" data-act="closesheet"><div class="sheet"><div class="shead"><h3>Build a room</h3><button data-act="closesheet">Close</button></div><p class="cost">Cost: <b class="gold">${c.gold.toLocaleString()} gold</b> · <b class="scrap">${c.scrap} scrap</b> · ${fmtDur(c.secs)}${busy ? ' · <b style="color:#ff9a7a">builders busy</b>' : poor ? ' · <b style="color:#ff9a7a">not enough yet</b>' : ''}</p><div class="opts">${rows || '<p class="dim">Every room type is built.</p>'}</div></div></div>`;
+    const rows = ROOM_ORDER.map((t) => { const R = ROOMS[t]; return `<div class="opt"><img src="art/room_${R.art}.jpg" alt=""><div><h4>${R.name}</h4><p>${R.desc}</p><p class="bonus">${makes(R, 1) || (R.bonus ? R.bonus(1, 1) : '')}</p><p class="dim">${need(R, 1) ? 'Needs ' + need(R, 1) : 'Needs nothing'}</p></div><button class="${!busy && !poor ? 'go' : ''}" data-act="build" data-type="${t}" ${busy || poor ? 'disabled' : ''}>Build</button></div>`; }).join('');
+    return wrap(`<div class="shead"><h3>Build a room</h3><button data-act="closesheet">Close</button></div><p class="cost">Cost: <b class="gold">${c.gold.toLocaleString()} gold</b> · <b class="scrap">${c.scrap} scrap</b> · ${fmtDur(c.secs)}${busy ? ' · <b style="color:#ff9a7a">builders busy</b>' : poor ? ' · <b style="color:#ff9a7a">not enough yet</b>' : ''}</p><div class="opts">${rows}</div>`);
   }
-  const r = S.base.rooms[sheet.key]; if (!r) return ''; const R = ROOMS[r.type], l = r.lvl, building = S.base.build && S.base.build.key === sheet.key && S.base.build.kind === 'up', busy = !!S.base.build, c = upgradeCost(l), can = S.gold >= c.gold && (S.scrap || 0) >= c.scrap;
-  const bank = R.prod ? roomBank(S, sheet.key) : 0, rate = roomRate(S, sheet.key);
-  const bonusNow = R.bonus ? R.bonus(l) : `${Math.round(rate)} ${R.prod}/hour`, bonusNext = l < ROOM_MAX ? (R.bonus ? R.bonus(l + 1) : `${Math.round(R.rate * Math.pow(l + 1, R.pow))} ${R.prod}/hour`) : '';
-  return `<div class="sheetbg" data-act="closesheet"><div class="sheet"><div class="sart" style="background-image:linear-gradient(transparent 30%, #0e1218), url(art/room_${R.art}.jpg)"></div><div class="shead"><h3>${R.name} <em>Lv ${l}</em></h3><button data-act="closesheet">Close</button></div>
-    <p>${R.desc}</p><p class="bonus">Now: ${bonusNow}</p>${bonusNext ? `<p class="dim">Next level: ${bonusNext}</p>` : ''}
-    ${R.prod ? `<div class="bank"><span>Banked: <b data-bank="${sheet.key}">${bank} ${R.prod}</b> <small>(${Math.round(rate)}/hour)</small></span><button data-act="collect" data-key="${sheet.key}" ${bank > 0 ? '' : 'disabled'}>Collect</button></div>` : ''}
+  if (sheet.kind === 'door') {
+    const bd = beds(S), pop = S.base.survivors.length, rows = S.base.door.map((sv, i) => svRow(sv, `<div class="svbtn"><button class="${pop < bd ? 'go' : ''}" data-act="letin" data-i="${i}" ${pop < bd ? '' : 'disabled'}>Let in</button><button data-act="turnaway" data-i="${i}">Turn away</button></div>`)).join('');
+    return wrap(`<div class="shead"><h3>At the front door</h3><button data-act="closesheet">Close</button></div><p>${rows ? 'Survivors knock at the door, asking to stay. Each one has skills. Put them in the matching room to boost it.' : 'Nobody is at the door right now. Survivors show up every so often (a Bell Tower helps them find you).'}</p><p class="cost">Beds: <b>${pop}/${bd}</b>${pop >= bd ? ' · <b style="color:#ff9a7a">full, build a Bedroom</b>' : ''}</p><div class="svlist">${rows}</div>`);
+  }
+  if (sheet.kind === 'crew') {
+    const rows = S.base.survivors.map((sv) => svRow(sv, `<div class="svbtn"><button data-act="assignpick" data-id="${sv.id}">${sv.room ? 'Move' : 'Assign'}</button></div>`)).join('');
+    return wrap(`<div class="shead"><h3>Survivors <em>${S.base.survivors.length}/${beds(S)} beds</em></h3><button data-act="closesheet">Close</button></div><p class="dim">Each survivor eats and drinks 0.8 a day-hour. Skill points boost the room they work in by ${SKILL_BOOST * 100}% each.</p><div class="svlist">${rows || '<p class="dim">No survivors yet. They arrive at the front door.</p>'}</div>`);
+  }
+  if (sheet.kind === 'assign') { // pick a room for one survivor
+    const sv = survivorById(S, sheet.id), rows = Object.entries(S.base.rooms).filter(([, r]) => r.lvl > 0 && ROOMS[r.type].skill).map(([k, r]) => { const R = ROOMS[r.type], v = sv.skills[R.skill], free = staffSlots(r.lvl) - staffOf(S, k).length; return `<div class="opt"><img src="art/room_${R.art}.jpg" alt=""><div><h4>${R.name} <small>Lv ${r.lvl}</small></h4><p>${SKILLS[R.skill]} ${v} &rarr; <b class="bonus">+${Math.round(v * SKILL_BOOST * 100)}%</b> output</p><p class="dim">${free > 0 || sv.room === k ? 'Open spots: ' + Math.max(free, 0) : 'Full'}</p></div><button ${sv.room === k ? 'disabled' : free > 0 ? 'class="go"' : 'disabled'} data-act="assignto" data-key="${k}" data-id="${sv.id}">${sv.room === k ? 'Here' : 'Send'}</button></div>`; }).join('');
+    return wrap(`<div class="shead"><h3>${sv.name}</h3><button data-act="crew">Back</button></div><div class="svlist">${svRow(sv)}</div>${sv.room ? `<button data-act="assignto" data-id="${sv.id}" data-key="">Stop working</button>` : ''}<div class="opts">${rows || '<p class="dim">No room needs staff yet.</p>'}</div>`);
+  }
+  if (sheet.kind === 'staff') { // pick a survivor for one room
+    const key = sheet.key, r = S.base.rooms[key], R = ROOMS[r.type], rows = S.base.survivors.filter((sv) => sv.room !== key).sort((a, b) => b.skills[R.skill] - a.skills[R.skill]).map((sv) => svRow(sv, `<div class="svbtn"><b class="bonus">+${Math.round(sv.skills[R.skill] * SKILL_BOOST * 100)}%</b><button class="go" data-act="assignto" data-id="${sv.id}" data-key="${key}">Assign</button></div>`)).join('');
+    return wrap(`<div class="shead"><h3>Staff the ${R.name}</h3><button data-act="open" data-key="${key}">Back</button></div><p class="dim">Best ${SKILLS[R.skill]} skill first.</p><div class="svlist">${rows || '<p class="dim">No other survivors.</p>'}</div>`);
+  }
+  const r = S.base.rooms[sheet.key]; if (!r) return ''; const R = ROOMS[r.type], l = r.lvl, F = flows(S), fo = F.rooms[sheet.key] || { eff: 1, boost: 0 };
+  const building = S.base.build && S.base.build.key === sheet.key && S.base.build.kind === 'up', busy = !!S.base.build, c = upgradeCost(l), can = S.gold >= c.gold && (S.scrap || 0) >= c.scrap;
+  const staff = R.skill ? staffOf(S, sheet.key) : [], slots = R.skill ? staffSlots(l) : 0;
+  const mult = fo.eff * (1 + Math.min(1, fo.boost));
+  return wrap(`<div class="sart" style="background-image:linear-gradient(transparent 30%, #0e1218), url(art/room_${R.art}.jpg)"></div><div class="shead"><h3>${R.name} <em>Lv ${l}</em></h3><button data-act="closesheet">Close</button></div>
+    <p>${R.desc}</p>${makes(R, l) ? `<p class="bonus">Makes: ${makes(R, l)}${fo.boost ? ` <b>(+${Math.round(fo.boost * 100)}% from staff)</b>` : ''}</p>` : ''}${R.bonus ? `<p class="bonus">Bonus: ${R.bonus(l, mult)}</p>` : ''}${need(R, l) ? `<p class="dim">Uses: ${need(R, l)}</p>` : ''}
+    ${fo.eff < 0.98 ? `<p class="warn">Running at ${Math.round(fo.eff * 100)}%: ${F.demand > F.supply ? 'not enough electricity. ' : ''}${F.rate.water < 0 && S.base.res.water <= 0 ? 'out of water. ' : ''}${S.base.res.food <= 0 ? 'people are hungry.' : ''}</p>` : ''}
+    ${R.skill ? `<div class="crewbox"><h4>Staff <small>${staff.length}/${slots} spots · skill: ${SKILLS[R.skill]}</small></h4>${staff.map((sv) => `<div class="svmini">${portrait(sv)}<span>${sv.name}<small>${SKILLS[R.skill]} ${sv.skills[R.skill]} &rarr; +${Math.round(sv.skills[R.skill] * SKILL_BOOST * 100)}%</small></span><button data-act="assignto" data-id="${sv.id}" data-key="">Remove</button></div>`).join('')}${staff.length < slots ? `<button data-act="staffpick" data-key="${sheet.key}">+ Assign a survivor</button>` : ''}</div>` : ''}
     ${building ? `<div class="build"><span>Upgrading... <b data-build="${sheet.key}">${fmtDur((S.base.build.end - Date.now()) / 1000)}</b></span><div class="bar"><i data-buildbar="${sheet.key}" style="width:${Math.min(100, (1 - (S.base.build.end - Date.now()) / 1000 / upgradeSecs(l)) * 100)}%"></i></div></div>`
-      : l >= ROOM_MAX ? '<p class="dim">Max level</p>' : `<button class="upg ${can && !busy ? 'go' : ''}" data-act="room" data-key="${sheet.key}" ${can && !busy ? '' : 'disabled'}>Upgrade to level ${l + 1}<small>${c.gold.toLocaleString()} gold · ${c.scrap} scrap · ${fmtDur(upgradeSecs(l))}${busy ? ' · builders busy' : !can ? ' · not enough yet' : ''}</small></button>`}</div></div>`;
+      : `<button class="upg ${can && !busy ? 'go' : ''}" data-act="room" data-key="${sheet.key}" ${can && !busy ? '' : 'disabled'}>Upgrade to level ${l + 1}<small>${c.gold.toLocaleString()} gold · ${c.scrap} scrap · ${fmtDur(upgradeSecs(l))}${busy ? ' · builders busy' : !can ? ' · not enough yet' : ''}</small></button>`}`);
 }
 function renderCamp() {
-  const hs = heroStats(S), open = openSlots(S), keep = $('#screen').scrollTop;
+  const hs = heroStats(S), open = openSlots(S), keep = $('#screen').scrollTop, tf = topFloor(S), F = tf + 2, ROOF = 70, H = ROOF + F * 100 + 60, waiting = S.base.door.length;
   screen(`${top()}<div class="body church">
     <div class="banner" style="background-image:linear-gradient(rgba(5,7,10,.2), rgba(5,7,10,.88)), url(art/bg_church.jpg)"><div class="bleft"><img src="art/hero_${S.hero}_1.png" onerror="this.style.display='none'" alt=""></div>
-      <div class="bright"><h2>Hauntfall Church</h2><p>${WEAPONS[hs.weaponKind].name} · ${hs.hp} health · power ${hs.power} · best ${S.best} kills · ${S.wins} boss kills</p>
+      <div class="bright"><h2>Hauntfall Church</h2><p>${WEAPONS[hs.weaponKind].name} · ${hs.hp} health · might ${hs.power} · best ${S.best} kills · ${S.wins} boss kills</p>
       <label class="chk"><input type="checkbox" id="afkChk" ${S.opts.afk ? 'checked' : ''}> AFK combat: explore, fight and loot by itself, then start the next run</label>
       <button class="big" data-act="run">Enter the graveyard <small>district ${S.district}</small></button>
       ${S.maxDistrict > 1 ? `<div class="row">${Array.from({ length: S.maxDistrict }, (_, i) => `<button data-act="district" data-d="${i + 1}" class="${S.district === i + 1 ? 'on' : ''}">District ${i + 1}</button>`).join('')}</div>` : ''}</div></div>
-    <div class="chart">${OUTLINE}${SLOT_LIST.map((sl) => cellHtml(sl, open)).join('')}</div>
-    <p class="hint">Tap a room to upgrade it. Tap a <b>+</b> to build a new room next to it or above it.</p></div>${sheetHtml()}${msg ? `<div class="msg">${msg}</div>` : ''}`);
+    ${resBar()}
+    <div class="chart" style="aspect-ratio:500/${H}">${outlineSvg(F, H, ROOF)}${Array.from({ length: F }, (_, f) => Array.from({ length: COLS }, (_, c) => cellHtml({ key: slotKey(f, c), f, c }, open, F, ROOF, H))).flat().join('')}
+      <button class="door ${waiting ? 'knock' : ''}" data-act="door" style="top:${(ROOF + F * 100 + 6) / H * 100}%"><span class="dr">&#128682;</span>${waiting ? `<b class="bdg">${waiting}</b>` : ''}<small>${waiting ? 'Someone is at the door!' : 'Front door'}</small></button></div>
+    <p class="hint">Tap a room to upgrade it and staff it. Tap a <b>+</b> to build a new room beside or above. The church can grow forever.</p></div>${sheetHtml()}${msg ? `<div class="msg">${msg}</div>` : ''}`);
   $('#screen').scrollTop = keep;
   const c = $('#afkChk'); if (c) c.onchange = () => { S.opts.afk = c.checked; save(); };
   flashMsg(); clearInterval(UI.baseT); UI.baseT = setInterval(refreshBase, 1000);
 }
+let lastSig = '';
+function baseSig() { return S.base.door.length + '|' + S.base.survivors.length + '|' + (S.base.build ? 1 : 0); }
 function refreshBase() {
   if (tab !== 'camp' || !$('#screen').classList.contains('on') || !$('.chart')) { clearInterval(UI.baseT); return; }
-  const done = tickBase(S); if (done) { save(); const r = S.base.rooms[done]; msg = `${ROOMS[r.type].name} ${r.lvl === 1 ? 'is ready' : 'is now level ' + r.lvl}!`; renderCamp(); return; }
-  for (const k of Object.keys(S.base.rooms)) { const r = S.base.rooms[k], R = ROOMS[r.type]; if (!R.prod || !r.lvl) continue; const n = roomBank(S, k); const d = $(`[data-dot="${k}"]`); if (d) d.classList.toggle('off', n <= 0); const b = $(`[data-bank="${k}"]`); if (b) { b.textContent = `${n} ${R.prod}`; const btn = b.closest('.bank').querySelector('button'); if (btn) btn.disabled = n <= 0; } }
+  const before = baseSig(), done = tickBase(S); if (done) { save(); const r = S.base.rooms[done]; msg = `${ROOMS[r.type].name} ${r.lvl === 1 ? 'is ready' : 'is now level ' + r.lvl}!`; renderCamp(); return; }
+  if (baseSig() !== before) { save(); renderCamp(); return; }
+  const F = flows(S), r = S.base.res, rb = $('.resbar'); if (rb) { const set = (sel, html, bad) => { const el = rb.querySelector(sel); if (el) { el.innerHTML = html; el.classList.toggle('bad', !!bad); } }; set('[data-r="pow"]', `&#9889; <b>${Math.round(F.supply)}</b>/${Math.round(F.demand)}<small>power</small>`, F.demand > F.supply); set('[data-r="water"]', `&#128167; <b>${Math.floor(r.water)}</b><small>${rate1(F.rate.water)}</small>`, r.water <= 0); set('[data-r="food"]', `&#127830; <b>${Math.floor(r.food)}</b><small>${rate1(F.rate.food)}</small>`, r.food <= 0); }
+  const top2 = $('.top .stat'); if (top2) { const g = top2.querySelector('.gold'), sc = top2.querySelector('.scrap'); if (g) g.textContent = `${Math.floor(S.gold).toLocaleString()} gold`; if (sc) sc.textContent = `${Math.floor(S.scrap || 0).toLocaleString()} scrap`; }
   const bd = S.base.build; if (bd) { const left = (bd.end - Date.now()) / 1000; for (const sel of [`[data-build="${bd.key}"]`, `[data-up="${bd.key}"]`]) { const t = $(sel); if (t) t.textContent = fmtDur(left); } const bar = $(`[data-buildbar="${bd.key}"]`); if (bar) bar.style.width = Math.min(100, (1 - left / upgradeSecs(S.base.rooms[bd.key].lvl)) * 100) + '%'; }
 }
 function renderGear() {
@@ -138,11 +177,16 @@ function handle(act, d) {
   if (act === 'district') { S.district = +d.d; save(); renderCamp(); return; }
   if (act === 'open') { sheet = { kind: 'room', key: d.key }; renderCamp(); return; }
   if (act === 'slot') { sheet = { kind: 'build', key: d.key }; renderCamp(); return; }
+  if (act === 'door') { sheet = { kind: 'door' }; renderCamp(); return; }
+  if (act === 'crew') { sheet = { kind: 'crew' }; renderCamp(); return; }
+  if (act === 'assignpick') { sheet = { kind: 'assign', id: +d.id }; renderCamp(); return; }
+  if (act === 'staffpick') { sheet = { kind: 'staff', key: d.key }; renderCamp(); return; }
   if (act === 'closesheet') { sheet = null; renderCamp(); return; }
-  if (act === 'collect') { const n = collectRoom(S, d.key); if (n) { msg = `Collected ${n} ${ROOMS[S.base.rooms[d.key].type].prod}.`; save(); } renderCamp(); return; }
+  if (act === 'assignto') { const r = assign(S, +d.id, d.key || null); if (r === 'full') msg = 'That room is already fully staffed.'; else save(); if (sheet && sheet.kind === 'assign') sheet = { kind: 'crew' }; else if (sheet && sheet.kind === 'staff') sheet = { kind: 'room', key: sheet.key }; renderCamp(); return; }
+  if (act === 'letin') { const r = recruit(S, +d.i); msg = r === 'ok' ? 'Welcome to the church!' : r === 'nobeds' ? 'No free beds. Build a Bedroom.' : 'Nobody there.'; save(); if (!S.base.door.length) sheet = null; renderCamp(); return; }
+  if (act === 'turnaway') { S.base.door.splice(+d.i, 1); save(); if (!S.base.door.length) sheet = null; renderCamp(); return; }
   if (act === 'room') { const r = startUpgrade(S, d.key); if (r === 'ok') { save(); msg = `${ROOMS[S.base.rooms[d.key].type].name} upgrade started.`; } else msg = r === 'busy' ? 'Your builders are busy.' : 'Not enough gold or scrap.'; renderCamp(); return; }
   if (act === 'build') { const r = startBuild(S, sheet.key, d.type); if (r === 'ok') { save(); msg = `Building the ${ROOMS[d.type].name}...`; sheet = null; } else msg = r === 'busy' ? 'Your builders are busy.' : 'Not enough gold or scrap.'; renderCamp(); return; }
-  if (act === 'claim') { const i = idlePreview(S); S.gold += i.gold; for (let k = 0; k < i.gear; k++) S.bag.push(cb.makeDrop()); S.lastSeen = Date.now(); msg = `Collected ${i.gold} gold${i.gear ? ' and ' + i.gear + ' gear' : ''}.`; save(); renderCamp(); return; }
   if (act === 'again') { cb.start(); return; }
   if (act === 'camp') { UI.stopAfkTimer(); UI.camp(); return; }
   if (act === 'pick') { sel = find(d.id) || null; renderGear(); return; }

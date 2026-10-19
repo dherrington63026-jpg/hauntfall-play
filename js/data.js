@@ -104,65 +104,128 @@ export const UPGRADES = [
   { id: 'fire', name: 'Molotov', desc: 'Throws fire into the swarm', max: 5, weapon: true, apply: (R) => { R.fire += 1; } },
 ];
 
-// ---------- the haunted church (base) ----------
-// A cutaway of the church: floor 0 has 5 slots, floor 1 has 3, floor 2 (the bell tower) has 1. You start with one room and unlock a slot
-// to the left, right or above an existing room. Each room is one preset type (9 types, 9 slots). Rooms level up; building takes real time.
+// ---------- the haunted church (base v3) ----------
+// An endless cutaway: 5 columns wide, as many floors as you like. Rooms are realistic: generators make electricity, pumps/kitchens/workshops use it.
+// Water and food are stocks that survivors drink and eat. Survivors arrive at the front door, have skills, and staff rooms to boost them.
+export const SKILLS = { elec: 'Electricity', plumb: 'Plumbing', cook: 'Cooking', mech: 'Mechanics', med: 'Medicine', weap: 'Weapons', trade: 'Trading', scout: 'Scouting', faith: 'Faith' };
+export const SKILL_KEYS = Object.keys(SKILLS);
+export const SKILL_BOOST = 0.05; // each skill point adds 5% to the room it is assigned to
+// per level L: pow = electricity (+ makes, - uses), water/food/scrap/gold per hour (+ makes, - uses)
 export const ROOMS = {
-  gen: { name: 'Generator Room', art: 'gen', desc: 'Keeps the church powered and earns gold while you are away.', prod: 'gold', rate: 45, pow: 1.3 },
-  workshop: { name: 'Workshop', art: 'workshop', desc: 'Makes scrap for building, and gear upgrades cost less.', prod: 'scrap', rate: 6, pow: 1.2, bonus: (l) => `Gear upgrades -${Math.min(50, l * 3)}%` },
-  kitchen: { name: 'Kitchen', art: 'kitchen', desc: 'Hot meals keep you on your feet out there.', bonus: (l) => `+${l * 28} health` },
-  bedroom: { name: 'Bedroom', art: 'bedroom', desc: 'Rested survivors learn faster.', bonus: (l) => `+${l * 6}% XP` },
-  armory: { name: 'Armory', art: 'armory', desc: 'Better weapons for every run.', bonus: (l) => `+${l * 4}% damage` },
-  infirmary: { name: 'Infirmary', art: 'infirmary', desc: 'Patches you up while you fight.', bonus: (l) => `+${(l * 0.3).toFixed(1)} regen/s, +${l * 8} health` },
-  watch: { name: 'Bell Tower', art: 'tower', desc: 'A watchman spots loot from far away.', bonus: (l) => `+${l * 4}% loot luck, +${l * 5}% pickup range` },
-  store: { name: 'Storeroom', art: 'store', desc: 'Production banks hold more while you are away.', bonus: (l) => `Banks hold ${4 + l * 2} hours` },
-  chapel: { name: 'Prayer Hall', art: 'chapel', desc: 'Faith makes you steadier in the dark.', bonus: (l) => `+${(l * 1.5).toFixed(1)}% crit chance` },
+  gen: { name: 'Generator Room', art: 'gen', skill: 'elec', desc: 'A diesel generator that powers the whole church.', pow: (L) => 18 * Math.pow(L, 1.12), make: {} },
+  water: { name: 'Water Room', art: 'water', skill: 'plumb', desc: 'Pumps and filters clean the water.', pow: (L) => -6 * L, make: { water: (L) => 40 * Math.pow(L, 1.1) } },
+  kitchen: { name: 'Kitchen', art: 'kitchen', skill: 'cook', desc: 'Cooks meals. Needs electricity and water.', pow: (L) => -4 * L, use: { water: (L) => 4 * L }, make: { food: (L) => 30 * Math.pow(L, 1.1) } },
+  workshop: { name: 'Workshop', art: 'workshop', skill: 'mech', desc: 'Turns junk into scrap, and cuts gear upgrade costs.', pow: (L) => -8 * L, make: { scrap: (L) => 7 * Math.pow(L, 1.1) }, bonus: (L, m) => `Gear upgrades -${Math.min(50, Math.round(L * 3 * m))}%` },
+  market: { name: 'Trading Post', art: 'market', skill: 'trade', desc: 'Barters with passing travellers for gold.', pow: (L) => -3 * L, make: { gold: (L) => 30 * Math.pow(L, 1.15) } },
+  infirmary: { name: 'Infirmary', art: 'infirmary', skill: 'med', desc: 'Keeps you patched up. Needs electricity and water.', pow: (L) => -5 * L, use: { water: (L) => 2 * L }, bonus: (L, m) => `+${(L * 0.3 * m).toFixed(1)} regen/s, +${Math.round(L * 8 * m)} health` },
+  armory: { name: 'Armory', art: 'armory', skill: 'weap', desc: 'Maintains weapons. Uses a little scrap.', pow: (L) => -4 * L, use: { scrap: (L) => 1 * L }, bonus: (L, m) => `+${Math.round(L * 4 * m)}% damage` },
+  bedroom: { name: 'Bedroom', art: 'bedroom', skill: null, desc: 'Beds for survivors, and rested people learn faster.', pow: (L) => -2 * L, bonus: (L) => `Sleeps ${L * 2} more survivors, +${L * 6}% XP` },
+  watch: { name: 'Bell Tower', art: 'tower', skill: 'scout', desc: 'A lookout. Spots loot, and survivors find you sooner.', pow: (L) => -2 * L, bonus: (L, m) => `+${Math.round(L * 4 * m)}% loot luck, +${Math.round(L * 5 * m)}% pickup range, survivors arrive faster` },
+  store: { name: 'Storeroom', art: 'store', skill: null, desc: 'Shelves and a cold cellar: stocks hold much more.', pow: (L) => -1 * L, bonus: (L) => `+${L * 250} storage` },
+  chapel: { name: 'Prayer Hall', art: 'chapel', skill: 'faith', desc: 'Faith makes everyone steadier in the dark.', pow: (L) => -2 * L, bonus: (L, m) => `+${(L * 1.5 * m).toFixed(1)}% crit chance` },
 };
 export const ROOM_ORDER = Object.keys(ROOMS);
-export const ROOM_MAX = 20;
-// slots: key f<floor>c<column>; columns 0..4 across the nave
-export const SLOT_LIST = [[0, 0], [0, 1], [0, 2], [0, 3], [0, 4], [1, 1], [1, 2], [1, 3], [2, 2]].map(([f, c]) => ({ key: `f${f}c${c}`, f, c }));
-export const roomKeys = (S) => Object.keys(S.base.rooms);
-export const typeLvl = (S, type) => { let n = 0; for (const k in S.base.rooms) { const r = S.base.rooms[k]; if (r.type === type && r.lvl > 0) n += r.lvl; } return n; };
-export const roomOfType = (S, type) => { for (const k in S.base.rooms) if (S.base.rooms[k].type === type) return k; return null; };
-export function baseBonus(S) {
-  const g = (t) => typeLvl(S, t);
-  return { dmg: g('armory') * 0.04, hp: g('kitchen') * 28 + g('infirmary') * 8, regen: g('infirmary') * 0.3, luck: g('watch') * 0.04, magnet: g('watch') * 0.05, crit: g('chapel') * 0.015, xp: g('bedroom') * 0.06, disc: Math.min(0.5, g('workshop') * 0.03), capHours: 4 + g('store') * 2 };
-}
-// which empty slots can be unlocked now: next to (left/right) or above a finished room
+export const COLS = 5;
+export const slotKey = (f, c) => `f${f}c${c}`;
+export const parseKey = (k) => { const m = /^f(\d+)c(\d+)$/.exec(k); return m ? { f: +m[1], c: +m[2] } : null; };
+export const staffSlots = (L) => 1 + Math.floor(L / 4);
+export const roomsOfType = (S, type) => Object.entries(S.base.rooms).filter(([, r]) => r.type === type && r.lvl > 0);
+export const topFloor = (S) => Object.keys(S.base.rooms).reduce((m, k) => Math.max(m, parseKey(k).f), 0);
 export function openSlots(S) {
-  const built = (f, c) => { const r = S.base.rooms[`f${f}c${c}`]; return r && r.lvl > 0; }, out = [];
-  for (const sl of SLOT_LIST) { if (S.base.rooms[sl.key]) continue; if (built(sl.f, sl.c - 1) || built(sl.f, sl.c + 1) || (sl.f > 0 && built(sl.f - 1, sl.c))) out.push(sl.key); }
+  const built = (f, c) => { const r = S.base.rooms[slotKey(f, c)]; return r && r.lvl > 0; }, out = [], F = topFloor(S) + 1;
+  for (let f = 0; f <= F; f++) for (let c = 0; c < COLS; c++) { const k = slotKey(f, c); if (S.base.rooms[k]) continue; if (built(f, c - 1) || built(f, c + 1) || (f > 0 && built(f - 1, c))) out.push(k); }
   return out;
 }
-export const newRoomCost = (S) => { const n = Object.keys(S.base.rooms).length; return { gold: Math.round(90 * Math.pow(2.1, n - 1)), scrap: Math.round(6 * Math.pow(1.7, n - 1)), secs: Math.round(30 * Math.pow(1.9, n - 1)) }; };
-export const upgradeCost = (lvl) => ({ gold: Math.round(50 * Math.pow(1.75, lvl)), scrap: Math.round(4 * Math.pow(1.6, lvl)) });
-export const upgradeSecs = (lvl) => Math.round(20 * Math.pow(1.7, lvl));
-export const roomRate = (S, key) => { const r = S.base.rooms[key], R = r && ROOMS[r.type]; return R && R.prod && r.lvl ? R.rate * Math.pow(r.lvl, R.pow) : 0; };
-export function roomBank(S, key) { const r = S.base.rooms[key]; if (!r || !r.lvl || !ROOMS[r.type].prod) return 0; const hrs = Math.min(baseBonus(S).capHours, (Date.now() - r.t) / 3600000); return Math.floor(hrs * roomRate(S, key)); }
-export function collectRoom(S, key) { const n = roomBank(S, key); if (n <= 0) return 0; const r = S.base.rooms[key]; S[ROOMS[r.type].prod === 'gold' ? 'gold' : 'scrap'] += n; r.t = Date.now(); return n; }
-export function tickBase(S) {
-  const b = S.base.build; if (!b || Date.now() < b.end) return null;
-  const r = S.base.rooms[b.key]; if (b.kind === 'new') { r.lvl = 1; r.t = Date.now(); delete r.building; } else r.lvl++; S.base.build = null; return b.key;
+export const newRoomCost = (S) => { const n = Object.keys(S.base.rooms).length; return { gold: Math.round(90 * Math.pow(1.38, n - 1)), scrap: Math.round(6 * Math.pow(1.3, n - 1)), secs: Math.min(43200, Math.round(30 * Math.pow(1.45, n - 1))) }; };
+export const upgradeCost = (lvl) => ({ gold: Math.round(50 * Math.pow(1.6, lvl)), scrap: Math.round(4 * Math.pow(1.5, lvl)) });
+export const upgradeSecs = (lvl) => Math.min(43200, Math.round(20 * Math.pow(1.5, lvl)));
+
+// ----- survivors -----
+const FIRST = { f: ['Mara', 'Jess', 'Ivy', 'Nora', 'Tess', 'Lena', 'Rosa', 'June', 'Cora', 'Hana', 'Beth', 'Maya', 'Dana', 'Vera', 'Elsa', 'Gwen'], m: ['Jack', 'Sam', 'Eli', 'Owen', 'Ray', 'Hank', 'Leo', 'Cole', 'Abe', 'Finn', 'Gus', 'Nate', 'Otis', 'Walt', 'Ned', 'Moe'] };
+const LAST = ['Reyes', 'Cole', 'Marsh', 'Boone', 'Hale', 'Quinn', 'Voss', 'Pike', 'Frost', 'Wren', 'Doyle', 'Stone', 'Cruz', 'Park', 'Lund', 'Ash'];
+const JOB_OF = { elec: 'Electrician', plumb: 'Plumber', cook: 'Cook', mech: 'Mechanic', med: 'Nurse', weap: 'Hunter', trade: 'Shopkeeper', scout: 'Scavenger', faith: 'Priest' };
+export const jobOf = (sv) => JOB_OF[sv.main];
+export function makeSurvivor(S) {
+  const g = Math.random() < 0.5 ? 'f' : 'm', main = pick(SKILL_KEYS), skills = {};
+  for (const k of SKILL_KEYS) skills[k] = rint(0, 2);
+  skills[main] = Math.min(10, 4 + rint(0, 3) + (Math.random() < 0.3 ? rint(1, 3) : 0));
+  const second = pick(SKILL_KEYS.filter((k) => k !== main)); skills[second] = rint(3, 6);
+  const id = S.nextId++;
+  return { id, name: `${pick(FIRST[g])} ${pick(LAST)}`, g, main, v: rint(1, 2), skills, room: null, born: Date.now() };
+}
+export const survivorById = (S, id) => S.base.survivors.find((x) => x.id === id);
+export const beds = (S) => 2 + roomsOfType(S, 'bedroom').reduce((n, [, r]) => n + r.lvl * 2, 0);
+export const staffOf = (S, key) => S.base.survivors.filter((x) => x.room === key);
+export function assign(S, svId, key) { const sv = survivorById(S, svId); if (!sv) return 'bad'; if (!key) { sv.room = null; return 'ok'; } const r = S.base.rooms[key]; if (!r || r.lvl < 1 || !ROOMS[r.type].skill) return 'bad'; if (sv.room !== key && staffOf(S, key).length >= staffSlots(r.lvl)) return 'full'; sv.room = key; return 'ok'; }
+export function recruit(S, idx) {
+  if (S.base.survivors.length >= beds(S)) return 'nobeds'; const sv = S.base.door[idx]; if (!sv) return 'bad'; S.base.door.splice(idx, 1); S.base.survivors.push(sv);
+  // put them to work where their best skill matters most
+  let best = null, bs = 0; for (const [k, r] of Object.entries(S.base.rooms)) { if (r.lvl < 1 || !ROOMS[r.type].skill || staffOf(S, k).length >= staffSlots(r.lvl)) continue; const v = sv.skills[ROOMS[r.type].skill]; if (v > bs) { bs = v; best = k; } }
+  if (best && bs >= 3) sv.room = best; return 'ok';
+}
+export const arrivalMins = (S) => 45 / (1 + 0.18 * roomsOfType(S, 'watch').reduce((n, [, r]) => n + r.lvl, 0));
+
+// ----- the simulation: power is a flow, water/food/scrap/gold are stocks -----
+export function capacity(S) { return 300 + roomsOfType(S, 'store').reduce((n, [, r]) => n + r.lvl * 250, 0); }
+export function flows(S) {
+  const rooms = S.base.rooms, res = S.base.res, pop = S.base.survivors.length, out = { rooms: {}, supply: 0, demand: 0, rate: { water: -0.8 * pop, food: -0.8 * pop, scrap: 0, gold: 0 }, powerEff: 1, hungry: false, thirsty: false };
+  const boost = (k, R) => { if (!R.skill) return 0; let b = 0; for (const sv of staffOf(S, k)) b += sv.skills[R.skill] * SKILL_BOOST; return Math.min(2, b); };
+  for (const [k, r] of Object.entries(rooms)) { if (r.lvl < 1) continue; const R = ROOMS[r.type], b = boost(k, R), p = R.pow(r.lvl); out.rooms[k] = { boost: b, eff: 1 }; if (p > 0) out.supply += p * (1 + b); else out.demand += -p; }
+  out.powerEff = out.demand > 0 ? Math.min(1, out.supply / out.demand) : 1;
+  out.thirsty = res.water <= 0 && pop > 0; out.hungry = res.food <= 0 && pop > 0;
+  const morale = (out.thirsty ? 0.7 : 1) * (out.hungry ? 0.7 : 1);
+  for (const [k, r] of Object.entries(rooms)) {
+    if (r.lvl < 1) continue; const R = ROOMS[r.type], o = out.rooms[k]; let eff = R.pow(r.lvl) > 0 ? 1 : out.powerEff;
+    if (R.use) for (const [res2, f] of Object.entries(R.use)) if (res2 !== 'scrap' && res[res2] <= 0) eff *= 0.3; else if (res2 === 'scrap' && S.scrap <= 0) eff *= 0.3;
+    eff *= morale; o.eff = eff;
+    if (R.make) for (const [res2, f] of Object.entries(R.make)) out.rate[res2] += f(r.lvl) * (1 + o.boost) * eff;
+    if (R.use) for (const [res2, f] of Object.entries(R.use)) out.rate[res2] -= f(r.lvl) * eff;
+  }
+  return out;
+}
+export const roomMult = (S, key, f) => { const o = (f || flows(S)).rooms[key]; return o ? o.eff * (1 + Math.min(1, o.boost)) : 0; };
+export function baseBonus(S) {
+  const F = flows(S), sum = (type, fn) => roomsOfType(S, type).reduce((n, [k, r]) => n + fn(r.lvl) * roomMult(S, k, F), 0);
+  const lv = (type) => roomsOfType(S, type).reduce((n, [, r]) => n + r.lvl, 0);
+  return { dmg: sum('armory', (L) => L * 0.04), hp: sum('infirmary', (L) => L * 8), regen: sum('infirmary', (L) => L * 0.3), luck: sum('watch', (L) => L * 0.04), magnet: sum('watch', (L) => L * 0.05), crit: sum('chapel', (L) => L * 0.015), xp: lv('bedroom') * 0.06, disc: Math.min(0.5, sum('workshop', (L) => L * 0.03)) };
+}
+const STEP = 300; // seconds per simulation step
+export function tickBase(S, now = Date.now()) {
+  const B = S.base; let done = null;
+  // finish builds
+  if (B.build && now >= B.build.end) { const r = B.rooms[B.build.key]; if (B.build.kind === 'new') { r.lvl = 1; delete r.building; } else r.lvl++; done = B.build.key; B.build = null; }
+  // simulate resources
+  let dt = Math.min(8 * 3600, (now - B.last) / 1000); B.last = now;
+  while (dt > 0.5) {
+    const st = Math.min(STEP, dt), F = flows(S), cap = capacity(S);
+    for (const k of ['water', 'food']) B.res[k] = Math.max(0, Math.min(cap, B.res[k] + F.rate[k] * st / 3600));
+    S.scrap = Math.max(0, Math.min(cap * 4, (S.scrap || 0) + F.rate.scrap * st / 3600)); S.gold += F.rate.gold * st / 3600;
+    dt -= st;
+  }
+  // arrivals at the front door
+  while (now >= B.nextArrival && B.door.length < 3) { B.door.push(makeSurvivor(S)); B.nextArrival += arrivalMins(S) * 60000 * (0.7 + Math.random() * 0.6); }
+  if (B.door.length >= 3) B.nextArrival = Math.max(B.nextArrival, now);
+  return done;
 }
 export function startBuild(S, key, type) {
-  if (S.base.build) return 'busy'; if (S.base.rooms[key] || !ROOMS[type] || roomOfType(S, type)) return 'bad'; const c = newRoomCost(S);
+  if (S.base.build) return 'busy'; if (S.base.rooms[key] || !ROOMS[type]) return 'bad'; const c = newRoomCost(S);
   if (S.gold < c.gold || (S.scrap || 0) < c.scrap) return 'poor'; S.gold -= c.gold; S.scrap -= c.scrap;
-  S.base.rooms[key] = { type, lvl: 0, building: true, t: Date.now() }; S.base.build = { key, kind: 'new', end: Date.now() + c.secs * 1000 }; return 'ok';
+  S.base.rooms[key] = { type, lvl: 0, building: true }; S.base.build = { key, kind: 'new', end: Date.now() + c.secs * 1000 }; return 'ok';
 }
 export function startUpgrade(S, key) {
-  const r = S.base.rooms[key]; if (S.base.build || !r || r.lvl >= ROOM_MAX) return 'busy'; const c = upgradeCost(r.lvl);
+  const r = S.base.rooms[key]; if (S.base.build || !r) return 'busy'; const c = upgradeCost(r.lvl);
   if (S.gold < c.gold || (S.scrap || 0) < c.scrap) return 'poor'; S.gold -= c.gold; S.scrap -= c.scrap; S.base.build = { key, kind: 'up', end: Date.now() + upgradeSecs(r.lvl) * 1000 }; return 'ok';
 }
-const OLD_SLOTS = ['f0c2', 'f0c3', 'f0c1', 'f1c2', 'f0c4', 'f0c0', 'f1c1', 'f1c3', 'f2c2'];
-const OLD_MAP = { gen: 'gen', workshop: 'workshop', armory: 'armory', infirmary: 'infirmary', tower: 'watch', store: 'store', chapel: 'chapel' };
+const OLD_MAP = { watch: 'watch', gen: 'gen', workshop: 'workshop', kitchen: 'kitchen', bedroom: 'bedroom', armory: 'armory', infirmary: 'infirmary', store: 'store', chapel: 'chapel' };
 function fixBase(S) {
   const had = !!S.base; if (typeof S.scrap !== 'number') S.scrap = 0;
-  if (!S.base || S.base.v !== 2) {
-    const old = S.base && S.base.rooms ? S.base.rooms : {}, rooms = {}; let i = 0;
-    for (const id of Object.keys(old)) { if (old[id].lvl > 0 && OLD_MAP[id]) { rooms[OLD_SLOTS[i++]] = { type: OLD_MAP[id], lvl: old[id].lvl, t: old[id].t || Date.now() }; } }
-    if (!Object.keys(rooms).length) rooms.f0c2 = { type: 'gen', lvl: 1, t: Date.now() };
-    S.base = { v: 2, rooms, build: null }; if (!had) S.scrap += 30;
+  if (!S.base || S.base.v !== 3) {
+    const old = S.base && S.base.v === 2 ? S.base.rooms : {}, rooms = {};
+    for (const k of Object.keys(old)) { const o = old[k]; if (o.lvl > 0 && OLD_MAP[o.type]) rooms[k] = { type: OLD_MAP[o.type], lvl: o.lvl }; }
+    if (!Object.keys(rooms).length) rooms.f0c2 = { type: 'gen', lvl: 1 };
+    // a new church always has a power source and a pump so the chain makes sense
+    S.base = { v: 3, rooms, build: null, res: { water: 120, food: 120 }, last: Date.now(), survivors: [], door: [], nextArrival: Date.now() + 45000 };
+    if (!had) S.scrap += 30;
   }
   return S;
 }
