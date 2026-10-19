@@ -6,10 +6,13 @@ const NAMES = ['hero_f_1', 'hero_f_2', 'hero_m_1', 'hero_m_2', 'en_ghost_1', 'en
   'en_spitter_1', 'en_spitter_2', 'en_hound_1', 'en_hound_2', 'en_drowned_1', 'en_drowned_2', 'en_crawler_1', 'en_crawler_2', 'en_cultist_1', 'en_cultist_2', 'en_wraithlord_1', 'en_wraithlord_2', 'boss_houndmaster_1', 'boss_houndmaster_2', 'boss_bride_1', 'boss_bride_2', 'boss_surgeon_1', 'boss_surgeon_2', 'boss_boneking_1', 'boss_boneking_2', 'boss_priest_1', 'boss_priest_2',
   'icon_knife', 'icon_machete', 'icon_axe', 'icon_bat', 'icon_crowbar', 'icon_pistol', 'icon_revolver', 'icon_smg', 'icon_shotgun', 'icon_rifle', 'icon_jacket', 'icon_vest', 'icon_helmet', 'icon_boots', 'icon_charm', 'icon_relic', 'icon_flashlight', 'icon_medkit', 'icon_ammo', 'icon_gloves'];
 export const TEX = {};
+// real animated sprite strips rendered from Mixamo 3D (tools/render3d.html): art/anim/<name>_<kind>.png, N frames side by side
+const ANIM = {}, ANIMS = { hero_m_walk: 8, hero_m_run: 8, hero_m_idle: 6, hero_f_walk: 8, hero_f_run: 8, hero_f_idle: 6, en_ghoul_walk: 16, en_brute_walk: 16, boss_gravekeeper_walk: 8 };
 function load(src) { return new Promise((res) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => res(null); i.src = src; }); }
 export async function loadArt(onProgress) {
   let done = 0; const total = NAMES.length + 2;
   await Promise.all([...NAMES.map(async (n) => { IMG[n] = await load(`art/${n}.png`); onProgress && onProgress(++done / total); }),
+    ...Object.keys(ANIMS).map(async (n) => { const im = await load(`art/anim/${n}.png`); if (im) ANIM[n] = { im, n: ANIMS[n] }; }),
     ...['tex_ground', 'tex_road'].map(async (n) => { TEX[n] = await load(`art/${n}.jpg`); onProgress && onProgress(++done / total); })]);
 }
 function hue(s) { let h = 0; for (const c of s) h = (h * 31 + c.charCodeAt(0)) % 360; return h; }
@@ -84,7 +87,16 @@ function bake(src, kind, n) {
   return out;
 }
 // frames for a picture at height h; kind = ghost | flap | walk | idle
+function animFrames(a, h) {
+  const N = a.n, fw = Math.round(a.im.width / N), fh = a.im.height, tmp = mkc(fw, fh), tx = tmp.getContext('2d', { willReadFrequently: true }); let x0 = fw, x1 = 0, y0 = fh, y1 = 0;
+  for (let f = 0; f < N; f++) { tx.clearRect(0, 0, fw, fh); tx.drawImage(a.im, -f * fw, 0); const d = tx.getImageData(0, 0, fw, fh).data; for (let y = 0; y < fh; y++) for (let xx = 0; xx < fw; xx++) if (d[(y * fw + xx) * 4 + 3] > 24) { if (xx < x0) x0 = xx; if (xx > x1) x1 = xx; if (y < y0) y0 = y; if (y > y1) y1 = y; } }
+  const cw = x1 - x0 + 1, ch = y1 - y0 + 1, k = h / ch, w = Math.round(cw * k), pad = Math.round(h * 0.06), out = [];
+  for (let f = 0; f < N; f++) { const c = mkc(w + pad * 2, h + pad * 2), x = c.getContext('2d'); x.imageSmoothingQuality = 'high'; x.drawImage(a.im, f * fw + x0, y0, cw, ch, pad, pad, w, h); out.push(c); }
+  return out;
+}
 export function frames(name, variant, h, kind) {
+  const real = ANIM[`${name}_${kind === 'walk' && name.startsWith('hero') ? 'run' : kind}`] || ANIM[`${name}_${kind}`], rk = `${name}|real|${h}|${kind}`;
+  if (real) return FR[rk] || (FR[rk] = animFrames(real, h));
   const base = sprite(name, variant, h), key = `${name}|${variant}|${h}|${kind}`; if (FR[key]) return FR[key];
   const n = kind === 'walk' ? 8 : kind === 'idle' ? 6 : 8;
   return (FR[key] = bake(base, kind, n));
