@@ -173,3 +173,5 @@ button.rc.crew { cursor: pointer; }
 .rtag { grid-column: auto; font: 800 10px Cinzel; color: var(--r); border: 1px solid var(--r); border-radius: 6px; padding: 4px 6px; text-align: center; min-width: 54px; }
 .sockets { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0 2px; } .sock { display: grid; grid-auto-flow: column; align-items: center; gap: 4px; padding: 4px 8px; border-style: dashed; color: #9fd0ff; font-weight: 800; min-width: 64px; justify-content: center; } .sock.full { border-style: solid; } .sock small { font-size: 9px; color: #9ee6a0; font-weight: 600; max-width: 90px; text-align: left; line-height: 1.1; }
 .gemline { display: flex; align-items: center; justify-content: center; gap: 4px; flex-wrap: wrap; } .gemline small { margin-left: 6px; color: var(--dim); }
+
+.spdrow { display: flex; align-items: center; gap: 6px; margin: 4px 0 10px; } .spdrow small { flex: none; color: var(--dim); } .spdrow button { flex: 1; padding: 8px 4px; } .spdrow button.on { border-color: var(--gold); color: var(--gold); }
