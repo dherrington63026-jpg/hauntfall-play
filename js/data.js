@@ -163,6 +163,10 @@ export const newRoomCost = (S) => { const n = Object.keys(S.base.rooms).length; 
 export const upgradeCost = (lvl) => ({ gold: Math.round(50 * Math.pow(1.6, lvl)), scrap: Math.round(4 * Math.pow(1.5, lvl)) });
 export const upgradeSecs = (lvl) => Math.min(43200, Math.round(20 * Math.pow(1.5, lvl)));
 
+// ----- builders: how many rooms can be built or upgraded at the same time (more will be a purchase later; all 5 are free for now) -----
+export const BUILDERS_MAX = 5;
+export const builderCount = (S) => Math.min(BUILDERS_MAX, S.base.builders == null ? BUILDERS_MAX : S.base.builders);
+export const buildOf = (S, key) => S.base.builds.find((b) => b.key === key) || null;
 // ----- survivors -----
 const FIRST = { f: ['Mara', 'Jess', 'Ivy', 'Nora', 'Tess', 'Lena', 'Rosa', 'June', 'Cora', 'Hana', 'Beth', 'Maya', 'Dana', 'Vera', 'Elsa', 'Gwen'], m: ['Jack', 'Sam', 'Eli', 'Owen', 'Ray', 'Hank', 'Leo', 'Cole', 'Abe', 'Finn', 'Gus', 'Nate', 'Otis', 'Walt', 'Ned', 'Moe'] };
 const LAST = ['Reyes', 'Cole', 'Marsh', 'Boone', 'Hale', 'Quinn', 'Voss', 'Pike', 'Frost', 'Wren', 'Doyle', 'Stone', 'Cruz', 'Park', 'Lund', 'Ash'];
@@ -244,7 +248,7 @@ const STEP = 300; // seconds per simulation step
 export function tickBase(S, now = Date.now()) {
   const B = S.base; let done = null;
   // finish builds
-  if (B.build && now >= B.build.end) { const r = B.rooms[B.build.key]; if (B.build.kind === 'new') { r.lvl = 1; delete r.building; } else r.lvl++; done = B.build.key; B.build = null; }
+  for (const b of B.builds.slice()) if (now >= b.end) { const r = B.rooms[b.key]; if (b.kind === 'new') { r.lvl = 1; delete r.building; } else r.lvl++; done = b.key; B.builds.splice(B.builds.indexOf(b), 1); }
   // simulate resources
   let dt = Math.min(8 * 3600, (now - B.last) / 1000); B.last = now;
   while (dt > 0.5) {
@@ -259,23 +263,24 @@ export function tickBase(S, now = Date.now()) {
   return done;
 }
 export function startBuild(S, key, type) {
-  if (S.base.build) return 'busy'; if (S.base.rooms[key] || !ROOMS[type]) return 'bad'; const c = newRoomCost(S);
+  if (S.base.builds.length >= builderCount(S)) return 'busy'; if (S.base.rooms[key] || !ROOMS[type]) return 'bad'; const c = newRoomCost(S);
   if (S.gold < c.gold || (S.scrap || 0) < c.scrap) return 'poor'; S.gold -= c.gold; S.scrap -= c.scrap;
-  S.base.rooms[key] = { type, lvl: 0, building: true }; S.base.build = { key, kind: 'new', end: Date.now() + c.secs * 1000 }; return 'ok';
+  S.base.rooms[key] = { type, lvl: 0, building: true }; S.base.builds.push({ key, kind: 'new', end: Date.now() + c.secs * 1000 }); return 'ok';
 }
 export function startUpgrade(S, key) {
-  const r = S.base.rooms[key]; if (S.base.build || !r) return 'busy'; const c = upgradeCost(r.lvl);
-  if (S.gold < c.gold || (S.scrap || 0) < c.scrap) return 'poor'; S.gold -= c.gold; S.scrap -= c.scrap; S.base.build = { key, kind: 'up', end: Date.now() + upgradeSecs(r.lvl) * 1000 }; return 'ok';
+  const r = S.base.rooms[key]; if (S.base.builds.length >= builderCount(S) || !r || buildOf(S, key)) return 'busy'; const c = upgradeCost(r.lvl);
+  if (S.gold < c.gold || (S.scrap || 0) < c.scrap) return 'poor'; S.gold -= c.gold; S.scrap -= c.scrap; S.base.builds.push({ key, kind: 'up', end: Date.now() + upgradeSecs(r.lvl) * 1000 }); return 'ok';
 }
 const OLD_MAP = { watch: 'watch', gen: 'gen', workshop: 'workshop', kitchen: 'kitchen', bedroom: 'bedroom', armory: 'armory', infirmary: 'infirmary', store: 'store', chapel: 'chapel' };
 function fixBase(S) {
   const had = !!S.base; if (typeof S.scrap !== 'number') S.scrap = 0;
+  if (S.base && S.base.v === 3 && !S.base.builds) { S.base.builds = S.base.build ? [S.base.build] : []; delete S.base.build; }
   if (!S.base || S.base.v !== 3) {
     const old = S.base && S.base.v === 2 ? S.base.rooms : {}, rooms = {};
     for (const k of Object.keys(old)) { const o = old[k]; if (o.lvl > 0 && OLD_MAP[o.type]) rooms[k] = { type: OLD_MAP[o.type], lvl: o.lvl }; }
     if (!Object.keys(rooms).length) rooms.f0c2 = { type: 'gen', lvl: 1 };
     // a new church always has a power source and a pump so the chain makes sense
-    S.base = { v: 3, haunt: null, rooms, build: null, res: { water: 120, food: 120 }, last: Date.now(), survivors: [], door: [], nextArrival: Date.now() + 45000 };
+    S.base = { v: 3, haunt: null, rooms, builds: [], res: { water: 120, food: 120 }, last: Date.now(), survivors: [], door: [], nextArrival: Date.now() + 45000 };
     if (!had) S.scrap += 30;
   }
   return S;

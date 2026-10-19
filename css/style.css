@@ -157,3 +157,6 @@ button.rc.crew { cursor: pointer; }
 @keyframes lampFlicker { 0%, 100% { filter: brightness(1); } 8% { filter: brightness(0.86); } 12% { filter: brightness(1.06); } 40% { filter: brightness(0.96); } 44% { filter: brightness(1.1); } 70% { filter: brightness(0.92); } }
 .cell.room.bad { animation: lampFlicker 1.2s infinite; } .cell.room.haunted { animation: none; }
 #screen { overflow-x: hidden !important; } .chart::before { inset: -10% 0 0 !important; overflow: hidden; }
+
+.bslots { display: grid; gap: 8px; } .bslot { display: grid; grid-template-columns: 90px 1fr auto; gap: 8px; align-items: center; background: #151b23; border: 1px solid #2c343e; border-radius: 10px; padding: 10px; font-size: 13px; } .bslot.busy { border-color: #c88a20; } .bslot.lock { opacity: 0.45; } .bslot em { color: var(--gold); font-style: normal; font-weight: 800; }
+.resbar .rc { min-width: 0; } @media (max-width: 420px) { .resbar { gap: 4px; } .rc { font-size: 11px; } .rc b { font-size: 13px; } }

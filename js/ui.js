@@ -1,5 +1,5 @@
 // Hauntfall screens and HUD (plain DOM over the canvas).
-import { districtName, districtOf, ENEMIES, RARITIES, SLOTS, SLOT_NAME, STAT_LABEL, PCT, WEAPONS, ROOMS, ROOM_ORDER, SKILLS, SKILL_KEYS, SKILL_BOOST, COLS, heroStats, itemStat, itemScore, upCost, salvageValue, autoEquip, writeSave, tickBase, startUpgrade, startBuild, openSlots, newRoomCost, upgradeCost, upgradeSecs, topFloor, slotKey, parseKey, staffSlots, staffOf, survivorById, assign, recruit, beds, capacity, flows, jobOf, makeItem, tickHaunt, resolveHaunt, defense, hauntStrength, cleanse, cleanseCost } from './data.js';
+import { districtName, districtOf, ENEMIES, RARITIES, SLOTS, SLOT_NAME, STAT_LABEL, PCT, WEAPONS, ROOMS, ROOM_ORDER, SKILLS, SKILL_KEYS, SKILL_BOOST, COLS, heroStats, itemStat, itemScore, upCost, salvageValue, autoEquip, writeSave, tickBase, startUpgrade, startBuild, buildOf, builderCount, BUILDERS_MAX, openSlots, newRoomCost, upgradeCost, upgradeSecs, topFloor, slotKey, parseKey, staffSlots, staffOf, survivorById, assign, recruit, beds, capacity, flows, jobOf, makeItem, tickHaunt, resolveHaunt, defense, hauntStrength, cleanse, cleanseCost } from './data.js';
 import { iconUrl } from './art.js';
 
 const $ = (s) => document.querySelector(s);
@@ -67,7 +67,7 @@ function resBar() {
   return `<div class="resbar"><div class="rc ${F.demand > F.supply ? 'bad' : ''}" data-r="pow">&#9889; <b>${Math.round(F.supply)}</b>/${Math.round(F.demand)}<small>power</small></div>
     <div class="rc ${r.water <= 0 ? 'bad' : ''}" data-r="water">&#128167; <b>${Math.floor(r.water)}</b><small>${rate1(F.rate.water)}</small></div>
     <div class="rc ${r.food <= 0 ? 'bad' : ''}" data-r="food">&#127830; <b>${Math.floor(r.food)}</b><small>${rate1(F.rate.food)}</small></div>
-    <button class="rc crew" data-act="crew">&#128101; <b>${pop}</b>/${bd}<small>survivors</small></button></div>${F.demand > F.supply ? '<p class="warn">Not enough electricity: rooms are running slow. Build or upgrade a Generator.</p>' : ''}`;
+    <button class="rc crew" data-act="crew">&#128101; <b>${pop}</b>/${bd}<small>survivors</small></button><button class="rc crew" data-act="builders">&#128296; <b>${S.base.builds.length}</b>/${builderCount(S)}<small>builders</small></button></div>${F.demand > F.supply ? '<p class="warn">Not enough electricity: rooms are running slow. Build or upgrade a Generator.</p>' : ''}`;
 }
 function hauntBanner() {
   const H = S.base.haunt && S.base.haunt.active; if (!H) return '';
@@ -88,9 +88,9 @@ function outlineSvg(F, H, ROOF) {
 function cellStatus(k) { const f = flows(S).rooms[k]; return f ? (f.eff < 0.5 ? 'bad' : f.eff < 0.98 ? 'warn' : '') : ''; }
 function cellHtml(sl, open, F, ROOF, H, FL) {
   const r = S.base.rooms[sl.key], top = (ROOF + (F - 1 - sl.f) * 100) / H * 100, pos = `left:${sl.c * 20}%;top:${top}%;width:20%;height:${100 / H * 100}%`;
-  if (r && r.lvl === 0) { const R = ROOMS[r.type]; return `<div class="cell scaffold" style="${pos}"><span>${R.name}</span><b data-build="${sl.key}">${fmtDur((S.base.build.end - Date.now()) / 1000)}</b></div>`; }
-  if (r) { const R = ROOMS[r.type], up = S.base.build && S.base.build.key === sl.key && S.base.build.kind === 'up', staff = R.skill ? staffOf(S, sl.key).length : 0, slots = R.skill ? staffSlots(r.lvl) : 0;
-    return `<button class="cell room ${cellStatus(sl.key)} ${r.haunted ? 'haunted' : ''}" data-act="open" data-key="${sl.key}" style="${pos};background-image:url(art/room_${R.art}.jpg)"><b class="lv">${r.lvl}</b>${r.haunted ? '<i class="ghost">&#128123;</i>' : ''}${slots ? `<i class="crewdot">${'&#9679;'.repeat(staff)}${'&#9675;'.repeat(slots - staff)}</i>` : ''}<span class="nm">${R.name}</span>${up ? '<em data-up="' + sl.key + '">' + fmtDur((S.base.build.end - Date.now()) / 1000) + '</em>' : ''}</button>`; }
+  if (r && r.lvl === 0) { const R = ROOMS[r.type]; return `<div class="cell scaffold" style="${pos}"><span>${R.name}</span><b data-build="${sl.key}">${fmtDur((buildOf(S, sl.key).end - Date.now()) / 1000)}</b></div>`; }
+  if (r) { const R = ROOMS[r.type], bo = buildOf(S, sl.key), up = bo && bo.kind === 'up', staff = R.skill ? staffOf(S, sl.key).length : 0, slots = R.skill ? staffSlots(r.lvl) : 0;
+    return `<button class="cell room ${cellStatus(sl.key)} ${r.haunted ? 'haunted' : ''}" data-act="open" data-key="${sl.key}" style="${pos};background-image:url(art/room_${R.art}.jpg)"><b class="lv">${r.lvl}</b>${r.haunted ? '<i class="ghost">&#128123;</i>' : ''}${slots ? `<i class="crewdot">${'&#9679;'.repeat(staff)}${'&#9675;'.repeat(slots - staff)}</i>` : ''}<span class="nm">${R.name}</span>${up ? '<em data-up="' + sl.key + '">' + fmtDur((bo.end - Date.now()) / 1000) + '</em>' : ''}</button>`; }
   if (open.includes(sl.key)) { const b = (f, c) => { const x = S.base.rooms[slotKey(f, c)]; return x && x.lvl > 0; }, L = b(sl.f, sl.c - 1), Rr = b(sl.f, sl.c + 1), D = sl.f > 0 && b(sl.f - 1, sl.c), arrow = D ? '&#9650;' : L && !Rr ? '&#9654;' : Rr && !L ? '&#9664;' : '';
     return `<button class="cell slot" data-act="slot" data-key="${sl.key}" style="${pos}"><span>${arrow}</span><b>+</b></button>`; }
   return `<div class="cell empty" style="${pos}"></div>`;
@@ -104,13 +104,17 @@ function sheetHtml() {
   if (sheet.kind === 'hauntreport') { const p = sheet.rep; return `<div class="sheetbg" data-act="closesheet"><div class="sheet"><div class="shead"><h3>${p.won ? 'THE CHURCH HELD' : 'THE CHURCH WAS OVERRUN'}</h3><button data-act="closesheet">Close</button></div><p>${p.won ? `The ghosts (strength ${p.strength}) were driven back${p.byHand ? ' by your own hand' : ''}.` : `The ghosts (strength ${p.strength}) broke through.`}</p>${p.won ? `<p class="bonus">+${p.gold} gold, +${p.scrap} scrap${p.survivor ? ', and a survivor is knocking at the door!' : ''}</p>` : `<p class="warn">${p.haunted.length ? p.haunted.join(' and ') + (p.haunted.length > 1 ? ' are' : ' is') + ' haunted (output down 60% until cleansed). ' : ''}A quarter of the water and food spoiled.</p>`}</div></div>`; }
   const wrap = (inner) => `<div class="sheetbg" data-act="closesheet"><div class="sheet">${inner}</div></div>`;
   if (sheet.kind === 'build') {
-    const c = newRoomCost(S), busy = !!S.base.build, poor = S.gold < c.gold || (S.scrap || 0) < c.scrap;
+    const c = newRoomCost(S), busy = S.base.builds.length >= builderCount(S), poor = S.gold < c.gold || (S.scrap || 0) < c.scrap;
     const rows = ROOM_ORDER.map((t) => { const R = ROOMS[t]; return `<div class="opt"><img src="art/room_${R.art}.jpg" alt=""><div><h4>${R.name}</h4><p>${R.desc}</p><p class="bonus">${makes(R, 1) || (R.bonus ? R.bonus(1, 1) : '')}</p><p class="dim">${need(R, 1) ? 'Needs ' + need(R, 1) : 'Needs nothing'}</p></div><button class="${!busy && !poor ? 'go' : ''}" data-act="build" data-type="${t}" ${busy || poor ? 'disabled' : ''}>Build</button></div>`; }).join('');
     return wrap(`<div class="shead"><h3>Build a room</h3><button data-act="closesheet">Close</button></div><p class="cost">Cost: <b class="gold">${c.gold.toLocaleString()} gold</b> · <b class="scrap">${c.scrap} scrap</b> · ${fmtDur(c.secs)}${busy ? ' · <b style="color:#ff9a7a">builders busy</b>' : poor ? ' · <b style="color:#ff9a7a">not enough yet</b>' : ''}</p><div class="opts">${rows}</div>`);
   }
   if (sheet.kind === 'door') {
     const bd = beds(S), pop = S.base.survivors.length, rows = S.base.door.map((sv, i) => svRow(sv, `<div class="svbtn"><button class="${pop < bd ? 'go' : ''}" data-act="letin" data-i="${i}" ${pop < bd ? '' : 'disabled'}>Let in</button><button data-act="turnaway" data-i="${i}">Turn away</button></div>`)).join('');
     return wrap(`<div class="shead"><h3>At the front door</h3><button data-act="closesheet">Close</button></div><p>${rows ? 'Survivors knock at the door, asking to stay. Each one has skills. Put them in the matching room to boost it.' : 'Nobody is at the door right now. Survivors show up every so often (a Bell Tower helps them find you).'}</p><p class="cost">Beds: <b>${pop}/${bd}</b>${pop >= bd ? ' · <b style="color:#ff9a7a">full, build a Bedroom</b>' : ''}</p><div class="svlist">${rows}</div>`);
+  }
+  if (sheet.kind === 'builders') {
+    const slots = Array.from({ length: BUILDERS_MAX }, (_, i) => { if (i >= builderCount(S)) return `<div class="bslot lock"><b>Builder ${i + 1}</b><span>Locked</span></div>`; const b = S.base.builds[i]; if (!b) return `<div class="bslot"><b>Builder ${i + 1}</b><span class="dim">Waiting for work</span></div>`; const r = S.base.rooms[b.key]; return `<div class="bslot busy"><b>Builder ${i + 1}</b><span>${b.kind === 'new' ? 'Building' : 'Upgrading'} the ${ROOMS[r.type].name}</span><em data-bld="${b.key}">${fmtDur((b.end - Date.now()) / 1000)}</em></div>`; }).join('');
+    return wrap(`<div class="shead"><h3>Builders</h3><button data-act="closesheet">Close</button></div><p class="dim">Each builder works on one room at a time, so more builders means more rooms going up or getting upgraded at once.</p><div class="bslots">${slots}</div>`);
   }
   if (sheet.kind === 'squad') {
     const inSq = (sv) => (S.squad || []).includes(sv.id), full = squadOf().length >= 2;
@@ -130,7 +134,7 @@ function sheetHtml() {
     return wrap(`<div class="shead"><h3>Staff the ${R.name}</h3><button data-act="open" data-key="${key}">Back</button></div><p class="dim">Best ${SKILLS[R.skill]} skill first.</p><div class="svlist">${rows || '<p class="dim">No other survivors.</p>'}</div>`);
   }
   const r = S.base.rooms[sheet.key]; if (!r) return ''; const R = ROOMS[r.type], l = r.lvl, F = flows(S), fo = F.rooms[sheet.key] || { eff: 1, boost: 0 };
-  const building = S.base.build && S.base.build.key === sheet.key && S.base.build.kind === 'up', busy = !!S.base.build, c = upgradeCost(l), can = S.gold >= c.gold && (S.scrap || 0) >= c.scrap;
+  const bo = buildOf(S, sheet.key), building = bo && bo.kind === 'up', busy = S.base.builds.length >= builderCount(S), c = upgradeCost(l), can = S.gold >= c.gold && (S.scrap || 0) >= c.scrap;
   const staff = R.skill ? staffOf(S, sheet.key) : [], slots = R.skill ? staffSlots(l) : 0;
   const mult = fo.eff * (1 + Math.min(1, fo.boost));
   return wrap(`<div class="sart" style="background-image:linear-gradient(transparent 30%, #0e1218), url(art/room_${R.art}.jpg)"></div><div class="shead"><h3>${R.name} <em>Lv ${l}</em></h3><button data-act="closesheet">Close</button></div>
@@ -138,7 +142,7 @@ function sheetHtml() {
     ${r.haunted ? `<div class="hauntbox"><b>&#128123; HAUNTED</b> output is down 60%. <button data-act="cleanse" data-key="${sheet.key}" ${(S.scrap || 0) >= cleanseCost(S, sheet.key).scrap ? 'class="go"' : 'disabled'}>Cleanse (${cleanseCost(S, sheet.key).scrap} scrap)</button></div>` : ''}
     ${fo.eff < 0.98 && !r.haunted ? `<p class="warn">Running at ${Math.round(fo.eff * 100)}%: ${F.demand > F.supply ? 'not enough electricity. ' : ''}${F.rate.water < 0 && S.base.res.water <= 0 ? 'out of water. ' : ''}${S.base.res.food <= 0 ? 'people are hungry.' : ''}</p>` : ''}
     ${R.skill ? `<div class="crewbox"><h4>Staff <small>${staff.length}/${slots} spots · skill: ${SKILLS[R.skill]}</small></h4>${staff.map((sv) => `<div class="svmini">${portrait(sv)}<span>${sv.name}<small>${SKILLS[R.skill]} ${sv.skills[R.skill]} &rarr; +${Math.round(sv.skills[R.skill] * SKILL_BOOST * 100)}%</small></span><button data-act="assignto" data-id="${sv.id}" data-key="">Remove</button></div>`).join('')}${staff.length < slots ? `<button data-act="staffpick" data-key="${sheet.key}">+ Assign a survivor</button>` : ''}</div>` : ''}
-    ${building ? `<div class="build"><span>Upgrading... <b data-build="${sheet.key}">${fmtDur((S.base.build.end - Date.now()) / 1000)}</b></span><div class="bar"><i data-buildbar="${sheet.key}" style="width:${Math.min(100, (1 - (S.base.build.end - Date.now()) / 1000 / upgradeSecs(l)) * 100)}%"></i></div></div>`
+    ${building ? `<div class="build"><span>Upgrading... <b data-build="${sheet.key}">${fmtDur((bo.end - Date.now()) / 1000)}</b></span><div class="bar"><i data-buildbar="${sheet.key}" style="width:${Math.min(100, (1 - (bo.end - Date.now()) / 1000 / upgradeSecs(l)) * 100)}%"></i></div></div>`
       : `<button class="upg ${can && !busy ? 'go' : ''}" data-act="room" data-key="${sheet.key}" ${can && !busy ? '' : 'disabled'}>Upgrade to level ${l + 1}<small>${c.gold.toLocaleString()} gold · ${c.scrap} scrap · ${fmtDur(upgradeSecs(l))}${busy ? ' · builders busy' : !can ? ' · not enough yet' : ''}</small></button>`}`);
 }
 function renderCamp() {
@@ -159,7 +163,7 @@ function renderCamp() {
   flashMsg(); clearInterval(UI.baseT); UI.baseT = setInterval(refreshBase, 1000);
 }
 let lastSig = '';
-function baseSig() { return S.base.door.length + '|' + S.base.survivors.length + '|' + (S.base.build ? 1 : 0) + '|' + (S.base.haunt && S.base.haunt.active ? 1 : 0); }
+function baseSig() { return S.base.door.length + '|' + S.base.survivors.length + '|' + S.base.builds.length + '|' + (S.base.haunt && S.base.haunt.active ? 1 : 0); }
 function refreshBase() {
   if (tab !== 'camp' || !$('#screen').classList.contains('on') || !$('.chart')) { clearInterval(UI.baseT); return; }
   const before = baseSig(), done = tickBase(S), hev = tickHaunt(S); if (hev) { sheet = { kind: 'hauntreport', rep: hev }; save(); renderCamp(); return; } if (done) { save(); const r = S.base.rooms[done]; msg = `${ROOMS[r.type].name} ${r.lvl === 1 ? 'is ready' : 'is now level ' + r.lvl}!`; renderCamp(); return; }
@@ -167,7 +171,7 @@ function refreshBase() {
   const hl = $('[data-hleft]'); if (hl && S.base.haunt && S.base.haunt.active) hl.textContent = fmtDur((S.base.haunt.active.end - Date.now()) / 1000);
   const F = flows(S), r = S.base.res, rb = $('.resbar'); if (rb) { const set = (sel, html, bad) => { const el = rb.querySelector(sel); if (el) { el.innerHTML = html; el.classList.toggle('bad', !!bad); } }; set('[data-r="pow"]', `&#9889; <b>${Math.round(F.supply)}</b>/${Math.round(F.demand)}<small>power</small>`, F.demand > F.supply); set('[data-r="water"]', `&#128167; <b>${Math.floor(r.water)}</b><small>${rate1(F.rate.water)}</small>`, r.water <= 0); set('[data-r="food"]', `&#127830; <b>${Math.floor(r.food)}</b><small>${rate1(F.rate.food)}</small>`, r.food <= 0); }
   const top2 = $('.top .stat'); if (top2) { const g = top2.querySelector('.gold'), sc = top2.querySelector('.scrap'); if (g) g.textContent = `${Math.floor(S.gold).toLocaleString()} gold`; if (sc) sc.textContent = `${Math.floor(S.scrap || 0).toLocaleString()} scrap`; }
-  const bd = S.base.build; if (bd) { const left = (bd.end - Date.now()) / 1000; for (const sel of [`[data-build="${bd.key}"]`, `[data-up="${bd.key}"]`]) { const t = $(sel); if (t) t.textContent = fmtDur(left); } const bar = $(`[data-buildbar="${bd.key}"]`); if (bar) bar.style.width = Math.min(100, (1 - left / upgradeSecs(S.base.rooms[bd.key].lvl)) * 100) + '%'; }
+  for (const bd of S.base.builds) { const left = (bd.end - Date.now()) / 1000; for (const sel of [`[data-build="${bd.key}"]`, `[data-up="${bd.key}"]`, `[data-bld="${bd.key}"]`]) { const t = $(sel); if (t) t.textContent = fmtDur(left); } const bar = $(`[data-buildbar="${bd.key}"]`); if (bar) bar.style.width = Math.min(100, (1 - left / upgradeSecs(S.base.rooms[bd.key].lvl)) * 100) + '%'; }
 }
 function renderGear() {
   const hs = heroStats(S), bag = S.bag.slice().sort((a, b) => b.rar - a.rar || itemScore(b) - itemScore(a));
@@ -197,6 +201,7 @@ function handle(act, d) {
   if (act === 'defend') { if (S.base.haunt && S.base.haunt.active) cb.startHaunt(); return; }
   if (act === 'hold') { const H = S.base.haunt && S.base.haunt.active; if (!H) return; const win = defense(S) * (0.85 + Math.random() * 0.3) >= H.strength; sheet = { kind: 'hauntreport', rep: resolveHaunt(S, win, false) }; save(); renderCamp(); return; }
   if (act === 'cleanse') { const r = cleanse(S, d.key); msg = r === 'ok' ? 'The room is cleansed.' : 'Not enough scrap.'; if (r === 'ok') save(); renderCamp(); return; }
+  if (act === 'builders') { sheet = { kind: 'builders' }; renderCamp(); return; }
   if (act === 'squadpick') { sheet = { kind: 'squad' }; renderCamp(); return; }
   if (act === 'squadtoggle') { S.squad = S.squad || []; const id = +d.id, i = S.squad.indexOf(id); if (i >= 0) S.squad.splice(i, 1); else if (S.squad.length < 2) { S.squad.push(id); const sv = survivorById(S, id); if (sv) sv.room = null; } save(); renderCamp(); return; }
   if (act === 'open') { sheet = { kind: 'room', key: d.key }; renderCamp(); return; }
