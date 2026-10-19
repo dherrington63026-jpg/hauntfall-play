@@ -44,7 +44,32 @@ const rollAffix = (slot, key, ilvl) => { const a = AFFIX[key]; return rnd(a[1], 
 export const STAT_LABEL = { power: 'Weapon damage', critdmg: 'Crit damage', pierce: 'Pierce', dmg: 'Damage', rate: 'Fire rate', hp: 'Health', armor: 'Armor', speed: 'Move speed', crit: 'Crit chance', magnet: 'Pickup range', luck: 'Luck', regen: 'Regen/s' };
 export const PCT = new Set(['dmg', 'power', 'rate', 'speed', 'crit', 'critdmg', 'magnet', 'luck']);
 
-export function makeItem(S, ilvl, rar, slot, kind) {
+// ---------- gear sets: wear 2, 4 or 6 pieces of the same set for bonuses ----------
+export const SETS = [
+  { name: 'Gravedigger', color: '#c9a66b', tiers: { 2: { desc: '+10% damage', stats: { dmg: 0.1 } }, 4: { desc: '+60 health', stats: { hp: 60 } }, 6: { desc: 'Shots pierce +1 more enemy, +20% crit damage', stats: { pierce: 1, critdmg: 0.2 } } } },
+  { name: 'Nightwatch', color: '#6ab0ff', tiers: { 2: { desc: '+6% crit chance', stats: { crit: 0.06 } }, 4: { desc: '+15% fire rate', stats: { rate: 0.15 } }, 6: { desc: '+1 extra projectile', sp: { extraN: 1 } } } },
+  { name: 'Lamplighter', color: '#ffcf6a', tiers: { 2: { desc: '+15% loot luck, +25% pickup range', stats: { luck: 0.15, magnet: 0.25 } }, 4: { desc: '+1.0 regen/s', stats: { regen: 1 } }, 6: { desc: 'Start every run with Molotov level 2', sp: { fire: 2 } } } },
+  { name: 'Plague Doctor', color: '#7dff9a', tiers: { 2: { desc: '+0.8 regen/s', stats: { regen: 0.8 } }, 4: { desc: '+12 armor', stats: { armor: 12 } }, 6: { desc: 'Start every run with Salt Circle level 2', sp: { salt: 2 } } } },
+  { name: 'Revenant', color: '#ff6a5a', tiers: { 2: { desc: '+8 armor, +40 health', stats: { armor: 8, hp: 40 } }, 4: { desc: '+15% damage', stats: { dmg: 0.15 } }, 6: { desc: 'Start every run with Flashlight Beam level 2', sp: { beam: 2 } } } },
+  { name: "Saint's Vigil", color: '#e8e0ff', tiers: { 2: { desc: '+10% XP', sp: { xp: 0.1 } }, 4: { desc: '+30% crit damage', stats: { critdmg: 0.3 } }, 6: { desc: 'Take 15% less damage', sp: { taken: 0.85 } } } },
+];
+export function setCounts(S) { const c = {}; for (const slot of SLOTS) { const it = S.gear[slot]; if (it && it.set != null) c[it.set] = (c[it.set] || 0) + 1; } return c; }
+export function setBonus(S) {
+  const out = { stats: {}, sp: { extraN: 0, salt: 0, beam: 0, fire: 0, taken: 1, xp: 0 }, active: [] };
+  for (const [id, n] of Object.entries(setCounts(S))) for (const tier of [2, 4, 6]) if (n >= tier) { const t = SETS[id].tiers[tier]; out.active.push({ set: +id, tier, desc: t.desc }); for (const k in (t.stats || {})) out.stats[k] = (out.stats[k] || 0) + t.stats[k]; for (const k in (t.sp || {})) { if (k === 'taken') out.sp.taken *= t.sp[k]; else if (k === 'salt' || k === 'beam' || k === 'fire') out.sp[k] = Math.max(out.sp[k], t.sp[k]); else out.sp[k] += t.sp[k]; } }
+  return out;
+}
+export const maxUp = (it) => 10 + 10 * (it.asc || 0);
+export const ascendCost = (it, S) => { const u = upCost(it, S); return { gold: u * 6, scrap: 30 * ((it.asc || 0) + 1) }; };
+export function ascend(S, it) { if (it.up < maxUp(it)) return 'bad'; const c = ascendCost(it, S); if (S.gold < c.gold || (S.scrap || 0) < c.scrap) return 'poor'; S.gold -= c.gold; S.scrap -= c.scrap; it.asc = (it.asc || 0) + 1; return 'ok'; }
+export const reforgeCost = (it) => ({ scrap: Math.round((8 + it.ilvl * 2) * (1 + it.rar)) });
+export function reforge(S, it) {
+  const c = reforgeCost(it); if ((S.scrap || 0) < c.scrap) return 'poor'; const keys = Object.keys(it.stats).filter((k) => k !== PRIMARY[it.slot][0]); if (!keys.length) return 'bad'; S.scrap -= c.scrap;
+  for (const k of keys) delete it.stats[k]; const used = new Set([PRIMARY[it.slot][0]]);
+  for (let i = 0; i < keys.length; i++) { const opts = SLOT_AFFIXES[it.slot].filter((k) => !used.has(k)); if (!opts.length) break; const k = pick(opts); used.add(k); it.stats[k] = rollAffix(it.slot, k, it.ilvl); }
+  return 'ok';
+}
+export function makeItem(S, ilvl, rar, slot, kind, setChance = 0.4) {
   slot = slot || pick(SLOTS);
   const R = RARITIES[rar]; let wk = null;
   if (slot === 'weapon') { const tier = clamp(Math.floor((ilvl - 1) / 4) + (Math.random() < 0.25 ? 1 : 0), 0, 4); wk = kind || pick(WEAPON_BY_TIER[Math.min(tier, WEAPON_BY_TIER.length - 1)]); }
@@ -56,24 +81,26 @@ export function makeItem(S, ilvl, rar, slot, kind) {
     const opts = SLOT_AFFIXES[slot].filter((k) => !used.has(k)); if (!opts.length) break; const k = pick(opts); used.add(k);
     it.stats[k] = rollAffix(slot, k, ilvl);
   }
-  if (slot === 'weapon') it.name = `${pick(PREFIX)} ${WEAPONS[wk].name}`; else it.name = `${pick(PREFIX)} ${pick(NAMES[slot])}`;
+  const base = slot === 'weapon' ? WEAPONS[wk].name : pick(NAMES[slot]);
+  if (rar >= 2 && Math.random() < setChance) { it.set = Math.floor(Math.random() * SETS.length); it.name = `${SETS[it.set].name} ${base}`; } else it.name = `${pick(PREFIX)} ${base}`;
   it.icon = slot === 'weapon' ? WEAPONS[wk].icon : pick(SLOT_ICON[slot]);
   return it;
 }
-export const itemMult = (it) => RARITIES[it.rar].mult * (1 + 0.1 * it.up);
+export const itemMult = (it) => RARITIES[it.rar].mult * (1 + 0.1 * it.up) * (1 + 0.25 * (it.asc || 0));
 export const itemStat = (it, k) => (it.stats[k] || 0) * (k === 'dmg' && it.slot === 'weapon' ? 1 : 1) * itemMult(it);
-export const upCost = (it, S) => Math.round((20 + it.ilvl * 8) * (1 + it.up * 0.9) * (1 + it.rar * 0.6) * (1 - (S ? baseBonus(S).disc : 0)));
-export const salvageValue = (it) => Math.round((6 + it.ilvl * 4) * (1 + it.rar * 1.3) * (1 + 0.5 * it.up));
-export function itemScore(it) { if (!it) return 0; let s = 0; for (const k in it.stats) { const v = itemStat(it, k); s += k === 'dmg' && it.slot === 'weapon' ? v * 40 * (WEAPONS[it.kind].dmg / WEAPONS[it.kind].rate) : k === 'hp' ? v * 0.5 : k === 'armor' ? v * 2 : PCT.has(k) ? v * 100 : v * 10; } return s; }
+export const upCost = (it, S) => Math.round((20 + it.ilvl * 8) * (1 + it.up * 0.9) * Math.pow(1.08, Math.max(0, it.up - 10)) * (1 + it.rar * 0.6) * (1 - (S ? baseBonus(S).disc : 0)));
+export const salvageValue = (it) => Math.round((6 + it.ilvl * 4) * (1 + it.rar * 1.3) * (1 + 0.5 * it.up) * (1 + (it.asc || 0)));
+export function itemScore(it) { if (!it) return 0; let s = 0; const setMul = it.set != null ? 1.12 : 1; for (const k in it.stats) { const v = itemStat(it, k); s += k === 'dmg' && it.slot === 'weapon' ? v * 40 * (WEAPONS[it.kind].dmg / WEAPONS[it.kind].rate) : k === 'hp' ? v * 0.5 : k === 'armor' ? v * 2 : PCT.has(k) ? v * 100 : v * 10; } return s * setMul; }
 
 // ---------- hero stats from gear ----------
 export function heroStats(S) {
   const t = { dmg: 0, power: 0, rate: 0, hp: 0, armor: 0, speed: 0, crit: 0.05, critdmg: 0, pierce: 0, magnet: 0, luck: 0, regen: 0 };
   let weapon = null; const B = baseBonus(S); t.dmg += B.dmg; t.hp += B.hp; t.regen += B.regen; t.luck += B.luck; t.magnet += B.magnet; t.crit += B.crit;
   for (const slot of SLOTS) { const it = S.gear[slot]; if (!it) continue; if (slot === 'weapon') weapon = it; for (const k in it.stats) if (!(slot === 'weapon' && k === 'dmg')) t[k] += itemStat(it, k); }
+  const SB = setBonus(S); for (const k in SB.stats) t[k] = (t[k] || 0) + SB.stats[k];
   const base = weapon ? weapon : { kind: 'knife', ilvl: 1, rar: 0, up: 0, stats: { dmg: 1 } };
   const W = WEAPONS[base.kind], wdmg = 11 * W.dmg * (1 + 0.12 * (base.ilvl - 1)) * itemMult(base);
-  return { hp: 120 + t.hp, armor: t.armor, speed: 135 * (1 + t.speed), crit: t.crit, magnet: 70 * (1 + t.magnet), luck: t.luck, regen: t.regen, dmgPct: 1 + t.dmg + t.power, critDmg: 2.2 + t.critdmg, pierceBonus: Math.floor(t.pierce + 0.01), ratePct: 1 + t.rate, weaponKind: base.kind, weaponDmg: wdmg, power: Math.round(wdmg * (1 + t.dmg) / W.rate * 0.5 + (120 + t.hp) * 0.2 + t.armor * 2) };
+  return { hp: 120 + t.hp, armor: t.armor, speed: 135 * (1 + t.speed), crit: t.crit, magnet: 70 * (1 + t.magnet), luck: t.luck, regen: t.regen, dmgPct: 1 + t.dmg + t.power, critDmg: 2.2 + t.critdmg, setSp: SB.sp, pierceBonus: Math.floor(t.pierce + 0.01), ratePct: 1 + t.rate, weaponKind: base.kind, weaponDmg: wdmg, power: Math.round(wdmg * (1 + t.dmg) / W.rate * 0.5 + (120 + t.hp) * 0.2 + t.armor * 2) };
 }
 
 // ---------- enemies ----------

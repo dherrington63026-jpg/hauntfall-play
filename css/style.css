@@ -160,3 +160,8 @@ button.rc.crew { cursor: pointer; }
 
 .bslots { display: grid; gap: 8px; } .bslot { display: grid; grid-template-columns: 90px 1fr auto; gap: 8px; align-items: center; background: #151b23; border: 1px solid #2c343e; border-radius: 10px; padding: 10px; font-size: 13px; } .bslot.busy { border-color: #c88a20; } .bslot.lock { opacity: 0.45; } .bslot em { color: var(--gold); font-style: normal; font-weight: 800; }
 .resbar .rc { min-width: 0; } @media (max-width: 420px) { .resbar { gap: 4px; } .rc { font-size: 11px; } .rc b { font-size: 13px; } }
+
+/* gear sets */
+.setdot { position: absolute; left: 4px; bottom: 4px; width: 11px; height: 11px; border-radius: 50%; border: 1px solid #000; box-shadow: 0 0 6px currentColor; }
+.itc .sl + .setdot { bottom: 16px; }
+.setbox { border: 1px solid var(--sc, #666); background: color-mix(in srgb, var(--sc, #666) 10%, #0e1218); border-radius: 10px; padding: 8px 10px; font-size: 12px; } .setbox b { color: var(--sc); } .setbox small { color: var(--dim); margin-left: 4px; } .setbox p { margin: 3px 0 0; color: #8d9298; } .setbox p.on { color: #c8f0c0; }

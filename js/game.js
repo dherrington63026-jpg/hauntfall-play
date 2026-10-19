@@ -29,6 +29,7 @@ export class Run {
     this.hero = { x: 0, y: 0, hp: this.hs.hp, face: 1, inv: 0, flash: 0, vx: 0, vy: 0, aim: 0, bob: 0 };
     this.maxHp = this.hs.hp; this.dmgMul = 1; this.rateMul = 1; this.extraN = 0; this.extraPierce = 0; this.speedMul = 1; this.magnetMul = 1; this.regen = this.hs.regen; this.crit = this.hs.crit; this.luckMul = 1;
     this.salt = 0; this.beam = 0; this.fire = 0; this.picked = {}; this.goldMul = 1; this.dmgTaken = 1; this.turrets = [];
+    { const sp = this.hs.setSp; if (sp) { this.extraN += sp.extraN; this.salt = Math.max(this.salt, sp.salt); this.beam = Math.max(this.beam, sp.beam); this.fire = Math.max(this.fire, sp.fire); this.xpMul += sp.xp; } this.setTaken = sp ? sp.taken : 1; }
     // survivors who came along: each fights in their own way, scaled by their main skill
     this.crew = (S.squad || []).map((id) => S.base.survivors.find((x) => x.id === id)).filter(Boolean).slice(0, 2).map((sv, i) => ({ sv, role: sv.main, sk: sv.skills[sv.main], x: i ? 34 : -34, y: 10 + i * 8, cd: rnd(1, 3), cd2: 6, face: 1, bob: rnd(0, 6), moving: false, age: 0 }));
     for (const c of this.crew) { if (c.role === 'scout') { this.magnetMul *= 1 + 0.03 * c.sk; this.luckMul *= 1 + 0.02 * c.sk; } else if (c.role === 'cook') this.regen += 0.25 * c.sk; else if (c.role === 'trade') this.goldMul *= 1 + 0.04 * c.sk; else if (c.role === 'faith') this.dmgTaken *= Math.max(0.7, 1 - 0.03 * c.sk); }
@@ -172,7 +173,7 @@ export class Run {
   ring(x, y, r, dmg) { const h = this.hero; if (Math.hypot(h.x - x, h.y - y) < r + 10) this.hurt(dmg, null); }
   hurt(dmg, from) {
     const h = this.hero; if (h.inv > 0 || this.over) return;
-    const taken = dmg * (100 / (100 + this.hs.armor)) * this.dmgTaken; h.hp -= taken; h.inv = 0.55; h.flash = 0.2; this.shake = Math.max(this.shake, 0.25); sfx('hurt', this.sound);
+    const taken = dmg * (100 / (100 + this.hs.armor)) * this.dmgTaken * (this.setTaken || 1); h.hp -= taken; h.inv = 0.55; h.flash = 0.2; this.shake = Math.max(this.shake, 0.25); sfx('hurt', this.sound);
     this.text(h.x, h.y - 40, '-' + Math.round(taken), '#ff6a6a', 1); if (this.ui.hurt) this.ui.hurt();
   }
   kill(e) {
@@ -192,7 +193,7 @@ export class Run {
     let w = [60, 28, 9, 2.5, 0.45, 0.05].map((v, i) => v * (i >= 2 ? (1 + t / 200 + 0.18 * (this.district - 1)) * luck : 1));
     if (good) w = [0, 25, 40, 24, 9, 2].map((v, i) => v * (i >= 3 ? luck : 1)); if (boss) w = [0, 0, 24, 40, 28, 8].map((v, i) => v * (i >= 4 ? luck : 1));
     let s = r * w.reduce((a, b) => a + b), rar = 0; while (rar < 5 && s > w[rar]) { s -= w[rar]; rar++; }
-    const it = makeItem(this.S, 1 + Math.floor(this.district * 1.2 + t / 150) + (boss ? 2 : 0), rar);
+    const it = makeItem(this.S, 1 + Math.floor(this.district * 1.2 + t / 150) + (boss ? 2 : 0), rar, undefined, undefined, boss ? 0.7 : good ? 0.5 : 0.4);
     this.loot.push({ kind: 'item', item: it, x, y, t: 0 });
   }
   // ---------- weapons ----------

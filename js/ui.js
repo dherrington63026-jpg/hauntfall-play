@@ -1,5 +1,5 @@
 // Hauntfall screens and HUD (plain DOM over the canvas).
-import { districtName, districtOf, ENEMIES, RARITIES, SLOTS, SLOT_NAME, STAT_LABEL, PCT, WEAPONS, ROOMS, ROOM_ORDER, SKILLS, SKILL_KEYS, SKILL_BOOST, COLS, heroStats, itemStat, itemScore, upCost, salvageValue, autoEquip, writeSave, tickBase, startUpgrade, startBuild, buildOf, builderCount, BUILDERS_MAX, openSlots, newRoomCost, upgradeCost, upgradeSecs, topFloor, slotKey, parseKey, staffSlots, staffOf, survivorById, assign, recruit, beds, capacity, flows, jobOf, makeItem, tickHaunt, resolveHaunt, defense, hauntStrength, cleanse, cleanseCost } from './data.js';
+import { SETS, setCounts, setBonus, maxUp, ascend, ascendCost, reforge, reforgeCost, districtName, districtOf, ENEMIES, RARITIES, SLOTS, SLOT_NAME, STAT_LABEL, PCT, WEAPONS, ROOMS, ROOM_ORDER, SKILLS, SKILL_KEYS, SKILL_BOOST, COLS, heroStats, itemStat, itemScore, upCost, salvageValue, autoEquip, writeSave, tickBase, startUpgrade, startBuild, buildOf, builderCount, BUILDERS_MAX, openSlots, newRoomCost, upgradeCost, upgradeSecs, topFloor, slotKey, parseKey, staffSlots, staffOf, survivorById, assign, recruit, beds, capacity, flows, jobOf, makeItem, tickHaunt, resolveHaunt, defense, hauntStrength, cleanse, cleanseCost } from './data.js';
 import { iconUrl } from './art.js';
 
 const $ = (s) => document.querySelector(s);
@@ -10,7 +10,7 @@ const save = () => writeSave(S);
 const fmtStat = (k, v) => (PCT.has(k) ? '+' + Math.round(v * 100) + '%' : k === 'regen' ? '+' + v.toFixed(1) : '+' + Math.round(v));
 const fmtTime = (m) => { m = Math.floor(m); return m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`; };
 const icon = (it) => { const u = iconUrl(it.icon); return u ? `<img src="${u}" alt="">` : `<span class="noimg">${it.icon.slice(0, 2).toUpperCase()}</span>`; };
-const cardHtml = (it, extra = '') => `<button class="itc r${it.rar}" data-item="${it.id}" style="--r:${RARITIES[it.rar].color}">${icon(it)}${it.up ? `<em>+${it.up}</em>` : ''}${extra}</button>`;
+const cardHtml = (it, extra = '') => `<button class="itc r${it.rar}" data-item="${it.id}" style="--r:${RARITIES[it.rar].color}">${icon(it)}${it.up ? `<em>+${it.up}${it.asc ? '&#9733;'.repeat(it.asc) : ''}</em>` : (it.asc ? `<em>${'&#9733;'.repeat(it.asc)}</em>` : '')}${it.set != null ? `<i class="setdot" style="background:${SETS[it.set].color}" title="${SETS[it.set].name}"></i>` : ''}${extra}</button>`;
 
 function bindStatic() {
   $('#btnAfk').onclick = () => UI.toggleAfk();
@@ -177,18 +177,21 @@ function renderGear() {
   const hs = heroStats(S), bag = S.bag.slice().sort((a, b) => b.rar - a.rar || itemScore(b) - itemScore(a));
   const eq = SLOTS.map((sl) => S.gear[sl] ? cardHtml(S.gear[sl], `<b class="sl">${SLOT_NAME[sl]}</b>`) : `<div class="itc empty"><b class="sl">${SLOT_NAME[sl]}</b></div>`).join('');
   const detail = sel ? detailHtml(sel) : `<p class="dim">Tap an item to see it. Your stats: damage x${hs.dmgPct.toFixed(2)} · fire rate x${hs.ratePct.toFixed(2)} · ${hs.hp} health · ${hs.armor} armor · ${Math.round(hs.crit * 100)}% crit · speed ${Math.round(hs.speed)}.</p>`;
-  screen(`${top()}<div class="body gear"><div class="col"><div class="panel"><h2>Equipped</h2><div class="slots">${eq}</div></div><div class="panel detail">${detail}</div></div>
+  screen(`${top()}<div class="body gear"><div class="col"><div class="panel"><h2>Equipped</h2><div class="slots">${eq}</div>${setSummary()}</div><div class="panel detail">${detail}</div></div>
     <div class="col"><div class="panel"><div class="bagtop"><h2>Bag <small>${S.bag.length}</small></h2><div class="btns"><button data-act="auto">Auto equip</button><button data-act="sellr" data-r="0">Sell white</button><button data-act="sellr" data-r="1">Sell green</button><button data-act="sellr" data-r="2">Sell blue</button><button data-act="sellr" data-r="3">Sell purple</button></div></div>
     <div class="bag">${bag.map((it) => cardHtml(it)).join('') || '<p class="dim">Nothing yet. Loot drops during runs.</p>'}</div></div></div></div>${msg ? `<div class="msg">${msg}</div>` : ''}`);
   flashMsg();
 }
+function setSummary() { const cnt = setCounts(S), ids = Object.keys(cnt).filter((id) => cnt[id] >= 2); if (!ids.length) return Object.keys(cnt).length ? '<p class="dim">Wear 2, 4 or 6 pieces of the same set for bonuses.</p>' : '<p class="dim">Set pieces (marked with a coloured dot) give bonuses when you wear several of the same set.</p>'; return ids.map((id) => `<div class="setbox" style="--sc:${SETS[id].color}"><b>${SETS[id].name}</b> <small>${cnt[id]}/6</small>${setBonus(S).active.filter((a) => a.set === +id).map((a) => `<p class="on">&#10003; ${a.tier}: ${a.desc}</p>`).join('')}</div>`).join(''); }
 function detailHtml(it) {
   const R = RARITIES[it.rar], cur = S.gear[it.slot], isEq = cur && cur.id === it.id, rows = Object.keys(it.stats).map((k) => { const v = k === 'dmg' && it.slot === 'weapon' ? `${WEAPONS[it.kind].name}` : fmtStat(k, itemStat(it, k)); return `<div class="row2"><span>${k === 'dmg' && it.slot === 'weapon' ? 'Weapon' : STAT_LABEL[k]}</span><b>${v}</b></div>`; }).join('');
-  const diff = !isEq && cur ? itemScore(it) - itemScore(cur) : 0;
-  return `<div class="dhead" style="--r:${R.color}">${icon(it)}<div><h3>${it.name}</h3><small>${R.name} ${SLOT_NAME[it.slot]} · level ${it.ilvl}${it.up ? ' · +' + it.up : ''}</small></div></div>${rows}
+  const diff = !isEq && cur ? itemScore(it) - itemScore(cur) : 0, atMax = it.up >= maxUp(it);
+  const setBox = it.set != null ? (() => { const S0 = SETS[it.set], n = setCounts(S)[it.set] || 0; return `<div class="setbox" style="--sc:${S0.color}"><b>${S0.name} set</b> <small>${n}/6 worn</small>${[2, 4, 6].map((t) => `<p class="${n >= t ? 'on' : ''}">${n >= t ? '&#10003;' : '&#9675;'} ${t} pieces: ${S0.tiers[t].desc}</p>`).join('')}</div>`; })() : '';
+  return `<div class="dhead" style="--r:${R.color}">${icon(it)}<div><h3>${it.name}</h3><small>${R.name} ${SLOT_NAME[it.slot]} · level ${it.ilvl}${it.up ? ' · +' + it.up : ''}${it.asc ? ' · ' + '&#9733;'.repeat(it.asc) : ''}</small></div></div>${rows}${setBox}
     ${!isEq && cur ? `<p class="cmp ${diff >= 0 ? 'up' : 'down'}">${diff >= 0 ? 'Better' : 'Worse'} than equipped</p>` : ''}
     <div class="btns">${isEq ? `<button data-act="unequip" data-id="${it.id}">Unequip</button>` : `<button class="go" data-act="equip" data-id="${it.id}">Equip</button>`}
-    <button data-act="upgrade" data-id="${it.id}" ${S.gold >= upCost(it, S) && it.up < 10 ? '' : 'disabled'}>Upgrade ${it.up < 10 ? upCost(it, S) + 'g' : '(max)'}</button>${isEq ? '' : `<button data-act="sell" data-id="${it.id}">Sell ${salvageValue(it)}g</button>`}</div>`;
+    ${atMax ? `<button class="go" data-act="ascend" data-id="${it.id}" ${S.gold >= ascendCost(it, S).gold && (S.scrap || 0) >= ascendCost(it, S).scrap ? '' : 'disabled'}>Ascend &#9733; ${ascendCost(it, S).gold.toLocaleString()}g + ${ascendCost(it, S).scrap} scrap</button>` : `<button data-act="upgrade" data-id="${it.id}" ${S.gold >= upCost(it, S) ? '' : 'disabled'}>Upgrade ${upCost(it, S)}g</button>`}
+    ${Object.keys(it.stats).length > 1 ? `<button data-act="reforge" data-id="${it.id}" ${(S.scrap || 0) >= reforgeCost(it).scrap ? '' : 'disabled'}>Reforge bonuses ${reforgeCost(it).scrap} scrap</button>` : ''}${isEq ? '' : `<button data-act="sell" data-id="${it.id}">Sell ${salvageValue(it)}g</button>`}</div>`;
 }
 function flashMsg() { if (!msg) return; const m = msg; setTimeout(() => { if (msg === m) { msg = ''; const el = $('.msg'); if (el) el.remove(); } }, 2600); }
 const find = (id) => S.bag.find((x) => x.id === +id) || SLOTS.map((s) => S.gear[s]).find((x) => x && x.id === +id);
@@ -221,7 +224,9 @@ function handle(act, d) {
   if (act === 'pick') { sel = find(d.id) || null; renderGear(); return; }
   if (act === 'equip') { const it = find(d.id); if (!it) return; const old = S.gear[it.slot]; S.bag.splice(S.bag.indexOf(it), 1); if (old) S.bag.push(old); S.gear[it.slot] = it; sel = it; save(); renderGear(); return; }
   if (act === 'unequip') { const it = find(d.id); if (!it) return; S.gear[it.slot] = null; S.bag.push(it); sel = it; save(); renderGear(); return; }
-  if (act === 'upgrade') { const it = find(d.id); if (!it || S.gold < upCost(it, S) || it.up >= 10) return; S.gold -= upCost(it, S); it.up++; msg = `${it.name} is now +${it.up}.`; save(); renderGear(); return; }
+  if (act === 'ascend') { const it = find(d.id); if (it) { const r = ascend(S, it); msg = r === 'ok' ? `${it.name} ascended! Max level is now +${maxUp(it)}.` : 'Not enough gold or scrap.'; if (r === 'ok') save(); } renderGear(); return; }
+  if (act === 'reforge') { const it = find(d.id); if (it) { const r = reforge(S, it); msg = r === 'ok' ? 'The bonuses were reforged.' : 'Not enough scrap.'; if (r === 'ok') save(); } renderGear(); return; }
+  if (act === 'upgrade') { const it = find(d.id); if (!it || S.gold < upCost(it, S) || it.up >= maxUp(it)) return; S.gold -= upCost(it, S); it.up++; msg = `${it.name} is now +${it.up}.`; save(); renderGear(); return; }
   if (act === 'sell') { const it = find(d.id); if (!it) return; S.gold += salvageValue(it); S.bag.splice(S.bag.indexOf(it), 1); sel = null; save(); renderGear(); return; }
   if (act === 'sellr') { const r = +d.r; let g = 0, n = 0; S.bag = S.bag.filter((it) => { if (it.rar !== r) return true; const cur = S.gear[it.slot]; if (!cur || itemScore(it) > itemScore(cur)) return true; g += salvageValue(it); n++; return false; }); S.gold += g; msg = n ? `Sold ${n} for ${g} gold (kept upgrades).` : 'Nothing to sell.'; sel = null; save(); renderGear(); return; }
   if (act === 'auto') { const n = autoEquip(S); msg = n ? `Equipped ${n} better item${n > 1 ? 's' : ''}.` : 'You already wear the best.'; save(); renderGear(); return; }
