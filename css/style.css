@@ -175,3 +175,5 @@ button.rc.crew { cursor: pointer; }
 .gemline { display: flex; align-items: center; justify-content: center; gap: 4px; flex-wrap: wrap; } .gemline small { margin-left: 6px; color: var(--dim); }
 
 .spdrow { display: flex; align-items: center; gap: 6px; margin: 4px 0 10px; } .spdrow small { flex: none; color: var(--dim); } .spdrow button { flex: 1; padding: 8px 4px; } .spdrow button.on { border-color: var(--gold); color: var(--gold); }
+
+.perks { margin: 8px 0; padding: 8px 10px; border-radius: 10px; background: #1a1424; border: 1px solid #5a3d78; } .perks p { margin: 3px 0; font-size: 12px; } .perks b { color: #c9a0ff; } .perks small { color: #b8b0c8; display: block; }

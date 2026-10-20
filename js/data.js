@@ -26,9 +26,34 @@ export const WEAPONS = {
   revolver: { name: 'Revolver', icon: 'revolver', dmg: 4.2, rate: 0.95, n: 1, spread: 0.02, speed: 820, life: 0.8, pierce: 2, range: 460, shape: 'bullet', tier: 2 },
   smg:      { name: 'SMG', icon: 'smg', dmg: 0.75, rate: 0.1, n: 1, spread: 0.12, speed: 800, life: 0.7, pierce: 1, range: 400, shape: 'bullet', tier: 3 },
   shotgun:  { name: 'Shotgun', icon: 'shotgun', dmg: 0.95, rate: 0.95, n: 6, spread: 0.5, speed: 700, life: 0.34, pierce: 1, range: 280, shape: 'bullet', tier: 3 },
+  katana:   { name: 'Katana', icon: 'katana', dmg: 1.3, rate: 0.34, n: 1, melee: true, arc: 1.5, reach: 112, range: 120, shape: 'slash', tier: 1, knock: 50 },
+  sledge:   { name: 'Sledgehammer', icon: 'sledgehammer', dmg: 6.0, rate: 1.5, n: 1, melee: true, arc: 2.7, reach: 118, range: 128, shape: 'slash', tier: 1, knock: 300 },
+  crossbow: { name: 'Crossbow', icon: 'crossbow', dmg: 5.2, rate: 1.15, n: 1, spread: 0.01, speed: 950, life: 0.9, pierce: 4, range: 520, shape: 'knife', tier: 2 },
+  nailgun:  { name: 'Nail Gun', icon: 'nailgun', dmg: 0.7, rate: 0.16, n: 1, spread: 0.07, speed: 900, life: 0.6, pierce: 2, range: 380, shape: 'bullet', tier: 2 },
+  chainsaw: { name: 'Chainsaw', icon: 'chainsaw', dmg: 0.55, rate: 0.12, n: 1, melee: true, arc: 1.3, reach: 78, range: 90, shape: 'slash', tier: 3, knock: 20, perk: 'bleed' },
+  flame:    { name: 'Flamethrower', icon: 'flamethrower', dmg: 0.38, rate: 0.07, n: 1, spread: 0.22, speed: 420, life: 0.42, pierce: 99, range: 210, shape: 'flame', tier: 3, perk: 'burn' },
+  grenade:  { name: 'Grenade Launcher', icon: 'grenade', dmg: 2.6, rate: 1.3, n: 1, spread: 0.03, speed: 520, life: 0.9, pierce: 0, range: 480, shape: 'grenade', tier: 4, boom: 90 },
+  sniper:   { name: 'Sniper Rifle', icon: 'sniper', dmg: 9.5, rate: 1.7, n: 1, spread: 0, speed: 1700, life: 0.7, pierce: 9, range: 820, shape: 'bullet', tier: 4 },
+  minigun:  { name: 'Minigun', icon: 'minigun', dmg: 0.42, rate: 0.045, n: 1, spread: 0.2, speed: 900, life: 0.6, pierce: 1, range: 430, shape: 'bullet', tier: 5 },
   rifle:    { name: 'Rifle', icon: 'rifle', dmg: 3.4, rate: 0.6, n: 1, spread: 0.01, speed: 1200, life: 0.7, pierce: 5, range: 620, shape: 'bullet', tier: 4 },
 };
-const WEAPON_BY_TIER = [['knife'], ['machete', 'axe', 'bat', 'crowbar'], ['pistol', 'revolver'], ['smg', 'shotgun'], ['rifle']];
+const WEAPON_BY_TIER = [['knife'], ['machete', 'axe', 'bat', 'crowbar', 'katana', 'sledge'], ['pistol', 'revolver', 'crossbow', 'nailgun'], ['smg', 'shotgun', 'chainsaw', 'flame'], ['rifle', 'grenade', 'sniper'], ['minigun']];
+// weapon perks: blue and better weapons roll them (blue 1, gold 2, red 3)
+export const PERKS = {
+  bleed: { name: 'Bleeding', desc: 'Hits make enemies bleed for 30% of the hit every second' },
+  burn: { name: 'Ignite', desc: 'Hits set enemies on fire' },
+  frost: { name: 'Frostbite', desc: 'Hits slow enemies by 40%' },
+  chain: { name: 'Chain Lightning', desc: 'Some hits arc to 2 nearby enemies' },
+  explosive: { name: 'Explosive', desc: 'Some hits explode and hurt everything close' },
+  vamp: { name: 'Vampiric', desc: 'Kills heal you for 2% of your health' },
+  keen: { name: 'Keen Edge', desc: '+12% critical hit chance' },
+  quick: { name: 'Quickdraw', desc: '+15% fire rate' },
+  heavy: { name: 'Heavy Hitter', desc: '+20% damage' },
+  exec: { name: 'Executioner', desc: '+50% damage to enemies under 30% health' },
+  pierce: { name: 'Piercing', desc: 'Shots and swings go through 2 more enemies' },
+};
+const PERK_KEYS = Object.keys(PERKS);
+export function rollPerks(rar, intrinsic) { const n = rar >= 5 ? 3 : rar >= 4 ? 2 : rar >= 2 ? 1 : 0, pool = PERK_KEYS.filter((k) => k !== intrinsic), out = []; for (let i = 0; i < n && pool.length; i++) out.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]); return out; }
 const SLOT_ICON = { head: ['helmet'], body: ['jacket', 'vest'], boots: ['boots'], charm: ['charm'], relic: ['relic'], weapon: [] };
 const NAMES = {
   head: ['Cracked Helmet', 'Hockey Mask', 'Rider Helm', 'Beanie', 'Hard Hat'], body: ['Rain Jacket', 'Leather Jacket', 'Tactical Vest', 'Hunter Coat', 'Riot Vest'],
@@ -109,7 +134,7 @@ export function reforge(S, it) {
 export function makeItem(S, ilvl, rar, slot, kind, setChance = 0.4) {
   slot = slot || pick(SLOTS);
   const R = RARITIES[rar]; let wk = null;
-  if (slot === 'weapon') { const tier = clamp(Math.floor((ilvl - 1) / 4) + (Math.random() < 0.25 ? 1 : 0), 0, 4); wk = kind || pick(WEAPON_BY_TIER[Math.min(tier, WEAPON_BY_TIER.length - 1)]); }
+  if (slot === 'weapon') { const tier = clamp(Math.floor((ilvl - 1) / 4) + (Math.random() < 0.25 ? 1 : 0), 0, 5); wk = kind || pick(WEAPON_BY_TIER[Math.min(tier, WEAPON_BY_TIER.length - 1)]); }
   const it = { id: S.nextId++, slot, rar, ilvl, up: 0, kind: wk, stats: {} };
   const [pk, pv] = PRIMARY[slot];
   it.stats[pk] = slot === 'weapon' ? 1 : pv * (1 + ilvl * 0.12);
@@ -118,7 +143,7 @@ export function makeItem(S, ilvl, rar, slot, kind, setChance = 0.4) {
     const opts = SLOT_AFFIXES[slot].filter((k) => !used.has(k)); if (!opts.length) break; const k = pick(opts); used.add(k);
     it.stats[k] = rollAffix(slot, k, ilvl);
   }
-  const base = slot === 'weapon' ? WEAPONS[wk].name : pick(NAMES[slot]); it.base = base; it.sockets = rar >= 2 ? rar - 1 : 0; it.gems = [];
+  const base = slot === 'weapon' ? WEAPONS[wk].name : pick(NAMES[slot]); it.base = base; it.sockets = rar >= 2 ? rar - 1 : 0; it.gems = []; if (slot === 'weapon') it.perks = rollPerks(rar, WEAPONS[wk].perk);
   if (rar >= 2 && Math.random() < setChance) { it.set = Math.floor(Math.random() * SETS.length); it.name = `${SETS[it.set].name} ${base}`; } else it.name = `${pick(PREFIX)} ${base}`;
   it.icon = slot === 'weapon' ? WEAPONS[wk].icon : pick(SLOT_ICON[slot]);
   return it;
@@ -132,13 +157,15 @@ export function itemScore(it) { if (!it) return 0; let s = 0; const setMul = it.
 // ---------- hero stats from gear ----------
 export function heroStats(S) {
   const t = { dmg: 0, power: 0, rate: 0, hp: 0, armor: 0, speed: 0, crit: 0.05, critdmg: 0, pierce: 0, magnet: 0, luck: 0, regen: 0 };
-  let weapon = null; const B = baseBonus(S); t.dmg += B.dmg; t.hp += B.hp; t.regen += B.regen; t.luck += B.luck; t.magnet += B.magnet; t.crit += B.crit;
+  let weapon = null; const B = baseBonus(S); t.dmg += B.dmg; t.rate += B.rate || 0; t.speed += B.speed || 0; t.hp += B.hp; t.regen += B.regen; t.luck += B.luck; t.magnet += B.magnet; t.crit += B.crit;
   for (const slot of SLOTS) { const it = S.gear[slot]; if (!it) continue; if (slot === 'weapon') weapon = it; for (const k in it.stats) if (!(slot === 'weapon' && k === 'dmg')) t[k] += itemStat(it, k); }
   for (const slot of SLOTS) { const it = S.gear[slot]; if (!it || !it.gems) continue; for (const g of it.gems) { if (!g) continue; const G = GEMS[g.type], m = gemMult(g.tier); t[G.stat] = (t[G.stat] || 0) + G.per * m; if (G.stat2) t[G.stat2] = (t[G.stat2] || 0) + G.per2 * m; } }
   const SB = setBonus(S); for (const k in SB.stats) t[k] = (t[k] || 0) + SB.stats[k];
   const base = weapon ? weapon : { kind: 'knife', ilvl: 1, rar: 0, up: 0, stats: { dmg: 1 } };
   const W = WEAPONS[base.kind], wdmg = 11 * W.dmg * (1 + 0.12 * (base.ilvl - 1)) * itemMult(base);
-  return { hp: 120 + t.hp, armor: t.armor, speed: 135 * (1 + t.speed), crit: t.crit, magnet: 70 * (1 + t.magnet), luck: t.luck, regen: t.regen, dmgPct: 1 + t.dmg + t.power, critDmg: 2.2 + t.critdmg, setSp: SB.sp, pierceBonus: Math.floor(t.pierce + 0.01), ratePct: 1 + t.rate, weaponKind: base.kind, weaponDmg: wdmg, power: Math.round(wdmg * (1 + t.dmg) / W.rate * 0.5 + (120 + t.hp) * 0.2 + t.armor * 2) };
+  const perks = [...(base.perks || [])]; if (W.perk && !perks.includes(W.perk)) perks.push(W.perk);
+  if (perks.includes('keen')) t.crit += 0.12; if (perks.includes('quick')) t.rate += 0.15; if (perks.includes('heavy')) t.dmg += 0.2; if (perks.includes('pierce')) t.pierce += 2;
+  return { hp: 120 + t.hp, armor: t.armor, speed: 135 * (1 + t.speed), crit: t.crit, magnet: 70 * (1 + t.magnet), luck: t.luck, regen: t.regen, dmgPct: 1 + t.dmg + t.power, critDmg: 2.2 + t.critdmg, setSp: SB.sp, pierceBonus: Math.floor(t.pierce + 0.01), ratePct: 1 + t.rate, weaponKind: base.kind, perks, weaponDmg: wdmg, power: Math.round(wdmg * (1 + t.dmg) / W.rate * 0.5 + (120 + t.hp) * 0.2 + t.armor * 2) };
 }
 
 // ---------- enemies ----------
@@ -166,20 +193,20 @@ export const ENEMIES = {
 
 // ---------- districts: each has its own look, monsters and boss; past the sixth they repeat, ever tougher ----------
 export const DISTRICTS = [
-  { name: 'Graveyard Gate', tint: null, boss: 'gravekeeper', elite: 'brute', road: 0.16, puddle: 0.45, tree: 0.18, mix: [['ghost', 40, 0], ['child', 25, 0], ['ghoul', 25, 40], ['crow', 20, 90]] },
-  { name: 'Ashen Streets', tint: '#6a5a4a', boss: 'houndmaster', elite: 'brute', road: 0.55, puddle: 0.35, tree: 0.06, mix: [['ghoul', 30, 0], ['hound', 30, 15], ['spitter', 20, 50], ['crow', 15, 30], ['ghost', 10, 0]] },
-  { name: 'Drowned Chapel', tint: '#4d7088', boss: 'bride', elite: 'wraithlord', road: 0.1, puddle: 0.95, tree: 0.12, mix: [['drowned', 30, 0], ['ghost', 30, 0], ['child', 20, 10], ['spitter', 12, 60], ['crow', 10, 40]] },
-  { name: 'Hollow Hospital', tint: '#5d7a66', boss: 'surgeon', elite: 'brute', road: 0.3, puddle: 0.4, tree: 0.05, mix: [['crawler', 35, 0], ['ghoul', 25, 0], ['spitter', 20, 40], ['child', 10, 0], ['hound', 12, 70]] },
-  { name: 'Bone Orchard', tint: '#7a6a44', boss: 'boneking', elite: 'brute', road: 0.05, puddle: 0.2, tree: 0.5, mix: [['ghoul', 35, 0], ['hound', 25, 10], ['crawler', 20, 30], ['drowned', 15, 60], ['spitter', 15, 50]] },
-  { name: 'Black Cathedral', tint: '#5a3d78', boss: 'hollowpriest', elite: 'wraithlord', road: 0.12, puddle: 0.5, tree: 0.1, mix: [['cultist', 30, 0], ['ghost', 25, 0], ['crawler', 15, 20], ['hound', 15, 40], ['drowned', 15, 70]] },
+  { name: 'Graveyard Gate', ground: 'tex_ground', tint: null, boss: 'gravekeeper', elite: 'brute', road: 0.16, puddle: 0.45, tree: 0.18, mix: [['ghost', 40, 0], ['child', 25, 0], ['ghoul', 25, 40], ['crow', 20, 90]] },
+  { name: 'Ashen Streets', ground: 'tex_ash', tint: '#6a5a4a', boss: 'houndmaster', elite: 'brute', road: 0.55, puddle: 0.35, tree: 0.06, mix: [['ghoul', 30, 0], ['hound', 30, 15], ['spitter', 20, 50], ['crow', 15, 30], ['ghost', 10, 0]] },
+  { name: 'Drowned Chapel', ground: 'tex_flag', tint: '#4d7088', boss: 'bride', elite: 'wraithlord', road: 0.1, puddle: 0.95, tree: 0.12, mix: [['drowned', 30, 0], ['ghost', 30, 0], ['child', 20, 10], ['spitter', 12, 60], ['crow', 10, 40]] },
+  { name: 'Hollow Hospital', ground: 'tex_tile', tint: '#5d7a66', boss: 'surgeon', elite: 'brute', road: 0.3, puddle: 0.4, tree: 0.05, mix: [['crawler', 35, 0], ['ghoul', 25, 0], ['spitter', 20, 40], ['child', 10, 0], ['hound', 12, 70]] },
+  { name: 'Bone Orchard', ground: 'tex_bone', tint: '#7a6a44', boss: 'boneking', elite: 'brute', road: 0.05, puddle: 0.2, tree: 0.5, mix: [['ghoul', 35, 0], ['hound', 25, 10], ['crawler', 20, 30], ['drowned', 15, 60], ['spitter', 15, 50]] },
+  { name: 'Black Cathedral', ground: 'tex_marble', tint: '#5a3d78', boss: 'hollowpriest', elite: 'wraithlord', road: 0.12, puddle: 0.5, tree: 0.1, mix: [['cultist', 30, 0], ['ghost', 25, 0], ['crawler', 15, 20], ['hound', 15, 40], ['drowned', 15, 70]] },
 ];
 DISTRICTS.push(
-  { name: 'Rotting Docks', tint: '#4a6a6a', boss: 'bride', elite: 'wraithlord', road: 0.3, puddle: 0.85, tree: 0.03, mix: [['drowned', 35, 0], ['crow', 20, 0], ['ghoul', 25, 10], ['spitter', 15, 40], ['crawler', 12, 60]] },
-  { name: 'Burned Orphanage', tint: '#8a4a30', boss: 'gravekeeper', elite: 'brute', road: 0.2, puddle: 0.1, tree: 0.08, mix: [['child', 40, 0], ['ghost', 25, 0], ['crawler', 20, 20], ['cultist', 15, 50], ['hound', 12, 60]] },
-  { name: 'Sunken Subway', tint: '#3d4a5a', boss: 'surgeon', elite: 'brute', road: 0.7, puddle: 0.7, tree: 0.0, mix: [['crawler', 35, 0], ['hound', 25, 0], ['ghoul', 25, 10], ['drowned', 15, 40], ['spitter', 15, 30]] },
-  { name: 'Plague Market', tint: '#6a7a3a', boss: 'houndmaster', elite: 'wraithlord', road: 0.5, puddle: 0.3, tree: 0.04, mix: [['ghoul', 30, 0], ['spitter', 25, 0], ['crow', 20, 10], ['cultist', 20, 30], ['brute', 5, 90]] },
-  { name: 'Iron Asylum', tint: '#7a7a86', boss: 'boneking', elite: 'brute', road: 0.25, puddle: 0.2, tree: 0.02, mix: [['cultist', 30, 0], ['crawler', 25, 0], ['ghost', 20, 0], ['hound', 18, 30], ['spitter', 15, 40]] },
-  { name: 'Crimson Throne', tint: '#8a2a40', boss: 'hollowpriest', elite: 'wraithlord', road: 0.15, puddle: 0.5, tree: 0.1, mix: [['cultist', 30, 0], ['ghoul', 25, 0], ['hound', 20, 10], ['drowned', 15, 30], ['brute', 8, 60], ['ghost', 15, 0]] },
+  { name: 'Rotting Docks', ground: 'tex_docks', tint: '#4a6a6a', boss: 'bride', elite: 'wraithlord', road: 0.3, puddle: 0.85, tree: 0.03, mix: [['drowned', 35, 0], ['crow', 20, 0], ['ghoul', 25, 10], ['spitter', 15, 40], ['crawler', 12, 60]] },
+  { name: 'Burned Orphanage', ground: 'tex_scorch', tint: '#8a4a30', boss: 'gravekeeper', elite: 'brute', road: 0.2, puddle: 0.1, tree: 0.08, mix: [['child', 40, 0], ['ghost', 25, 0], ['crawler', 20, 20], ['cultist', 15, 50], ['hound', 12, 60]] },
+  { name: 'Sunken Subway', ground: 'tex_concrete', tint: '#3d4a5a', boss: 'surgeon', elite: 'brute', road: 0.7, puddle: 0.7, tree: 0.0, mix: [['crawler', 35, 0], ['hound', 25, 0], ['ghoul', 25, 10], ['drowned', 15, 40], ['spitter', 15, 30]] },
+  { name: 'Plague Market', ground: 'tex_cobble', tint: '#6a7a3a', boss: 'houndmaster', elite: 'wraithlord', road: 0.5, puddle: 0.3, tree: 0.04, mix: [['ghoul', 30, 0], ['spitter', 25, 0], ['crow', 20, 10], ['cultist', 20, 30], ['brute', 5, 90]] },
+  { name: 'Iron Asylum', ground: 'tex_asylum', tint: '#7a7a86', boss: 'boneking', elite: 'brute', road: 0.25, puddle: 0.2, tree: 0.02, mix: [['cultist', 30, 0], ['crawler', 25, 0], ['ghost', 20, 0], ['hound', 18, 30], ['spitter', 15, 40]] },
+  { name: 'Crimson Throne', ground: 'tex_carpet', tint: '#8a2a40', boss: 'hollowpriest', elite: 'wraithlord', road: 0.15, puddle: 0.5, tree: 0.1, mix: [['cultist', 30, 0], ['ghoul', 25, 0], ['hound', 20, 10], ['drowned', 15, 30], ['brute', 8, 60], ['ghost', 15, 0]] },
 );
 export const districtOf = (d) => DISTRICTS[(d - 1) % DISTRICTS.length];
 export const districtName = (d) => d > DISTRICTS.length ? `${districtOf(d).name} ${['', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'][Math.min(9, Math.floor((d - 1) / DISTRICTS.length))]}` : districtOf(d).name;
@@ -218,6 +245,11 @@ export const ROOMS = {
   bedroom: { name: 'Bedroom', art: 'bedroom', skill: null, desc: 'Beds for survivors, and rested people learn faster.', pow: (L) => -2 * L, bonus: (L) => `Sleeps ${L * 2} more survivors, +${L * 6}% XP` },
   watch: { name: 'Bell Tower', art: 'tower', skill: 'scout', desc: 'A lookout. Spots loot, and survivors find you sooner.', pow: (L) => -2 * L, bonus: (L, m) => `+${Math.round(L * 4 * m)}% loot luck, +${Math.round(L * 5 * m)}% pickup range, survivors arrive faster` },
   store: { name: 'Storeroom', art: 'store', skill: null, desc: 'Shelves and a cold cellar: stocks hold much more.', pow: (L) => -1 * L, bonus: (L) => `+${L * 250} storage` },
+  range: { name: 'Shooting Range', art: 'range', skill: 'weap', desc: 'Target practice. Everyone shoots faster. Uses a little scrap.', pow: (L) => -3 * L, use: { scrap: (L) => 0.5 * L }, bonus: (L, m) => `+${(L * 1.2 * m).toFixed(1)}% fire rate` },
+  lab: { name: 'Research Lab', art: 'lab', skill: 'elec', desc: 'Notes and experiments on the dead. You level up faster.', pow: (L) => -7 * L, bonus: (L, m) => `+${(L * 3 * m).toFixed(1)}% XP` },
+  garden: { name: 'Greenhouse', art: 'garden', skill: 'cook', desc: 'Grows food under glass. Needs electricity and water.', pow: (L) => -3 * L, use: { water: (L) => 3 * L }, make: { food: (L) => 22 * Math.pow(L, 1.1) } },
+  garage: { name: 'Garage', art: 'garage', skill: 'mech', desc: 'A rebuilt truck and bikes. You move faster. Uses a little scrap.', pow: (L) => -4 * L, use: { scrap: (L) => 0.5 * L }, bonus: (L, m) => `+${(L * 1 * m).toFixed(1)}% move speed` },
+  vault: { name: 'Vault', art: 'vault', skill: 'trade', desc: 'A locked cellar for loot. Runs bring in more gold.', pow: (L) => -1 * L, bonus: (L, m) => `+${Math.round(L * 4 * m)}% gold from runs` },
   chapel: { name: 'Prayer Hall', art: 'chapel', skill: 'faith', desc: 'Faith makes everyone steadier in the dark.', pow: (L) => -2 * L, bonus: (L, m) => `+${(L * 1.5 * m).toFixed(1)}% crit chance` },
 };
 export const ROOM_ORDER = Object.keys(ROOMS);
@@ -315,7 +347,7 @@ export const roomMult = (S, key, f) => { const o = (f || flows(S)).rooms[key]; r
 export function baseBonus(S) {
   const F = flows(S), sum = (type, fn) => roomsOfType(S, type).reduce((n, [k, r]) => n + fn(r.lvl) * roomMult(S, k, F), 0);
   const lv = (type) => roomsOfType(S, type).reduce((n, [, r]) => n + r.lvl, 0);
-  return { dmg: sum('armory', (L) => L * 0.04), hp: sum('infirmary', (L) => L * 8), regen: sum('infirmary', (L) => L * 0.3), luck: sum('watch', (L) => L * 0.04), magnet: sum('watch', (L) => L * 0.05), crit: sum('chapel', (L) => L * 0.015), xp: lv('bedroom') * 0.06, disc: Math.min(0.5, sum('workshop', (L) => L * 0.03)) };
+  return { dmg: sum('armory', (L) => L * 0.04), hp: sum('infirmary', (L) => L * 8), regen: sum('infirmary', (L) => L * 0.3), luck: sum('watch', (L) => L * 0.04), magnet: sum('watch', (L) => L * 0.05), crit: sum('chapel', (L) => L * 0.015), xp: lv('bedroom') * 0.06 + sum('lab', (L) => L * 0.03), rate: sum('range', (L) => L * 0.012), speed: sum('garage', (L) => L * 0.01), gold: sum('vault', (L) => L * 0.04), disc: Math.min(0.5, sum('workshop', (L) => L * 0.03)) };
 }
 const STEP = 300; // seconds per simulation step
 export function tickBase(S, now = Date.now()) {
@@ -368,6 +400,7 @@ export function newSave() {
 }
 // older items may carry bonuses their slot should not have: swap them for allowed ones of similar strength
 function fixItem(it) {
+  if (it && it.slot === 'weapon' && it.perks === undefined && WEAPONS[it.kind]) it.perks = rollPerks(it.rar, WEAPONS[it.kind].perk);
   if (it && it.sockets === undefined) { it.sockets = it.rar >= 2 ? it.rar - 1 : 0; it.gems = []; }
   if (!it || !it.stats) return; const ok = SLOT_AFFIXES[it.slot]; if (!ok) return; const primary = PRIMARY[it.slot][0];
   for (const k of Object.keys(it.stats)) {

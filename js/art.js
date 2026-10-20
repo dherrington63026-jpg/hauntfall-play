@@ -1,6 +1,6 @@
 // Loads the painted art; anything missing gets a simple stand-in so the game always runs.
 const IMG = {}, SCALED = {}, FLASH = new WeakMap();
-const NAMES = ['hero_f_1', 'hero_f_2', 'hero_m_1', 'hero_m_2', 'en_ghost_1', 'en_ghost_2', 'en_ghoul_1', 'en_ghoul_2', 'en_crow_1', 'en_crow_2', 'en_child_1', 'en_child_2', 'en_brute_1', 'en_brute_2', 'boss_gravekeeper_1', 'boss_gravekeeper_2',
+const NAMES = ['icon_crossbow', 'icon_katana', 'icon_chainsaw', 'icon_sledgehammer', 'icon_minigun', 'icon_flamethrower', 'icon_nailgun', 'icon_grenade', 'icon_sniper', 'hero_f_1', 'hero_f_2', 'hero_m_1', 'hero_m_2', 'en_ghost_1', 'en_ghost_2', 'en_ghoul_1', 'en_ghoul_2', 'en_crow_1', 'en_crow_2', 'en_child_1', 'en_child_2', 'en_brute_1', 'en_brute_2', 'boss_gravekeeper_1', 'boss_gravekeeper_2',
   'prop_tomb1', 'prop_tomb2', 'prop_tomb3', 'prop_tree', 'prop_lamp', 'prop_car', 'prop_fence', 'prop_pumpkin', 'prop_bush',
   'cr_elec_f', 'cr_elec_m', 'cr_plumb_f', 'cr_plumb_m', 'cr_cook_f', 'cr_cook_m', 'cr_mech_f', 'cr_mech_m', 'cr_med_f', 'cr_med_m', 'cr_weap_f', 'cr_weap_m', 'cr_trade_f', 'cr_trade_m', 'cr_scout_f', 'cr_scout_m', 'cr_faith_f', 'cr_faith_m',
   'en_spitter_1', 'en_spitter_2', 'en_hound_1', 'en_hound_2', 'en_drowned_1', 'en_drowned_2', 'en_crawler_1', 'en_crawler_2', 'en_cultist_1', 'en_cultist_2', 'en_wraithlord_1', 'en_wraithlord_2', 'boss_houndmaster_1', 'boss_houndmaster_2', 'boss_bride_1', 'boss_bride_2', 'boss_surgeon_1', 'boss_surgeon_2', 'boss_boneking_1', 'boss_boneking_2', 'boss_priest_1', 'boss_priest_2',
@@ -13,7 +13,7 @@ export async function loadArt(onProgress) {
   let done = 0; const total = NAMES.length + 2;
   await Promise.all([...NAMES.map(async (n) => { IMG[n] = await load(`art/${n}.png`); onProgress && onProgress(++done / total); }),
     ...Object.keys(ANIMS).map(async (n) => { const im = await load(`art/anim/${n}.png`); if (im) ANIM[n] = { im, n: ANIMS[n] }; }),
-    ...['tex_ground', 'tex_road'].map(async (n) => { TEX[n] = await load(`art/${n}.jpg`); onProgress && onProgress(++done / total); })]);
+    ...['tex_ground', 'tex_road', 'tex_ash', 'tex_flag', 'tex_tile', 'tex_bone', 'tex_marble', 'tex_docks', 'tex_scorch', 'tex_concrete', 'tex_cobble', 'tex_asylum', 'tex_carpet'].map(async (n) => { TEX[n] = await load(`art/${n}.jpg`); onProgress && onProgress(++done / total); })]);
 }
 function hue(s) { let h = 0; for (const c of s) h = (h * 31 + c.charCodeAt(0)) % 360; return h; }
 function standIn(name, h) {
