@@ -188,6 +188,24 @@ export const ENEMIES = {
   boneking: { name: 'The Bone King', sprite: 'boss_boneking', hp: 4200, speed: 42, dmg: 40, r: 46, size: 235, xp: 150, fx: 'boss', boss: true, summon: 'ghoul', eye: '#ffa040' },
   hollowpriest: { name: 'The Hollow Priest', sprite: 'boss_priest', hp: 4600, speed: 40, dmg: 40, r: 44, size: 235, xp: 200, fx: 'boss', boss: true, summon: 'cultist', eye: '#c27dff' },
   revenant: { name: 'The Revenant', sprite: 'en_brute', hp: 1500, speed: 52, dmg: 28, r: 34, size: 175, xp: 80, fx: 'boss', boss: true, eye: '#ff3a3a' },
+  dockhand: { name: 'Drowned Dockhand', sprite: 'en_dockhand', hp: 95, speed: 52, dmg: 14, r: 17, size: 98, xp: 5, fx: 'walk', eye: '#9ad0ff' },
+  gull: { name: 'Carrion Gull', sprite: 'en_gull', hp: 14, speed: 155, dmg: 7, r: 12, size: 62, xp: 2, fx: 'swoop', eye: '#ff3a3a' },
+  scorched: { name: 'Scorched One', sprite: 'en_scorched', hp: 26, speed: 112, dmg: 10, r: 13, size: 68, xp: 3, fx: 'dash', eye: '#ff8a30' },
+  doll: { name: 'Porcelain Doll', sprite: 'en_doll', hp: 34, speed: 92, dmg: 9, r: 12, size: 72, xp: 3, fx: 'walk', eye: '#ffd0d0' },
+  commuter: { name: 'Last Commuter', sprite: 'en_commuter', hp: 58, speed: 70, dmg: 12, r: 16, size: 98, xp: 4, fx: 'walk', eye: '#ffd040' },
+  rat: { name: 'Tunnel Rat', sprite: 'en_rat', hp: 10, speed: 135, dmg: 6, r: 10, size: 46, xp: 1, fx: 'dash', eye: '#ff3a3a' },
+  plaguevic: { name: 'Plague Victim', sprite: 'en_plaguevic', hp: 40, speed: 58, dmg: 9, r: 15, size: 94, xp: 4, fx: 'shooter', shot: { n: 2, spd: 160, spread: 0.3, dmg: 0.7, cd: 2.6 }, eye: '#7dff6a' },
+  bloat: { name: 'Bloated Corpse', sprite: 'en_bloat', hp: 620, speed: 44, dmg: 24, r: 30, size: 145, xp: 30, fx: 'walk', elite: true, eye: '#c8ff70' },
+  patient: { name: 'Escaped Patient', sprite: 'en_patient', hp: 42, speed: 100, dmg: 11, r: 14, size: 94, xp: 4, fx: 'dash', eye: '#ff3a3a' },
+  nurse: { name: 'Ward Nurse', sprite: 'en_nurse', hp: 36, speed: 62, dmg: 9, r: 14, size: 94, xp: 4, fx: 'shooter', shot: { n: 1, spd: 260, dmg: 0.9, cd: 1.7 }, eye: '#ff6a6a' },
+  noble: { name: 'Crimson Noble', sprite: 'en_noble', hp: 60, speed: 58, dmg: 11, r: 15, size: 98, xp: 5, fx: 'shooter', shot: { n: 3, spd: 175, spread: 0.32, dmg: 0.6, cd: 3 }, eye: '#ff3a5a' },
+  knight: { name: 'Hollow Knight', sprite: 'en_knight', hp: 820, speed: 46, dmg: 28, r: 31, size: 155, xp: 40, fx: 'walk', elite: true, eye: '#ffa040' },
+  captain: { name: 'The Drowned Captain', sprite: 'boss_captain', hp: 4000, speed: 46, dmg: 34, r: 44, size: 230, xp: 170, fx: 'boss', boss: true, summon: 'dockhand', eye: '#9ad0ff' },
+  matron: { name: 'The Burnt Matron', sprite: 'boss_matron', hp: 4200, speed: 48, dmg: 36, r: 42, size: 228, xp: 170, fx: 'boss', boss: true, summon: 'scorched', eye: '#ff8a30' },
+  conductor: { name: 'The Night Conductor', sprite: 'boss_conductor', hp: 4400, speed: 52, dmg: 38, r: 42, size: 230, xp: 180, fx: 'boss', boss: true, summon: 'rat', eye: '#ffd040' },
+  plaguedoc: { name: 'The Plague Doctor', sprite: 'boss_plaguedoc', hp: 4700, speed: 44, dmg: 40, r: 42, size: 232, xp: 190, fx: 'boss', boss: true, summon: 'plaguevic', eye: '#7dff6a' },
+  warden: { name: 'The Asylum Warden', sprite: 'boss_warden', hp: 5000, speed: 42, dmg: 42, r: 46, size: 240, xp: 200, fx: 'boss', boss: true, summon: 'patient', eye: '#ff3a3a' },
+  queen: { name: 'The Crimson Queen', sprite: 'boss_queen', hp: 5600, speed: 40, dmg: 46, r: 44, size: 240, xp: 240, fx: 'boss', boss: true, summon: 'noble', eye: '#ff3a5a' },
   gravekeeper: { name: 'The Gravekeeper', sprite: 'boss_gravekeeper', hp: 3800, speed: 42, dmg: 34, r: 42, size: 225, eye: '#6dff6d', xp: 150, fx: 'boss', boss: true },
 };
 
@@ -201,12 +219,12 @@ export const DISTRICTS = [
   { name: 'Black Cathedral', ground: 'tex_marble', tint: '#5a3d78', boss: 'hollowpriest', elite: 'wraithlord', road: 0.12, puddle: 0.5, tree: 0.1, mix: [['cultist', 30, 0], ['ghost', 25, 0], ['crawler', 15, 20], ['hound', 15, 40], ['drowned', 15, 70]] },
 ];
 DISTRICTS.push(
-  { name: 'Rotting Docks', ground: 'tex_docks', tint: '#4a6a6a', boss: 'bride', elite: 'wraithlord', road: 0.3, puddle: 0.85, tree: 0.03, mix: [['drowned', 35, 0], ['crow', 20, 0], ['ghoul', 25, 10], ['spitter', 15, 40], ['crawler', 12, 60]] },
-  { name: 'Burned Orphanage', ground: 'tex_scorch', tint: '#8a4a30', boss: 'gravekeeper', elite: 'brute', road: 0.2, puddle: 0.1, tree: 0.08, mix: [['child', 40, 0], ['ghost', 25, 0], ['crawler', 20, 20], ['cultist', 15, 50], ['hound', 12, 60]] },
-  { name: 'Sunken Subway', ground: 'tex_concrete', tint: '#3d4a5a', boss: 'surgeon', elite: 'brute', road: 0.7, puddle: 0.7, tree: 0.0, mix: [['crawler', 35, 0], ['hound', 25, 0], ['ghoul', 25, 10], ['drowned', 15, 40], ['spitter', 15, 30]] },
-  { name: 'Plague Market', ground: 'tex_cobble', tint: '#6a7a3a', boss: 'houndmaster', elite: 'wraithlord', road: 0.5, puddle: 0.3, tree: 0.04, mix: [['ghoul', 30, 0], ['spitter', 25, 0], ['crow', 20, 10], ['cultist', 20, 30], ['brute', 5, 90]] },
-  { name: 'Iron Asylum', ground: 'tex_asylum', tint: '#7a7a86', boss: 'boneking', elite: 'brute', road: 0.25, puddle: 0.2, tree: 0.02, mix: [['cultist', 30, 0], ['crawler', 25, 0], ['ghost', 20, 0], ['hound', 18, 30], ['spitter', 15, 40]] },
-  { name: 'Crimson Throne', ground: 'tex_carpet', tint: '#8a2a40', boss: 'hollowpriest', elite: 'wraithlord', road: 0.15, puddle: 0.5, tree: 0.1, mix: [['cultist', 30, 0], ['ghoul', 25, 0], ['hound', 20, 10], ['drowned', 15, 30], ['brute', 8, 60], ['ghost', 15, 0]] },
+  { name: 'Rotting Docks', ground: 'tex_docks', tint: '#4a6a6a', boss: 'captain', elite: 'wraithlord', road: 0.3, puddle: 0.85, tree: 0.03, mix: [['dockhand', 35, 0], ['gull', 20, 0], ['drowned', 20, 20], ['spitter', 12, 40], ['crawler', 10, 60]] },
+  { name: 'Burned Orphanage', ground: 'tex_scorch', tint: '#8a4a30', boss: 'matron', elite: 'brute', road: 0.2, puddle: 0.1, tree: 0.08, mix: [['scorched', 30, 0], ['doll', 30, 0], ['child', 20, 0], ['crawler', 15, 25], ['cultist', 10, 50]] },
+  { name: 'Sunken Subway', ground: 'tex_concrete', tint: '#3d4a5a', boss: 'conductor', elite: 'bloat', road: 0.7, puddle: 0.7, tree: 0.0, mix: [['commuter', 35, 0], ['rat', 30, 0], ['crawler', 20, 15], ['hound', 12, 40], ['drowned', 12, 50]] },
+  { name: 'Plague Market', ground: 'tex_cobble', tint: '#6a7a3a', boss: 'plaguedoc', elite: 'bloat', road: 0.5, puddle: 0.3, tree: 0.04, mix: [['plaguevic', 30, 0], ['ghoul', 25, 0], ['gull', 15, 10], ['spitter', 18, 30], ['rat', 15, 20]] },
+  { name: 'Iron Asylum', ground: 'tex_asylum', tint: '#7a7a86', boss: 'warden', elite: 'brute', road: 0.25, puddle: 0.2, tree: 0.02, mix: [['patient', 32, 0], ['nurse', 25, 10], ['child', 15, 0], ['cultist', 15, 30], ['crawler', 15, 25]] },
+  { name: 'Crimson Throne', ground: 'tex_carpet', tint: '#8a2a40', boss: 'queen', elite: 'knight', road: 0.15, puddle: 0.5, tree: 0.1, mix: [['noble', 30, 0], ['ghoul', 20, 0], ['hound', 18, 10], ['doll', 15, 20], ['knight', 4, 70], ['ghost', 15, 0]] },
 );
 export const districtOf = (d) => DISTRICTS[(d - 1) % DISTRICTS.length];
 export const districtName = (d) => d > DISTRICTS.length ? `${districtOf(d).name} ${['', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'][Math.min(9, Math.floor((d - 1) / DISTRICTS.length))]}` : districtOf(d).name;
