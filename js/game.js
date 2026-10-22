@@ -1,5 +1,8 @@
 // A single Hauntfall run: movement, auto-weapons, swarm, loot, level-ups, boss. Drawn on a canvas, HUD lives in the DOM (ui.js).
-import { eventActive, DISTRICTS, talentLvl, runOpts, rnd, rint, pick, clamp, districtOf, makeGem, GEMS, ENEMIES, WEAPONS, UPGRADES, RARITIES, heroStats, makeItem, baseBonus } from './data.js';
+import { HEROES } from './heroes.js';
+import { Music } from './music.js';
+import { SHRINES, CONTRACTS } from './data.js';
+import { EVOLUTIONS, eventActive, DISTRICTS, talentLvl, runOpts, rnd, rint, pick, clamp, districtOf, makeGem, GEMS, ENEMIES, WEAPONS, UPGRADES, RARITIES, heroStats, makeItem, baseBonus } from './data.js';
 import { spr, sprite, flashOf, flipped, glow, SHADOW, GEM, GOLD, KNIFE, AXE, HOLE, CONE, SPLAT, LEAF, FOG, FLARE, gemSprite, PUDDLE, TUFT, PATCH, frames, FRAME_PAD, TEX } from './art.js';
 const isGun = (s) => s === 'bullet' || s === 'flame' || s === 'grenade' || s === 'pumpkin';
 const WEAPON_LEN = { katana: 30, sledge: 30, crossbow: 26, nailgun: 18, chainsaw: 26, flame: 30, grenade: 34, sniper: 44, minigun: 34, knife: 14, machete: 26, axe: 22, bat: 28, crowbar: 26, pistol: 16, revolver: 18, smg: 24, shotgun: 32, rifle: 38 };
@@ -31,7 +34,7 @@ export class Run {
     this.scrap = 0; this.xpMul = (1 + baseBonus(S).xp + 0.03 * talentLvl(S, 'xp')) * (1 + ((this.rewardMul || 1) - 1) * 0.5); this.t = 0; this.over = false; this.paused = false; this.shake = 0; this.kills = 0; this.gold = 0; this.xp = 0; this.level = 1; this.xpNeed = this.needFor(1);
     this.hero = { x: 0, y: 0, hp: this.hs.hp, face: 1, inv: 0, flash: 0, vx: 0, vy: 0, aim: 0, bob: 0 };
     this.maxHp = this.hs.hp; this.dmgMul = 1; this.rateMul = this.mods.has('hexed') ? 0.85 : 1; this.extraN = 0; this.extraPierce = 0; this.speedMul = 1; this.magnetMul = 1; this.regen = this.hs.regen; this.crit = this.hs.crit; this.luckMul = 1 + (this.rewardMul - 1) * 0.6;
-    this.salt = 0; this.beam = 0; this.fire = 0; this.picked = {}; this.goldMul = (1 + (baseBonus(S).gold || 0) + 0.03 * talentLvl(S, 'gold')) * this.rewardMul; this.dmgTaken = 1; this.turrets = [];
+    this.salt = 0; this.beam = 0; this.fire = 0; this.buffs = []; this.shrine = null; this.contract = null; this.metaT = 0; this.combo = 0; this.comboT = 0; this.comboBest = 0; this.dashCd = 0; this.dashT = 0; this.dashMax = 2.6; this.dashDir = { x: 1, y: 0 }; this.lastDir = { x: 1, y: 0 }; this.ult = 0; this.ultMax = 100; this.ultGain = 1; this.evo = {}; this.armorBonus = 0; this.dodge = 0; this.reachMul = 1; this.bell = 0; this.mines = 0; this.storm = 0; this.bellT = 3; this.mineT = 2; this.stormT = 2.5; this.mineList = []; this.picked = {}; this.goldMul = (1 + (baseBonus(S).gold || 0) + 0.03 * talentLvl(S, 'gold')) * this.rewardMul; this.dmgTaken = 1; this.turrets = [];
     { const sp = this.hs.setSp; if (sp) { this.extraN += sp.extraN; this.salt = Math.max(this.salt, sp.salt); this.beam = Math.max(this.beam, sp.beam); this.fire = Math.max(this.fire, sp.fire); this.xpMul += sp.xp; } this.setTaken = sp ? sp.taken : 1; }
     // survivors who came along: each fights in their own way, scaled by their main skill
     this.crew = (S.squad || []).map((id) => S.base.survivors.find((x) => x.id === id)).filter(Boolean).slice(0, 2).map((sv, i) => ({ sv, role: sv.main, sk: sv.skills[sv.main], x: i ? 34 : -34, y: 10 + i * 8, cd: rnd(1, 3), cd2: 6, face: 1, bob: rnd(0, 6), moving: false, age: 0 }));
@@ -47,7 +50,8 @@ export class Run {
   luck() { return (1 + this.hs.luck) * this.luckMul; }
   // ---------- input ----------
   bind() {
-    this.kd = (e) => { this.keys[e.code] = true; if (e.code === 'KeyF') this.ui.toggleAfk(); };
+    this.kd = (e) => { this.keys[e.code] = true; if (e.code === 'KeyF') this.ui.toggleAfk(); if (e.code === 'Space') { e.preventDefault(); this.dash(); } if (e.code === 'KeyE') this.useUlt(); };
+    if (this.ui.bindActs) this.ui.bindActs(() => this.dash(), () => this.useUlt());
     this.ku = (e) => { this.keys[e.code] = false; };
     this.pd = (e) => { if (this.paused || e.target.closest('button')) return; if (!this.joy) { this.joy = { id: e.pointerId, ox: e.clientX, oy: e.clientY, dx: 0, dy: 0 }; this.ui.joyShow(e.clientX, e.clientY); this.cv.setPointerCapture(e.pointerId); } };
     this.pm = (e) => { const j = this.joy; if (!j || e.pointerId !== j.id) return; const dx = e.clientX - j.ox, dy = e.clientY - j.oy, L = Math.hypot(dx, dy), m = Math.min(L, 46); j.dx = L ? dx / L * m / 46 : 0; j.dy = L ? dy / L * m / 46 : 0; this.ui.joyMove(j.dx, j.dy); };
@@ -67,21 +71,27 @@ export class Run {
   update(dt) {
     if (this.paused || this.over) return;
     if (this.hitstop > 0) { this.hitstop -= dt; dt *= 0.12; }
+    if (!this.kitDone) { this.kitDone = true; const HK = HEROES.find((x) => x.id === this.S.hero); if (HK && HK.kit) HK.kit(this); }
     this.t += dt; this.frame = (this.frame || 0) + 1; const h = this.hero;
+    if (this.mode === 'run') { if (this.t > 1) this.hint('move', 'Drag your finger anywhere to move. You shoot on your own.'); if (this.t > 22) this.hint('dash', 'Tap DASH to dodge past enemies. Tap BURST when it fills to blast everything near you.'); }
     // movement
     let ix = 0, iy = 0;
     if (this.keys.KeyA || this.keys.ArrowLeft) ix -= 1; if (this.keys.KeyD || this.keys.ArrowRight) ix += 1; if (this.keys.KeyW || this.keys.ArrowUp) iy -= 1; if (this.keys.KeyS || this.keys.ArrowDown) iy += 1;
     if (this.joy) { ix = this.joy.dx; iy = this.joy.dy; }
     const manual = Math.hypot(ix, iy) > 0.12;
     if (this.afk && !manual) { const a = this.afkSteer(); ix = a.x; iy = a.y; }
-    const L = Math.hypot(ix, iy); if (L > 1) { ix /= L; iy /= L; }
+    const L = Math.hypot(ix, iy); if (L > 1) { ix /= L; iy /= L; } if (L > 0.12) this.lastDir = { x: ix / (L > 1 ? 1 : L), y: iy / (L > 1 ? 1 : L) };
+    if (this.combo > 0) { this.comboT -= dt; if (this.comboT <= 0) { this.combo = 0; if (this.ui.combo) this.ui.combo(0); } }
+    this.dashCd = Math.max(0, this.dashCd - dt); if (this.mode !== 'rush') this.ult = Math.min(this.ultMax, this.ult + dt * 0.5 * this.ultGain);
+    if (this.dashT > 0) { this.dashT -= dt; h.x += this.dashDir.x * 640 * dt; h.y += this.dashDir.y * 640 * dt; h.inv = Math.max(h.inv, 0.12); if (this.q < 3 && this.fx.length < 260) this.fx.push({ k: 'p', x: h.x + rnd(-5, 5), y: h.y - rnd(8, 40), vx: -this.dashDir.x * 40, vy: rnd(-20, 20), t: 0, life: 0.3, col: '#cfd8e8', r: 3 }); }
+    if (this.afk && !this.paused) this.afkActs();
     const sp = this.hs.speed * this.speedMul; h.x += ix * sp * dt; h.y += iy * sp * dt; h.moving = L > 0.1; if (h.moving && this.q < 2 && (this.frame % 7) === 0 && this.fx.length < 260) this.fx.push({ k: 'p', x: h.x + rnd(-6, 6), y: h.y - 2, vx: rnd(-14, 14), vy: rnd(-16, -4), t: 0, life: 0.45, col: '#4a4a44', r: 3 }); if (Math.abs(ix) > 0.1) h.face = ix > 0 ? 1 : -1; h.bob += dt * (L > 0.1 ? 12 : 3);
     h.inv = Math.max(0, h.inv - dt); h.flash = Math.max(0, h.flash - dt); h.fire = Math.max(0, (h.fire || 0) - dt); h.recoil = (h.recoil || 0) * Math.pow(0.001, dt); this.punch = Math.max(0, this.punch - dt * 2.2); this.fogT += dt;
     for (const c of this.corpses) c.t += dt; if (this.corpses.length && this.corpses[0].t > this.corpses[0].life) this.corpses.shift();
     for (const d of this.decals) d.t += dt; if (this.decals.length && this.decals[0].t > this.decals[0].life) this.decals.shift();
     if (this.regen > 0 && !this.mods.has('mercy')) h.hp = Math.min(this.maxHp, h.hp + this.regen * dt);
     // director
-    this.direct(dt);
+    this.direct(dt); this.updateMeta(dt);
     this.buildGrid();
     this.updateEnemies(dt);
     this.updateWeapons(dt);
@@ -102,12 +112,28 @@ export class Run {
     // want: loot first, then gems; the boss time: stay out in the open
     let t = null, bd = 520 * 520; for (const l of this.loot) { const d2 = (l.x - h.x) ** 2 + (l.y - h.y) ** 2; if (d2 < bd) { bd = d2; t = l; } }
     if (!t) for (const g of this.gems) { const d2 = (g.x - h.x) ** 2 + (g.y - h.y) ** 2; if (d2 < bd) { bd = d2; t = g; } }
+    if (!t && this.shrine && near < 4) t = this.shrine;
     let tx = 0, ty = 0; if (t) { const d = Math.hypot(t.x - h.x, t.y - h.y) || 1; tx = (t.x - h.x) / d; ty = (t.y - h.y) / d; }
     const wander = near ? 0 : 1; // with nothing near, circle slowly so new enemies come to us
     const ang = this.t * 0.4; tx += Math.cos(ang) * 0.4 * wander; ty += Math.sin(ang) * 0.4 * wander;
     // a little tangent push to avoid being cornered
     const px = -fy * 0.35, py = fx * 0.35;
     return { x: fx * 1.7 + px + tx * (near > 6 ? 0.4 : 1), y: fy * 1.7 + py + ty * (near > 6 ? 0.4 : 1) };
+  }
+  dash() {
+    if (this.paused || this.over || this.dashCd > 0) return; const h = this.hero, d = this.lastDir; const L = Math.hypot(d.x, d.y) || 1;
+    this.dashDir = { x: d.x / L, y: d.y / L }; this.dashT = 0.2; this.dashCd = this.dashMax; h.inv = Math.max(h.inv, 0.4); sfx('slash', this.sound);
+    for (let i = 0; i < 8 && this.fx.length < 260; i++) this.fx.push({ k: 'p', x: h.x, y: h.y - 4, vx: rnd(-60, 60), vy: rnd(-40, 10), t: 0, life: 0.4, col: '#6a6a62', r: 3 });
+  }
+  useUlt() {
+    if (this.paused || this.over || this.ult < this.ultMax) return; this.ult = 0; const h = this.hero, R = 480; this.fx.push({ k: 'ring', x: h.x, y: h.y, r: R, t: 0, life: 0.7 });
+    this._pk = true; for (const e of this.enemies) { if (e.hp <= 0) continue; const dx = e.x - h.x, dy = e.y - h.y, d = Math.hypot(dx, dy); if (d < R + e.r) this.hitEnemy(e, this.hs.weaponDmg * (e.def.boss ? 4 : 9) * this.dmgMul, false, 420, dx / (d || 1), dy / (d || 1)); } this._pk = false;
+    for (const b of this.ebul) { if (Math.hypot(b.x - h.x, b.y - h.y) < R) b.life = 0; }
+    h.hp = Math.min(this.maxHp, h.hp + this.maxHp * 0.1); h.inv = Math.max(h.inv, 1.2); this.hitstop = 0.22; this.shake = 1; this.punch = 1; sfx('boom', this.sound); if (this.ui.flash) this.ui.flash(); if (this.ui.banner) this.ui.banner('Ghost Burst', 'The dead recoil');
+  }
+  afkActs() {
+    const h = this.hero; if (this.ult >= this.ultMax) { let n = 0; for (const e of this.enemies) if (Math.hypot(e.x - h.x, e.y - h.y) < 340 && ++n >= 12) break; if (n >= 12 || (this.boss && this.bossOut)) this.useUlt(); }
+    if (this.dashCd <= 0 && h.hp < this.maxHp * 0.45) { const e = this.nearest(110); if (e) { const dx = h.x - e.x, dy = h.y - e.y, d = Math.hypot(dx, dy) || 1; this.lastDir = { x: dx / d, y: dy / d }; this.dash(); } }
   }
   // ---------- spawning ----------
   direct(dt) {
@@ -120,13 +146,45 @@ export class Run {
       while (this.spawnAcc >= 1 && this.enemies.length < cap) { this.spawnAcc -= 1; this.spawnOne(); }
       if (this.spawnAcc > 3) this.spawnAcc = 3;
       if (t >= this.nextElite && this.nextElite < this.runLen - 10) { const n = 1 + Math.floor(t / 110) + Math.floor((this.district - 1) / 3); for (let i = 0; i < n; i++) this.spawnOne(Math.random() < 0.25 ? (this.theme.elite === 'brute' ? 'wraithlord' : 'brute') : this.theme.elite); this.nextElite += this.eliteGap; this.ui.toast(n > 1 ? `${n} elites are hunting you!` : `${ENEMIES[this.theme.elite].name} is hunting you!`); sfx('boom', this.sound); this.shake = 0.5; }
-      if (t >= this.nextEvent && this.nextEvent < this.runLen - 12) { this.nextEvent += rnd(34, 46); this.event(pick(this.eventOn && t > 50 ? ['crate', 'crate', 'blood', 'hunter', 'king', 'king'] : ['crate', 'crate', 'blood', 'hunter'])); }
+      if (t >= this.nextEvent && this.nextEvent < this.runLen - 12) { this.nextEvent += rnd(34, 46); this.event(this.pickEvent(t)); }
       if (t >= this.nextWave && this.nextWave < this.runLen - 8) { this.wave++; this.nextWave += 38; const n = 16 + this.wave * 5 + (this.district - 1) * 4, a0 = rnd(0, TAU); for (let i = 0; i < n; i++) { const e = this.spawnOne(); const a = a0 + (i / n) * TAU, R = Math.hypot(this.sw, this.sh) / 2 / this.scale + 60; e.x = this.hero.x + Math.cos(a) * R; e.y = this.hero.y + Math.sin(a) * R; } if (this.ui.banner) this.ui.banner(`Wave ${this.wave}`, 'They surround you'); sfx('boom', this.sound); this.shake = 0.4; }
     }
   }
+  updateMeta(dt) {
+    const t = this.t, h = this.hero;
+    for (const b of this.buffs) if (t >= b.until && !b.done) { b.done = true; b.off(); } if (this.buffs.length > 8 || this.buffs.some((b) => b.done)) this.buffs = this.buffs.filter((b) => !b.done);
+    const s = this.shrine;
+    if (s) {
+      if (t - s.born > s.life) { this.shrine = null; this.ui.toast('The shrine fades away'); }
+      else if (!this.paused && Math.hypot(s.x - h.x, s.y - h.y) < 44) {
+        this.shrine = null; const def = s.def;
+        if (this.afk) { const o = def.opts[h.hp > this.maxHp * 0.6 ? 0 : 1]; o.apply(this); this.ui.toast(`${def.name}: ${o.name}`); }
+        else { this.paused = true; this.ui.levelUp(def.opts.map((o, i) => ({ id: 'shrine_' + def.id + '_' + i, name: o.name, desc: o.desc, run: o })), (u) => { u.run.apply(this); this.ui.toast(`${def.name}: ${u.name}`); this.paused = false; }, def.name.toUpperCase()); }
+      }
+    }
+    const c = this.contract;
+    if (c) {
+      if (c.id === 'untouched') c.prog = c.fail ? 0 : Math.min(c.goal, t - c.t0);
+      const left = c.dur - (t - c.t0);
+      if (c.prog >= c.goal) { this.contract = null; this.contractDone(c); if (this.ui.contract) this.ui.contract(''); }
+      else if (left <= 0 || (c.id === 'untouched' && c.fail)) { this.contract = null; this.ui.toast('Contract failed'); if (this.ui.contract) this.ui.contract(''); }
+      else if (this.ui.contract && (this.metaT -= dt) <= 0) { this.metaT = 0.25; this.ui.contract(`CONTRACT · ${c.tpl.text(c)} · ${Math.floor(c.prog)}/${c.goal} · ${Math.ceil(left)}s`); }
+    }
+  }
+  contractDone(c) {
+    const h = this.hero; if (this.ui.banner) this.ui.banner('Contract complete', 'Reward: ' + { gem: 'two gems', item: 'two good items', xp: 'a burst of experience', ult: 'a fully charged Ghost Burst' }[c.rew]); sfx('level', this.sound);
+    if (c.rew === 'gem') { this.dropGem(h.x + 30, h.y, true); this.dropGem(h.x - 30, h.y, true); } else if (c.rew === 'item') { this.dropItem(h.x + 30, h.y, true); this.dropItem(h.x - 30, h.y, true); } else if (c.rew === 'xp') this.addXp(this.xpNeed * 0.9); else this.ult = this.ultMax;
+  }
+  hint(key, text) { const T = (this.S.tut = this.S.tut || {}); if (T[key] || this.mode === 'haunt') return; T[key] = true; if (this.ui.hint) this.ui.hint(text); }
+  pickEvent(t) {
+    const L = ['crate', 'crate', 'blood', 'hunter']; if (this.eventOn && t > 50) L.push('king', 'king');
+    if (t > 40 && !this.shrine && !this.bossOut) L.push('shrine', 'shrine', 'shrine'); if (t > 25 && !this.contract) L.push('contract', 'contract'); return pick(L);
+  }
   event(kind) {
     const h = this.hero, t = this.t;
-    if (kind === 'crate') { const a = rnd(0, TAU), R = rnd(260, 380); this.loot.push({ kind: 'crate', x: h.x + Math.cos(a) * R, y: h.y + Math.sin(a) * R, t: 0, stay: true }); this.ui.toast('A supply crate dropped nearby!'); if (this.ui.banner) this.ui.banner('Supply crate', 'Grab it before the dead do'); sfx('boom', this.sound); }
+    if (kind === 'shrine') { this.hint('shrine', 'A shrine! Walk onto it to make a choice. Every bargain has a price.'); const def = pick(SHRINES), a = rnd(0, TAU), R = rnd(230, 330); this.shrine = { def, x: h.x + Math.cos(a) * R, y: h.y + Math.sin(a) * R, born: t, life: 55 }; this.ui.toast(`A ${def.name} stirs nearby`); if (this.ui.banner) this.ui.banner(def.name, 'Walk to it and make a choice'); sfx('boom', this.sound); return; }
+    if (kind === 'contract') { this.hint('contract', 'A contract: finish the goal before the timer runs out for a reward.'); const C = pick(CONTRACTS), c = { id: C.id, dur: C.dur, t0: t, prog: 0, tpl: C }; c.goal = C.goal(this); const rt = pick(['gem', 'item', 'xp', 'ult']); c.rew = rt; this.contract = c; if (this.ui.banner) this.ui.banner('Contract', C.text(c)); sfx('level', this.sound); return; }
+    if (kind === 'crate') { this.hint('crate', 'A supply crate dropped. Follow the gold arrow and walk into it.'); const a = rnd(0, TAU), R = rnd(260, 380); this.loot.push({ kind: 'crate', x: h.x + Math.cos(a) * R, y: h.y + Math.sin(a) * R, t: 0, stay: true }); this.ui.toast('A supply crate dropped nearby!'); if (this.ui.banner) this.ui.banner('Supply crate', 'Grab it before the dead do'); sfx('boom', this.sound); }
     else if (kind === 'king') { const e = this.spawnOne('pumpkinking'); e.hp *= 3; e.maxHp = e.hp; e.dmg *= 1.1; e.mini = true; e.king = true; if (this.ui.banner) this.ui.banner('The Pumpkin King', 'Kill him for a pile of pumpkins'); this.ui.toast('The Pumpkin King walks the town tonight'); sfx('boom', this.sound); this.shake = 0.6; }
     else if (kind === 'blood') { this.bloodUntil = t + 14; if (this.ui.banner) this.ui.banner('Blood Moon', 'The dead swarm for 14 seconds'); sfx('boom', this.sound); this.shake = 0.5; }
     else { const e = this.spawnOne(Math.random() < 0.5 ? 'brute' : 'wraithlord'); e.hp *= 3.5; e.maxHp = e.hp; e.dmg *= 1.15; e.mini = true; if (this.ui.banner) this.ui.banner('Hunter', 'Kill it for a big reward'); this.ui.toast('A hunter stalks you!'); sfx('boom', this.sound); this.shake = 0.6; }
@@ -143,6 +201,7 @@ export class Run {
   rushSpawn() { const i = this.rushIdx; this.district = i + 1; this.theme = DISTRICTS[i % DISTRICTS.length]; this.pat = null; this.rpat = null; this.spawnBoss(this.rushList[i], i + 1); this.ui.toast(`Boss ${i + 1} of ${this.rushList.length}`); }
   endlessBoss() { this.spawnBoss(this.rushList[this.bossKills % this.rushList.length], this.district + this.bossKills); }
   spawnBoss(key, dist) {
+    Music.play('boss');
     this.bossOut = true; for (const e of this.enemies) if (!e.def.boss) e.hp = Math.min(e.hp, 1);
     const def = this.mode === 'haunt' ? ENEMIES.revenant : ENEMIES[key || this.theme.boss], sc = Math.pow(2.4, (dist || this.district) - 1) * (this.mode === 'haunt' ? this.hauntScale : 1), a = rnd(0, TAU), R = 460;
     const b = { def, x: this.hero.x + Math.cos(a) * R, y: this.hero.y + Math.sin(a) * R, hp: def.hp * sc * this.hpMulT, maxHp: def.hp * sc * this.hpMulT, dmg: this.dmgMulT * def.dmg * Math.pow(1.4, this.district - 1), r: def.r, vx: 0, vy: 0, flash: 0, ph: 0, v: 1, dash: 0, age: 0, face: 1, cd: 3, cd2: 5, slam: 0 };
@@ -190,10 +249,16 @@ export class Run {
   ring(x, y, r, dmg) { const h = this.hero; if (Math.hypot(h.x - x, h.y - y) < r + 10) this.hurt(dmg, null); }
   hurt(dmg, from) {
     const h = this.hero; if (h.inv > 0 || this.over) return;
-    const taken = dmg * (100 / (100 + this.hs.armor)) * this.dmgTaken * this.modTaken * (this.setTaken || 1); h.hp -= taken; h.inv = 0.55; h.flash = 0.2; this.shake = Math.max(this.shake, 0.25); sfx('hurt', this.sound);
+    if (this.dodge > 0 && Math.random() < this.dodge) { this.text(h.x, h.y - 40, 'DODGE', '#9ad8ff', 1); h.inv = 0.3; return; }
+    if (this.contract && this.contract.id === 'untouched') this.contract.fail = true;
+    const taken = dmg * (100 / (100 + this.hs.armor + this.armorBonus)) * this.dmgTaken * this.modTaken * (this.setTaken || 1); h.hp -= taken; h.inv = 0.55; h.flash = 0.2; this.shake = Math.max(this.shake, 0.25); sfx('hurt', this.sound);
     this.text(h.x, h.y - 40, '-' + Math.round(taken), '#ff6a6a', 1); if (this.ui.hurt) this.ui.hurt();
   }
   kill(e) {
+    this.ult = Math.min(this.ultMax, this.ult + (e.def.boss ? 30 : e.def.elite || e.mini ? 8 : 1) * this.ultGain); if (this.contract) { const c = this.contract; if (c.id === 'swift') c.prog++; else if (c.id === 'elite' && (e.def.elite || e.mini)) c.prog++; }
+    this.combo++; this.comboT = 2.2; if (this.combo > this.comboBest) this.comboBest = this.combo; if (this.ui.combo) this.ui.combo(this.combo);
+    { const ci = [10, 25, 50, 100, 200, 400].indexOf(this.combo); if (ci >= 0) { this.ult = Math.min(this.ultMax, this.ult + 6 * this.ultGain); if (this.ui.banner) this.ui.banner(['Rampage', 'Massacre', 'Unstoppable', 'Godlike', 'Legend', 'Mythic'][ci], `${this.combo} kills in a row`); sfx('level', this.sound); this.punch = 0.7; } }
+    if (e.def.elite || e.mini) { this.hitstop = Math.max(this.hitstop, 0.1); this.shake = Math.max(this.shake, 0.4); this.fx.push({ k: 'ring', x: e.x, y: e.y, r: 130, t: 0, life: 0.4 }); }
     this.kills++; this.killed[e.def.sprite] = (this.killed[e.def.sprite] || 0) + 1; if (e.def.elite || e.mini) this.eliteKills++; if (this.perkSet.has('vamp')) this.hero.hp = Math.min(this.maxHp, this.hero.hp + this.maxHp * 0.02); const d = e.def, luck = this.luck(); this.scrap += d.boss ? 25 : d.elite ? 5 : (Math.random() < 0.06 ? 1 : 0);
     this.puff(e.x, e.y, d.fx === 'ghost' ? '#cfe4ff' : '#8a5a5a', d.boss ? 40 : d.elite ? 18 : 6); sfx('kill', this.sound);
     if (this.q < 2 && d.fx !== 'ghost' && !d.hover && this.corpses.length < 30) this.corpses.push({ x: e.x, y: e.y, s: sprite(d.sprite, e.v, d.size), face: e.face, t: 0, life: d.boss ? 2.4 : 1.1, dir: Math.random() < 0.5 ? 1 : -1 });
@@ -201,7 +266,7 @@ export class Run {
     const xp = d.xp; this.gems.push({ x: e.x + rnd(-6, 6), y: e.y + rnd(-6, 6), v: xp, t: 0 });
     if (Math.random() < 0.1 * luck) this.loot.push({ kind: 'gold', x: e.x + rnd(-14, 14), y: e.y + rnd(-14, 14), v: Math.round(rint(1, 2) * (1 + this.district) * this.goldMul), t: 0 });
     if (this.eventOn) { const hp = d.sprite === 'en_pumpkinhead' || d.sprite === 'en_scarecrow'; if (e.king) for (let i = 0; i < 8; i++) this.loot.push({ kind: 'pumpkin', v: 3, x: e.x + rnd(-40, 40), y: e.y + rnd(-40, 40), t: 0 }); else if (Math.random() < (d.elite ? 0.6 : hp ? 0.5 : 0.05) * Math.min(2, luck)) this.loot.push({ kind: 'pumpkin', v: d.elite ? 3 : 1, x: e.x + rnd(-14, 14), y: e.y + rnd(-14, 14), t: 0 }); }
-    if (d.boss && this.mode === 'endless') { this.bossKills++; this.bossOut = false; this.boss = null; this.nextBossT = this.t + 150; this.ui.bossBar(false); this.ui.toast('Boss defeated!'); this.dropGem(e.x, e.y, true); for (let i = 0; i < 3; i++) this.dropItem(e.x + rnd(-40, 40), e.y + rnd(-40, 40), true, true); this.hitstop = 0.3; this.shake = 1; this.hero.hp = Math.min(this.maxHp, this.hero.hp + this.maxHp * 0.25); }
+    if (d.boss && this.mode === 'endless') { this.bossKills++; this.bossOut = false; this.boss = null; this.nextBossT = this.t + 150; Music.play('explore'); this.ui.bossBar(false); this.ui.toast('Boss defeated!'); this.dropGem(e.x, e.y, true); for (let i = 0; i < 3; i++) this.dropItem(e.x + rnd(-40, 40), e.y + rnd(-40, 40), true, true); this.hitstop = 0.3; this.shake = 1; this.hero.hp = Math.min(this.maxHp, this.hero.hp + this.maxHp * 0.25); }
     else if (d.boss && this.mode === 'rush') {
       this.bossKills++; this.rushIdx++; this.boss = null; this.ui.bossBar(false); this.dropGem(e.x, e.y, true); for (let i = 0; i < 2; i++) this.dropItem(e.x + rnd(-40, 40), e.y + rnd(-40, 40), true, true); this.hitstop = 0.3; this.shake = 1; this.hero.hp = Math.min(this.maxHp, this.hero.hp + this.maxHp * 0.3);
       if (this.rushIdx >= this.rushList.length) { this.won = true; setTimeout(() => this.end(true), 2200); } else { this.bossOut = false; this.rushNext = this.t + 8; this.ui.toast('Next boss in 8 seconds...'); this.levelUp(); }
@@ -232,7 +297,7 @@ export class Run {
     this.cool = W.rate / (this.hs.ratePct * this.rateMul); h.fire = isGun(W.shape) ? 0.07 : 0.14; h.recoil = isGun(W.shape) ? 5 : 0; if (isGun(W.shape) && this.q < 2 && W.shape !== 'flame') this.fx.push({ k: 'p', x: h.x, y: h.y - 40, vx: -Math.sin(h.aim) * 80 + rnd(-20, 20), vy: Math.cos(h.aim) * 80 + rnd(-60, -20), t: 0, life: 0.5, col: '#e8c860', r: 1.5 });
     const n = W.n + this.extraN, pierce = W.pierce ? W.pierce + this.extraPierce + this.hs.pierceBonus : 0;
     if (W.melee) {
-      const arc = W.arc, reach = W.reach * (1 + 0.08 * this.extraN);
+      const arc = W.arc, reach = W.reach * (1 + 0.08 * this.extraN) * this.reachMul;
       this.fx.push({ k: 'slash', x: h.x, y: h.y, a: h.aim, arc, r: reach, t: 0, life: 0.18 }); sfx('slash', this.sound);
       for (const e of this.enemies) { const dx = e.x - h.x, dy = e.y - h.y, d = Math.hypot(dx, dy); if (d > reach + e.r) continue; let da = Math.abs(Math.atan2(dy, dx) - h.aim); if (da > Math.PI) da = TAU - da; if (da < arc / 2 || d < 28) { const D = this.dmgOf(); this.hitEnemy(e, D.v, D.crit, (W.knock || 70) * (e.def.boss ? 0.1 : 1), dx / (d || 1), dy / (d || 1)); } }
       return;
@@ -264,7 +329,8 @@ export class Run {
   }
   hitEnemy(e, dmg, crit, kb, nx, ny) {
     if (!this._pk && this.perkSet.size && this.perkSet.has('exec') && e.hp < e.maxHp * 0.3) dmg *= 1.5;
-    e.hp -= dmg; if (!this._pk && this.perkSet.size) this.perkHit(e, dmg); e.flash = 0.09; if (this.q < 2 && this.fx.length < 260) { const ghost = e.def.fx === 'ghost'; for (let i = 0; i < (crit ? 5 : 2); i++) { const a = Math.atan2(ny || 0, nx || 1) + rnd(-0.9, 0.9), sp = rnd(120, 260); this.fx.push({ k: 's', x: e.x, y: e.y - e.def.size * 0.45, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, t: 0, life: rnd(0.12, 0.25), col: ghost ? '#bfe4ff' : crit ? '#ffe08a' : '#ffb27a' }); } } if (kb) { e.vx += nx * kb * 4; e.vy += ny * kb * 4; }
+    e.hp -= dmg; if (!this._pk && this.perkSet.size) this.perkHit(e, dmg);
+    if (this.evo.reaper && !e.def.boss && e.hp > 0 && e.hp < e.maxHp * 0.15) { e.hp = 0; this.hero.hp = Math.min(this.maxHp, this.hero.hp + this.maxHp * 0.03); this.text(e.x, e.y - 30, 'EXECUTED', '#ff5a5a', 1.2); } e.flash = 0.09; if (this.q < 2 && this.fx.length < 260) { const ghost = e.def.fx === 'ghost'; for (let i = 0; i < (crit ? 5 : 2); i++) { const a = Math.atan2(ny || 0, nx || 1) + rnd(-0.9, 0.9), sp = rnd(120, 260); this.fx.push({ k: 's', x: e.x, y: e.y - e.def.size * 0.45, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, t: 0, life: rnd(0.12, 0.25), col: ghost ? '#bfe4ff' : crit ? '#ffe08a' : '#ffb27a' }); } } if (kb) { e.vx += nx * kb * 4; e.vy += ny * kb * 4; }
     this.text(e.x + rnd(-8, 8), e.y - e.def.size * 0.5, Math.round(dmg), crit ? '#ffd84a' : '#ffffff', crit ? 1.5 : 1); sfx('hit', this.sound && Math.random() < 0.3);
     if (e.def.boss) this.ui.bossHp(e.hp / e.maxHp);
   }
@@ -282,19 +348,35 @@ export class Run {
     for (const b of this.ebul) { b.life -= dt; b.x += b.vx * dt; b.y += b.vy * dt; if (b.life <= 0) continue; if (Math.hypot(b.x - h.x, b.y - h.y) < b.r + 10) { this.hurt(b.dmg, null); continue; } ek.push(b); }
     this.ebul = ek;
   }
+  strike(n) {
+    const h = this.hero, c = this.enemies.filter((e) => e.hp > 0 && Math.hypot(e.x - h.x, e.y - h.y) < 480).sort(() => Math.random() - 0.5).slice(0, n);
+    for (const e of c) { this.hitEnemy(e, this.hs.weaponDmg * 1.1 * this.dmgMul, Math.random() < this.crit, 0, 0, 0); this.fx.push({ k: 'bolt', x: e.x + rnd(-12, 12), y: e.y - 260, x2: e.x, y2: e.y - 18, t: 0, life: 0.22 }); for (let i = 0; i < 4 && this.fx.length < 260; i++) this.fx.push({ k: 's', x: e.x, y: e.y - 18, vx: rnd(-140, 140), vy: rnd(-160, -20), t: 0, life: 0.25, col: '#bfe8ff' }); }
+    if (c.length) { sfx('boom', this.sound && Math.random() < 0.5); this.shake = Math.max(this.shake, 0.12); }
+  }
   updatePassives(dt) {
     const h = this.hero;
     if (this.salt > 0) {
       this.saltAng += dt * 2.6; const n = 1 + this.salt, R = 78 + this.salt * 6;
-      for (let i = 0; i < n; i++) { const a = this.saltAng + i * TAU / n, sx = h.x + Math.cos(a) * R, sy = h.y + Math.sin(a) * R; this.near(sx, sy, 30, (e) => { if (e.hp <= 0 || Math.hypot(e.x - sx, e.y - sy) > e.r + 14) return; const last = this.tickMap.get(e) || 0; if (this.t - last > 0.35) { this.tickMap.set(e, this.t); this.hitEnemy(e, this.hs.weaponDmg * 0.55 * this.dmgMul * (e.def.fx === 'ghost' ? 2 : 1), false, 30, (e.x - h.x) / R, (e.y - h.y) / R); } }); }
+      for (let i = 0; i < n; i++) { const a = this.saltAng + i * TAU / n, sx = h.x + Math.cos(a) * R, sy = h.y + Math.sin(a) * R; this.near(sx, sy, 30, (e) => { if (e.hp <= 0 || Math.hypot(e.x - sx, e.y - sy) > e.r + 14) return; const last = this.tickMap.get(e) || 0; if (this.t - last > 0.35) { this.tickMap.set(e, this.t); this.hitEnemy(e, this.hs.weaponDmg * 0.55 * this.dmgMul * (e.def.fx === 'ghost' ? 2 : 1), false, 30, (e.x - h.x) / R, (e.y - h.y) / R); if (this.evo.hellfire) { e.burnT = 3; e.burnD = Math.max(e.burnD || 0, this.hs.weaponDmg * 0.3 * this.dmgMul); } } }); }
     }
     if (this.beam > 0) {
       this.beamT -= dt; if (this.beamT <= 0) { this.beamT = 0.28; const len = 170 + this.beam * 30, half = 0.32 + this.beam * 0.03;
-        for (const e of this.enemies) { const dx = e.x - h.x, dy = e.y - h.y, d = Math.hypot(dx, dy); if (d > len) continue; let da = Math.abs(Math.atan2(dy, dx) - h.aim); if (da > Math.PI) da = TAU - da; if (da < half) this.hitEnemy(e, this.hs.weaponDmg * 0.5 * this.dmgMul * (e.def.fx === 'ghost' ? 2.2 : 1), false, 0, 0, 0); } }
+        for (const e of this.enemies) { const dx = e.x - h.x, dy = e.y - h.y, d = Math.hypot(dx, dy); if (d > len) continue; let da = Math.abs(Math.atan2(dy, dx) - h.aim); if (da > Math.PI) da = TAU - da; if (da < half) { this.hitEnemy(e, this.hs.weaponDmg * 0.5 * this.dmgMul * (e.def.fx === 'ghost' ? 2.2 : 1), false, 0, 0, 0); if (this.evo.holy) h.hp = Math.min(this.maxHp, h.hp + this.maxHp * 0.0015); } } }
     }
     if (this.fire > 0) {
       this.fireT -= dt; if (this.fireT <= 0) { this.fireT = 3.4 / (1 + 0.25 * this.fire); const t = this.nearest(360) || { x: h.x + rnd(-80, 80), y: h.y + rnd(-80, 80) }; this.zones.push({ x: t.x, y: t.y, r: 62 + this.fire * 6, t: 2.8 + this.fire * 0.3, fire: true, tick: 0 }); sfx('slash', this.sound); }
     }
+    if (this.bell > 0) {
+      this.bellT -= dt; if (this.bellT <= 0) { this.bellT = Math.max(2.2, 6.5 - 0.6 * this.bell); const R = 150 + this.bell * 22; this.fx.push({ k: 'ring', x: h.x, y: h.y, r: R, t: 0, life: 0.5 }); sfx('boom', this.sound);
+        this.near(h.x, h.y, R, (e) => { const d = Math.hypot(e.x - h.x, e.y - h.y); if (e.hp > 0 && d < R + e.r) this.hitEnemy(e, this.hs.weaponDmg * 0.9 * this.dmgMul, false, 260, (e.x - h.x) / (d || 1), (e.y - h.y) / (d || 1)); }); if (this.evo.storm) this.strike(8); }
+    }
+    if (this.mines > 0) {
+      this.mineT -= dt; if (this.mineT <= 0) { this.mineT = 3.4 / (1 + 0.2 * this.mines); if (this.mineList.length < 5 + this.mines) this.mineList.push({ x: h.x, y: h.y + 8, t: 0 }); }
+      for (const m of this.mineList) { m.t += dt; if (m.t < 0.8) continue; let hit = false; this.near(m.x, m.y, 40, (e) => { if (!hit && e.hp > 0 && Math.hypot(e.x - m.x, e.y - m.y) < 34 + e.r) hit = true; });
+        if (hit) { m.dead = true; const R = this.evo.trap ? 140 : 95; this.boom(m.x, m.y, R, this.hs.weaponDmg * (1.6 + 0.25 * this.mines) * this.dmgMul, false); if (this.evo.trap) this.near(m.x, m.y, R, (e) => { if (e.hp > 0) { e.slowT = 4; e.burnT = 2.5; e.burnD = this.hs.weaponDmg * 0.3 * this.dmgMul; } }); } }
+      this.mineList = this.mineList.filter((m) => !m.dead);
+    }
+    if (this.storm > 0) { this.stormT -= dt; if (this.stormT <= 0) { this.stormT = Math.max(0.9, 2.6 / (1 + 0.25 * this.storm)); this.strike(1 + Math.floor(this.storm / 2)); } }
     for (const z of this.zones) { z.t -= dt; if (z.fire) { z.tick -= dt; if (z.tick <= 0) { z.tick = 0.3; this.near(z.x, z.y, z.r, (e) => { if (e.hp > 0 && Math.hypot(e.x - z.x, e.y - z.y) < z.r + e.r) this.hitEnemy(e, this.hs.weaponDmg * 0.45 * this.dmgMul, false, 0, 0, 0); }); } } }
     this.zones = this.zones.filter((z) => z.t > 0);
   }
@@ -313,17 +395,18 @@ export class Run {
     if (l.kind === 'crate') { this.crates++; const n = 3 + Math.floor(this.district / 3); for (let i = 0; i < n; i++) this.dropItem(l.x + rnd(-26, 26), l.y + rnd(-26, 26), true); for (let i = 0; i < 4; i++) this.loot.push({ kind: 'gold', x: l.x + rnd(-30, 30), y: l.y + rnd(-30, 30), v: Math.round(rint(2, 5) * (1 + this.district) * this.goldMul), t: 0 }); if (Math.random() < 0.3) this.dropGem(l.x, l.y); this.ui.toast('Supply crate opened!'); sfx('loot', this.sound); return; }
     if (l.kind === 'gem') { this.lootGems.push(l.gem); sfx('loot', this.sound); this.ui.toast(`${['', 'Chipped', 'Flawed', 'Normal', 'Flawless', 'Perfect', 'Radiant', 'Brilliant', 'Royal'][l.gem.tier]} ${GEMS[l.gem.type].name}`); return; }
     if (l.kind === 'gold') { this.gold += l.v; sfx('coin', this.sound && Math.random() < 0.5); }
-    else { this.lootItems.push(l.item); sfx('loot', this.sound); this.ui.lootToast(l.item); }
+    else { this.lootItems.push(l.item); sfx('loot', this.sound); this.ui.lootToast(l.item); if (l.item.rar >= 4 && this.ui.banner) { this.ui.banner(l.item.name, RARITIES[l.item.rar].name + ' drop!'); this.hitstop = Math.max(this.hitstop, 0.15); this.shake = Math.max(this.shake, 0.35); } }
   }
   addXp(v) { this.xp += v * this.xpMul; while (this.xp >= this.xpNeed) { this.xp -= this.xpNeed; this.level++; this.xpNeed = this.needFor(this.level); this.levelUp(); } }
   levelUp() {
-    sfx('level', this.sound); this.punch = 0.6;
-    const pool = UPGRADES.filter((u) => (this.picked[u.id] || 0) < u.max), shuffled = pool.sort(() => Math.random() - 0.5);
-    const choices = []; for (const u of shuffled) { if (choices.length >= 3) break; if (u.weapon && choices.some((c) => c.weapon) && Math.random() < 0.6) continue; choices.push(u); } for (const u of shuffled) { if (choices.length >= 3) break; if (!choices.includes(u)) choices.push(u); }
-    if (this.afk) { const u = choices.find((c) => ['dmg', 'rate', 'multi', 'salt', 'beam', 'fire', 'hp'].includes(c.id)) || choices[0]; this.pickUpgrade(u); return; }
+    this.hint('lvl', 'Pick an upgrade. Combine the right pair and you can unlock a golden Evolution.'); sfx('level', this.sound); this.punch = 0.6; this.fx.push({ k: 'ring', x: this.hero.x, y: this.hero.y, r: 220, t: 0, life: 0.55 });
+    const pool = UPGRADES.filter((u) => (this.picked[u.id] || 0) < u.max && (!u.needs || u.needs(this))), shuffled = pool.sort(() => Math.random() - 0.5);
+    const evos = EVOLUTIONS.filter((e) => !this.evo[e.id] && e.need(this.picked)), choices = []; if (evos.length) choices.push({ ...evos[0], evo: true, max: 1 });
+    for (const u of shuffled) { if (choices.length >= 3) break; if (u.weapon && choices.some((c) => c.weapon) && Math.random() < 0.6) continue; choices.push(u); } for (const u of shuffled) { if (choices.length >= 3) break; if (!choices.includes(u)) choices.push(u); }
+    if (this.afk) { const u = choices.find((c) => c.evo) || choices.find((c) => ['dmg', 'rate', 'multi', 'salt', 'beam', 'fire', 'bell', 'mines', 'storm', 'chain', 'explosive', 'ignite', 'crit', 'armor', 'vamp', 'hp'].includes(c.id)) || choices[0]; this.pickUpgrade(u); return; }
     this.paused = true; this.ui.levelUp(choices, (u) => { this.pickUpgrade(u); this.paused = false; });
   }
-  pickUpgrade(u) { this.picked[u.id] = (this.picked[u.id] || 0) + 1; u.apply(this); this.ui.toast(`${u.name}${this.picked[u.id] > 1 ? ' ' + this.picked[u.id] : ''}`); }
+  pickUpgrade(u) { if (u.evo) { this.evo[u.id] = true; this.picked[u.id] = 1; u.apply(this); this.ui.toast(`EVOLVED: ${u.name}`); if (this.ui.banner) this.ui.banner(u.name, 'Evolution'); this.shake = 0.8; this.punch = 1; return; } this.picked[u.id] = (this.picked[u.id] || 0) + 1; u.apply(this); this.ui.toast(`${u.name}${this.picked[u.id] > 1 ? ' ' + this.picked[u.id] : ''}`); }
   // ---------- effects ----------
   puff(x, y, col, n) { for (let i = 0; i < n; i++) { const a = rnd(0, TAU), s = rnd(30, 150); this.fx.push({ k: 'p', x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 20, t: 0, life: rnd(0.3, 0.7), col, r: rnd(2, 5) }); } if (this.fx.length > (this.q >= 1 ? 160 : 320)) this.fx.splice(0, 80); }
   text(x, y, s, col, size) { if (this.q >= 3) return; this.texts.push({ x, y, s, col, size, t: 0 }); if (this.texts.length > 16) this.texts.shift(); }
@@ -385,6 +468,10 @@ export class Run {
       else if (l.kind === 'gem') { const c = GEMS[l.gem.type].color; x.globalCompositeOperation = 'lighter'; x.drawImage(glow(c, 64), l.x - 24, l.y - 24, 48, 48); x.globalCompositeOperation = 'source-over'; x.drawImage(gemSprite(c), l.x - 9, l.y - 9 - Math.sin(this.t * 4 + l.x) * 2); }
       else { const c = RARITIES[l.item.rar].color; x.globalCompositeOperation = 'lighter'; x.drawImage(glow(c, 96), l.x - 40, l.y - 40, 80, 80); x.fillStyle = c; x.globalAlpha = 0.5; x.fillRect(l.x - 2, l.y - 70, 4, 70); x.globalAlpha = 1; x.globalCompositeOperation = 'source-over'; x.fillStyle = c; x.fillRect(l.x - 7, l.y - 7, 14, 14); x.strokeStyle = '#000'; x.lineWidth = 1; x.strokeRect(l.x - 7, l.y - 7, 14, 14); }
     }
+    if (this.shrine) { const s = this.shrine, sp = sprite('prop_tomb3', 1, 86); x.globalCompositeOperation = 'lighter'; x.drawImage(glow('#b070ff', 128), s.x - 74, s.y - 100, 148, 148); x.globalAlpha = 0.45; x.fillStyle = '#c090ff'; x.fillRect(s.x - 3, s.y - 190, 6, 190); x.globalAlpha = 1; x.globalCompositeOperation = 'source-over'; x.drawImage(sp, s.x - sp.width / 2, s.y - sp.height + 10); }
+    for (const l of this.loot) if (l.kind === 'crate') this.arrow(x, l.x, l.y, camx, camy, vw, vh, '#ffd24a');
+    if (this.shrine) this.arrow(x, this.shrine.x, this.shrine.y, camx, camy, vw, vh, '#c090ff');
+    for (const m of this.mineList) { x.fillStyle = '#23282c'; x.beginPath(); x.ellipse(m.x, m.y, 12, 6, 0, 0, TAU); x.fill(); x.strokeStyle = '#6a737a'; x.lineWidth = 1.5; x.stroke(); x.fillStyle = Math.floor(this.t * 3) % 2 ? '#ff3a3a' : '#601818'; x.fillRect(m.x - 2, m.y - 2, 4, 4); }
     for (const z of this.zones) {
       if (z.tele) { x.fillStyle = `rgba(255,50,50,${0.12 + 0.2 * (1 - z.t / 0.9)})`; x.strokeStyle = '#ff4a4a'; x.lineWidth = 3; x.beginPath(); x.arc(z.x, z.y, z.r, 0, TAU); x.fill(); x.stroke(); }
       else if (z.slow) { x.globalCompositeOperation = 'lighter'; x.globalAlpha = 0.55; x.drawImage(glow('#3a9aff', 128), z.x - z.r, z.y - z.r, z.r * 2, z.r * 2); x.globalAlpha = 1; x.globalCompositeOperation = 'source-over'; }
@@ -405,6 +492,7 @@ export class Run {
     if (this.salt > 0) { const n = 1 + this.salt, R = 78 + this.salt * 6, gs = glow('#c8e6ff', 64); for (let i = 0; i < n; i++) { const a = this.saltAng + i * TAU / n, px = h.x + Math.cos(a) * R, py = h.y + Math.sin(a) * R; x.drawImage(gs, px - 20, py - 20, 40, 40); x.fillStyle = '#fff'; x.fillRect(px - 5, py - 5, 10, 10); } }
     for (const f of this.fx) {
       if (f.k === 'slash') { const k = f.t / f.life; x.strokeStyle = `rgba(255,255,255,${1 - k})`; x.lineWidth = 10 * (1 - k) + 2; x.beginPath(); x.arc(f.x, f.y - 10, f.r * (0.7 + 0.3 * k), f.a - f.arc / 2, f.a + f.arc / 2); x.stroke(); }
+      else if (f.k === 'ring') { const k = f.t / f.life; x.globalAlpha = 1 - k; x.strokeStyle = '#ffe9a0'; x.lineWidth = 6 * (1 - k) + 1; x.beginPath(); x.arc(f.x, f.y - 10, f.r * k, 0, TAU); x.stroke(); }
       else if (f.k === 'bolt') { x.globalAlpha = 1 - f.t / f.life; x.strokeStyle = '#bfe8ff'; x.lineWidth = 3; x.beginPath(); x.moveTo(f.x, f.y); const mx = (f.x + f.x2) / 2 + rnd(-10, 10), my = (f.y + f.y2) / 2 + rnd(-10, 10); x.lineTo(mx, my); x.lineTo(f.x2, f.y2); x.stroke(); }
       else if (f.k === 's') { x.globalAlpha = 1 - f.t / f.life; x.strokeStyle = f.col; x.lineWidth = 2; x.beginPath(); x.moveTo(f.x, f.y); x.lineTo(f.x - f.vx * 0.04, f.y - f.vy * 0.04); x.stroke(); }
       else if (f.k === 'p') { x.globalAlpha = 1 - f.t / f.life; x.fillStyle = f.col; x.fillRect(f.x - f.r, f.y - f.r, f.r * 2, f.r * 2); }
@@ -460,6 +548,11 @@ export class Run {
     x.globalAlpha = 1;
     if (this.q < 2 && d.eye) { x.globalCompositeOperation = 'lighter'; x.drawImage(glow(d.eye, 32), e.x - 11 + (e.face < 0 ? 2 : -2), yy - s.height * 0.86 - 5, 22, 14); x.globalCompositeOperation = 'source-over'; }
     if (e.hp < e.maxHp && !d.boss && e.hp > 0) { const w = d.r * 2, by = yy - s.height - 6; x.fillStyle = 'rgba(0,0,0,.6)'; x.fillRect(e.x - w / 2, by, w, 4); x.fillStyle = d.elite ? '#ff9a3a' : '#e04a4a'; x.fillRect(e.x - w / 2, by, w * Math.max(0, e.hp / e.maxHp), 4); }
+  }
+  arrow(x, tx, ty, camx, camy, vw, vh, col) {
+    const hx = vw / 2 - 26, hy = vh / 2 - 26, dx = tx - camx, dy = ty - camy; if (Math.abs(dx) < hx && Math.abs(dy) < hy) return;
+    const k = Math.min(hx / (Math.abs(dx) || 1), hy / (Math.abs(dy) || 1)), px = camx + dx * k, py = camy + dy * k, a = Math.atan2(dy, dx);
+    x.save(); x.translate(px, py); x.rotate(a); x.fillStyle = col; x.globalAlpha = 0.9; x.beginPath(); x.moveTo(14, 0); x.lineTo(-8, -9); x.lineTo(-4, 0); x.lineTo(-8, 9); x.closePath(); x.fill(); x.strokeStyle = '#000'; x.globalAlpha = 0.6; x.lineWidth = 1.5; x.stroke(); x.restore(); x.globalAlpha = 1;
   }
   drawHero(x) {
     const h = this.hero, moving = h.moving, fr = frames('hero_' + this.S.hero, 1, 100, moving ? 'walk' : 'idle'), s0 = fr[Math.floor(h.bob * (moving ? 0.9 : 0.35)) % fr.length], s = h.face < 0 ? flipped(s0) : s0, bob = 0 + FRAME_PAD(100) * 0;

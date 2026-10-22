@@ -304,6 +304,65 @@ export const UPGRADES = [
   { id: 'salt', name: 'Salt Circle', desc: 'Salt orbits you and burns ghosts', max: 5, weapon: true, apply: (R) => { R.salt += 1; } },
   { id: 'beam', name: 'Flashlight Beam', desc: 'A beam of light scorches what you face', max: 5, weapon: true, apply: (R) => { R.beam += 1; } },
   { id: 'fire', name: 'Molotov', desc: 'Throws fire into the swarm', max: 5, weapon: true, apply: (R) => { R.fire += 1; } },
+  { id: 'bell', name: 'Church Bell', desc: 'A shockwave pulses out from you and throws enemies back', max: 5, weapon: true, apply: (R) => { R.bell += 1; } },
+  { id: 'mines', name: 'Bear Traps', desc: 'You drop traps that explode when the dead step on them', max: 5, weapon: true, apply: (R) => { R.mines += 1; } },
+  { id: 'storm', name: 'Storm Rod', desc: 'Lightning strikes the enemies around you', max: 5, weapon: true, apply: (R) => { R.storm += 1; } },
+  { id: 'ignite', name: 'Ignite', desc: 'Your hits set enemies on fire', max: 1, apply: (R) => { R.perkSet.add('burn'); } },
+  { id: 'frost', name: 'Frostbite', desc: 'Your hits slow enemies', max: 1, apply: (R) => { R.perkSet.add('frost'); } },
+  { id: 'chain', name: 'Chain Lightning', desc: 'Some hits arc to nearby enemies', max: 1, apply: (R) => { R.perkSet.add('chain'); } },
+  { id: 'explosive', name: 'Explosive Hits', desc: 'Some hits explode', max: 1, apply: (R) => { R.perkSet.add('explosive'); } },
+  { id: 'bleed', name: 'Bleeding Edge', desc: 'Your hits make enemies bleed', max: 1, apply: (R) => { R.perkSet.add('bleed'); } },
+  { id: 'exec', name: 'Executioner', desc: '+50% damage to enemies under 30% health', max: 1, apply: (R) => { R.perkSet.add('exec'); } },
+  { id: 'vamp', name: 'Bloodthirst', desc: 'Kills heal you for 2% of your health', max: 1, apply: (R) => { R.perkSet.add('vamp'); } },
+  { id: 'armor', name: 'Plated', desc: '+8 armor', max: 5, apply: (R) => { R.armorBonus += 8; } },
+  { id: 'xp', name: 'Fast Learner', desc: '+20% experience', max: 4, apply: (R) => { R.xpMul *= 1.2; } },
+  { id: 'gold', name: 'Greed', desc: '+25% gold this run', max: 4, apply: (R) => { R.goldMul *= 1.25; } },
+  { id: 'critdmg', name: 'Brutal', desc: '+30% critical damage', max: 4, apply: (R) => { R.hs.critDmg += 0.3; } },
+  { id: 'dodge', name: 'Shadow Step', desc: '7% chance to avoid a hit', max: 4, apply: (R) => { R.dodge += 0.07; } },
+  { id: 'quickstep', name: 'Quick Step', desc: 'Your dash recharges 20% faster', max: 4, apply: (R) => { R.dashMax *= 0.8; } },
+  { id: 'surge', name: 'Spirit Surge', desc: 'Your Ghost Burst charges 25% faster', max: 4, apply: (R) => { R.ultGain *= 1.25; } },
+  { id: 'area', name: 'Wide Swing', desc: '+15% melee reach', max: 4, needs: (R) => !!WEAPONS[R.hs.weaponKind].melee, apply: (R) => { R.reachMul *= 1.15; } },
+];
+// ---------- in-run shrines and contracts ----------
+// shrine options are risk-and-reward bargains: apply(R) changes the run, buff(R, secs, on, off) is for timed effects
+const timed = (R, secs, on, off) => { on(); R.buffs.push({ until: R.t + secs, off }); };
+export const SHRINES = [
+  { id: 'blood', name: 'Blood Altar', opts: [
+    { name: 'Offer your blood', desc: 'Lose 25% of your health. +35% damage for 60 seconds.', apply: (R) => { R.hero.hp = Math.max(1, R.hero.hp - R.maxHp * 0.25); timed(R, 60, () => { R.dmgMul *= 1.35; }, () => { R.dmgMul /= 1.35; }); } },
+    { name: 'Pray quietly', desc: 'Heal 30% of your health.', apply: (R) => { R.hero.hp = Math.min(R.maxHp, R.hero.hp + R.maxHp * 0.3); } },
+  ] },
+  { id: 'gilded', name: 'Gilded Idol', opts: [
+    { name: 'Take the gold', desc: 'Gain a pile of gold, but a hunter comes for you.', apply: (R) => { R.gold += Math.round(180 * (1 + R.district) * R.goldMul); R.event('hunter'); } },
+    { name: 'Leave it alone', desc: 'Gain a small piece of luck: +25% loot luck for 60 seconds.', apply: (R) => { timed(R, 60, () => { R.luckMul *= 1.25; }, () => { R.luckMul /= 1.25; }); } },
+  ] },
+  { id: 'frost', name: 'Frozen Font', opts: [
+    { name: 'Drink the cold water', desc: '+40% fire rate, but -25% move speed, for 45 seconds.', apply: (R) => { timed(R, 45, () => { R.rateMul *= 1.4; R.speedMul *= 0.75; }, () => { R.rateMul /= 1.4; R.speedMul /= 0.75; }); } },
+    { name: 'Wash your wounds', desc: 'Regenerate 3 health a second for 30 seconds.', apply: (R) => { timed(R, 30, () => { R.regen += 3; }, () => { R.regen -= 3; }); } },
+  ] },
+  { id: 'soul', name: 'Soul Well', opts: [
+    { name: 'Drink deep', desc: 'Gain a level at once, but 30% more enemies for 40 seconds.', apply: (R) => { R.addXp(R.xpNeed); timed(R, 40, () => { R.spawnMulT *= 1.3; }, () => { R.spawnMulT /= 1.3; }); } },
+    { name: 'Take a sip', desc: '+50% experience for 60 seconds.', apply: (R) => { timed(R, 60, () => { R.xpMul *= 1.5; }, () => { R.xpMul /= 1.5; }); } },
+  ] },
+  { id: 'hex', name: 'Hex Idol', opts: [
+    { name: 'Smash it', desc: 'Everything near you takes 40% of its health in damage.', apply: (R) => { R._pk = true; for (const e of R.enemies) if (e.hp > 0 && !e.def.boss && Math.hypot(e.x - R.hero.x, e.y - R.hero.y) < 520) R.hitEnemy(e, e.maxHp * 0.4, false, 200, 0, 0); R._pk = false; R.shake = 0.8; } },
+    { name: 'Take its blessing', desc: '+12% damage for the rest of the run.', apply: (R) => { R.dmgMul *= 1.12; } },
+  ] },
+];
+export const CONTRACTS = [
+  { id: 'swift', text: (c) => `Kill ${c.goal} enemies in ${c.dur} seconds`, dur: 40, goal: (R) => 30 + Math.min(60, R.district * 6) },
+  { id: 'elite', text: (c) => `Slay ${c.goal} elites in ${c.dur} seconds`, dur: 60, goal: (R) => 2 + Math.floor(R.district / 4) },
+  { id: 'untouched', text: (c) => `Take no damage for ${c.goal} seconds`, dur: 30, goal: () => 30 },
+];
+// evolutions: when you hold the right pair of upgrades, one level-up offers a golden card that fuses them into something stronger
+export const EVOLUTIONS = [
+  { id: 'hellfire', name: 'Hellfire Ring', desc: 'Salt + Molotov: the circle burns everything it touches, and gains 2 orbs', need: (p) => (p.salt || 0) >= 3 && (p.fire || 0) >= 3, apply: (R) => { R.evo.hellfire = true; R.salt += 2; } },
+  { id: 'stormcaller', name: 'Storm Caller', desc: 'Bell + Storm Rod: each bell pulse calls down 8 lightning strikes', need: (p) => (p.bell || 0) >= 3 && (p.storm || 0) >= 3, apply: (R) => { R.evo.storm = true; } },
+  { id: 'deathtrap', name: 'Death Trap', desc: 'Bear Traps + Frostbite: bigger blasts that freeze and burn', need: (p) => (p.mines || 0) >= 3 && (p.frost || 0) >= 1, apply: (R) => { R.evo.trap = true; } },
+  { id: 'fury', name: "Gunslinger's Fury", desc: 'Extra Shot + Quick Hands: +2 projectiles and +30% fire rate', need: (p) => (p.multi || 0) >= 3 && (p.rate || 0) >= 4, apply: (R) => { R.extraN += 2; R.rateMul *= 1.3; } },
+  { id: 'slayer', name: 'Giant Slayer', desc: 'Sharpened + Killer Instinct: critical hits hit far harder, +15% crit', need: (p) => (p.dmg || 0) >= 5 && (p.crit || 0) >= 3, apply: (R) => { R.crit += 0.15; R.hs.critDmg += 1.2; } },
+  { id: 'immortal', name: 'Immortal', desc: 'Thick Skin + Second Wind: +3 health/sec and 20% less damage taken', need: (p) => (p.hp || 0) >= 4 && (p.regen || 0) >= 3, apply: (R) => { R.regen += 3; R.dmgTaken *= 0.8; } },
+  { id: 'reaper', name: 'Soul Reaper', desc: 'Bloodthirst + Executioner: enemies under 15% health die instantly and heal you', need: (p) => (p.vamp || 0) >= 1 && (p.exec || 0) >= 1, apply: (R) => { R.evo.reaper = true; } },
+  { id: 'holylight', name: 'Holy Light', desc: 'Flashlight Beam + Second Wind: the beam widens and heals you as it burns', need: (p) => (p.beam || 0) >= 3 && (p.regen || 0) >= 1, apply: (R) => { R.beam += 2; R.evo.holy = true; } },
 ];
 
 // ---------- the haunted church (base v3) ----------
