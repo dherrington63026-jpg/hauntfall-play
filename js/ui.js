@@ -1,5 +1,6 @@
 // Hauntfall screens and HUD (plain DOM over the canvas).
 import { ensureQuests, track, claimable, questText, claimQuest, claimBonus, bonusReady, bonusFor, streakState, claimStreak, streakReward, rewardText } from './quests.js';
+import { MODS, MODS_MAX, NM_MAX, nmName, runOpts } from './data.js';
 import { PERKS, GEMS, GEM_KEYS, GEM_TIER, GEM_MAX, gemName, gemText, fuseCost, fuseGems, socketGem, unsocketGem, releaseGems, transmute, transmuteCost, loose, reattune, reattuneCost, dismantle, dismantleValue, SETS, setCounts, setBonus, maxUp, ascend, ascendCost, reforge, reforgeCost, districtName, districtOf, ENEMIES, RARITIES, SLOTS, SLOT_NAME, STAT_LABEL, PCT, WEAPONS, ROOMS, ROOM_ORDER, SKILLS, SKILL_KEYS, SKILL_BOOST, COLS, heroStats, itemStat, itemScore, upCost, salvageValue, autoEquip, writeSave, tickBase, startUpgrade, startBuild, buildOf, builderCount, BUILDERS_MAX, openSlots, newRoomCost, upgradeCost, upgradeSecs, topFloor, slotKey, parseKey, staffSlots, staffOf, survivorById, assign, recruit, beds, capacity, flows, jobOf, makeItem, tickHaunt, resolveHaunt, defense, hauntStrength, cleanse, cleanseCost } from './data.js';
 import { iconUrl } from './art.js';
 
@@ -102,6 +103,15 @@ function skillBars(sv, only) { return SKILL_KEYS.filter((k) => (only ? only.incl
 function svRow(sv, extra = '') { return `<div class="svrow">${portrait(sv)}<div class="svi"><h4>${sv.name} <small>${jobOf(sv)}</small></h4><div class="sks">${skillBars(sv)}</div><p class="dim">${sv.room && S.base.rooms[sv.room] ? 'Working: ' + ROOMS[S.base.rooms[sv.room].type].name : 'Idle'}</p></div>${extra}</div>`; }
 function sheetHtml() {
   if (!sheet) return '';
+  if (sheet.kind === 'runopts') {
+    const o = runOpts(S), un = S.nm || 0;
+    const mods = Object.entries(MODS).map(([k, m]) => { const on = o.mods.includes(k), full = !on && o.mods.length >= MODS_MAX; return `<button class="modrow ${on ? 'on' : ''}" data-act="modtoggle" data-m="${k}" ${full ? 'disabled' : ''}><b>${m.name}</b><small>${m.desc}</small><em>+${Math.round(m.rew * 100)}%</em></button>`; }).join('');
+    return `<div class="sheetbg" data-act="closesheet"><div class="sheet"><div class="shead"><h3>Run options</h3><button data-act="closesheet">Close</button></div>
+      <p class="dim">Harder runs pay more gold, loot and XP. Beat a district boss on your highest Nightmare to unlock the next one.</p>
+      <div class="nmrow"><button data-act="nmstep" data-s="-1" ${o.nm <= 0 ? 'disabled' : ''}>&#9664;</button><div><b>${nmName(o.nm)}</b><small>enemies +${o.nm * 35}% health, +${o.nm * 25}% damage · unlocked up to ${nmName(Math.min(NM_MAX, un))}</small></div><button data-act="nmstep" data-s="1" ${o.nm >= Math.min(NM_MAX, un) ? 'disabled' : ''}>&#9654;</button></div>
+      <h4>Curses <small>pick up to ${MODS_MAX}</small></h4><div class="modlist">${mods}</div>
+      <p class="total">Total reward: <b>+${Math.round((o.rew - 1) * 100)}%</b> gold, loot luck and XP</p></div></div>`;
+  }
   if (sheet.kind === 'gempick') { const gems = S.gems.slice().sort((a, b) => b.tier - a.tier);
     return `<div class="sheetbg" data-act="closesheet"><div class="sheet"><div class="shead"><h3>Choose a gem</h3><button data-act="closesheet">Close</button></div><div class="svlist">${gems.map((g) => `<div class="gemrow">${gemChip(g)}<div><b>${gemName(g)}</b><small>${gemText(g)}</small></div><button class="go" data-act="socketdo" data-gem="${g.id}">Socket</button></div>`).join('') || '<p class="dim">You have no gems. Elites and bosses drop them.</p>'}</div></div></div>`; }
   if (sheet.kind === 'setpick') { const it = find(sheet.id); if (!it) return '';
@@ -157,6 +167,7 @@ function renderCamp() {
       <div class="bright"><h2>Hauntfall Church</h2><p>${WEAPONS[hs.weaponKind].name} · ${Math.round(hs.hp)} health · might ${hs.power} · best ${S.best} kills · ${S.wins} boss kills</p>
       <label class="chk"><input type="checkbox" id="afkChk" ${S.opts.afk ? 'checked' : ''}> AFK combat: explore, fight and loot by itself, then start the next run</label>
       <button class="big" data-act="run">Enter ${districtName(S.district)} <small>district ${S.district} · boss: ${ENEMIES[districtOf(S.district).boss].name}</small></button>
+      <button class="runopt" data-act="runopts">${(() => { const o = runOpts(S); return o.nm || o.mods.length ? `Run options: ${nmName(o.nm)}${o.mods.length ? ' + ' + o.mods.length + ' curse' + (o.mods.length > 1 ? 's' : '') : ''} · +${Math.round((o.rew - 1) * 100)}% loot` : 'Run options: harder runs, better loot'; })()}</button>
       <div class="squadrow"><span>Crew ${squadOf().length}/2</span>${squadOf().map((sv) => `<span class="chipx">${portrait(sv)}<em>${sv.name.split(' ')[0]}</em></span>`).join('')}<button data-act="squadpick">${squadOf().length ? 'Change' : '+ Bring survivors'}</button></div>
       ${S.maxDistrict > 1 ? `<div class="stepper"><button data-act="dstep" data-s="-1" ${S.district <= 1 ? 'disabled' : ''}>&#9664;</button><span>District ${S.district} of ${S.maxDistrict}</span><button data-act="dstep" data-s="1" ${S.district >= S.maxDistrict ? 'disabled' : ''}>&#9654;</button></div>` : ''}</div></div>
     ${resBar()}${hauntBanner()}
@@ -234,6 +245,9 @@ const find = (id) => S.bag.find((x) => x.id === +id) || SLOTS.map((s) => S.gear[
 function handle(act, d) {
   if (!$('#screen').classList.contains('on') && act !== 'again') return;
   if (act === 'tab') { tab = d.t; sel = null; tab === 'camp' ? renderCamp() : tab === 'quests' ? renderQuests() : renderGear(); return; }
+  if (act === 'runopts') { sheet = { kind: 'runopts' }; renderCamp(); return; }
+  if (act === 'nmstep') { const o = runOpts(S); S.opts.nm = Math.max(0, Math.min(Math.min(NM_MAX, S.nm || 0), o.nm + +d.s)); save(); renderCamp(); return; }
+  if (act === 'modtoggle') { const o = runOpts(S), L = o.mods.slice(); const i = L.indexOf(d.m); if (i >= 0) L.splice(i, 1); else if (L.length < MODS_MAX) L.push(d.m); S.opts.mods = L; save(); renderCamp(); return; }
   if (act === 'claimq') { const r = claimQuest(S, d.s, +d.i); if (r) { msg = 'Reward: ' + rewardText(r); save(); } renderQuests(); return; }
   if (act === 'claimb') { const r = claimBonus(S, d.s); if (r) { msg = 'Bonus: ' + rewardText(r); save(); } renderQuests(); return; }
   if (act === 'claims') { const r = claimStreak(S); if (r) { msg = 'Daily reward: ' + rewardText(r); save(); } renderQuests(); return; }
@@ -300,6 +314,7 @@ function hauntDone(r) {
 UI.done = (r) => {
   if (r.mode === 'haunt') return hauntDone(r);
   const won = r.won, items = r.lootItems.slice().sort((a, b) => b.rar - a.rar), earned = r.gold + (won ? 120 * S.district : Math.floor(r.t / 10));
+  let nmMsg = ''; if (won && r.nm > 0 && r.nm === (S.nm || 0) && S.nm < NM_MAX) { S.nm++; nmMsg = nmName(S.nm) + ' unlocked!'; } else if (won && r.nm === 0 && !(S.nm > 0)) { S.nm = 1; nmMsg = 'Nightmare I unlocked! Find it under Run options.'; }
   S.gold += earned; S.scrap = (S.scrap || 0) + r.scrap; S.runs++; S.best = Math.max(S.best, r.kills); if (won) { S.wins++; if (S.district === S.maxDistrict) { S.maxDistrict++; } }
   for (const it of items) if (S.bag.length < 120) S.bag.push(it); else S.gold += salvageValue(it);
   S.gems.push(...(r.lootGems || []));
@@ -307,7 +322,7 @@ UI.done = (r) => {
   if (S.opts.afk) autoEquip(S);
   S.lastSeen = Date.now(); save();
   if (r.retreated) S.opts.afk = false; save(); const afk = !!S.opts.afk; r.destroy();
-  screen(`<div class="result ${won ? 'win' : 'lose'}"><h1>${won ? (r.boss ? r.boss.def.name.toUpperCase() + ' FALLS' : 'VICTORY') : r.retreated ? 'YOU GOT OUT' : 'YOU DIED'}</h1><p class="sub">${won ? 'The district is quiet. For now. A new district opens.' : r.retreated ? 'You slipped away with what you found.' : 'The dead take another one...'}</p>
+  screen(`<div class="result ${won ? 'win' : 'lose'}"><h1>${won ? (r.boss ? r.boss.def.name.toUpperCase() + ' FALLS' : 'VICTORY') : r.retreated ? 'YOU GOT OUT' : 'YOU DIED'}</h1><p class="sub">${won ? 'The district is quiet. For now. A new district opens.' : r.retreated ? 'You slipped away with what you found.' : 'The dead take another one...'}</p>${r.nm || (r.mods && r.mods.size) ? `<p class="sub nm">${nmName(r.nm)}${r.mods && r.mods.size ? ' · ' + [...r.mods].map((k) => MODS[k].name).join(', ') : ''} · +${Math.round((r.rewardMul - 1) * 100)}% rewards</p>` : ''}${nmMsg ? `<p class="sub nm">${nmMsg}</p>` : ''}
     <div class="stats"><div><small>Time</small><b>${Math.floor(r.t / 60)}:${String(Math.floor(r.t % 60)).padStart(2, '0')}</b></div><div><small>Kills</small><b>${r.kills}</b></div><div><small>Gold</small><b>${earned}</b></div><div><small>Scrap</small><b>${r.scrap}</b></div><div><small>Gear</small><b>${items.length}</b></div></div>
     <div class="bag small">${items.map((it) => cardHtml(it)).join('') || '<p class="dim">No gear this time.</p>'}</div>
     ${r.lootGems && r.lootGems.length ? `<div class="gemline">${r.lootGems.map(gemChip).join('')}<small>${r.lootGems.length} gem${r.lootGems.length > 1 ? 's' : ''}</small></div>` : ''}<div class="btns"><button class="go big" data-act="again">Run again</button><button class="big2" data-act="camp">Camp &amp; gear</button></div>${afk ? '<p class="dim" id="afkCount">AFK is on: the next run starts in 6 seconds. Tap <b>Camp &amp; gear</b> to stop it and look at your loot.</p>' : ''}</div>`);

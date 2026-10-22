@@ -210,6 +210,19 @@ export const ENEMIES = {
 };
 
 // ---------- districts: each has its own look, monsters and boss; past the sixth they repeat, ever tougher ----------
+// run modifiers (curses): each makes the run harder and pays more loot, gold and XP
+export const MODS = {
+  swarm: { name: 'Swarm', desc: '40% more enemies', rew: 0.2 },
+  hunt: { name: 'Elite Hunt', desc: 'Elites arrive twice as often', rew: 0.25 },
+  glass: { name: 'Glass Body', desc: 'You take 50% more damage', rew: 0.2 },
+  fast: { name: 'Fast Dead', desc: 'Enemies move 25% faster', rew: 0.2 },
+  mercy: { name: 'No Mercy', desc: 'No health regeneration', rew: 0.2 },
+  armored: { name: 'Armored Dead', desc: 'Enemies have 60% more health', rew: 0.25 },
+  hexed: { name: 'Hexed', desc: 'You fire 15% slower', rew: 0.15 },
+};
+export const MODS_MAX = 3, NM_MAX = 10;
+export const nmName = (n) => (n ? 'Nightmare ' + ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'][n] : 'Normal');
+export function runOpts(S) { const nm = Math.min(S.nm || 0, Math.max(0, S.opts.nm || 0)), mods = (S.opts.mods || []).filter((k) => MODS[k]).slice(0, MODS_MAX); return { nm, mods, rew: 1 + 0.12 * nm + mods.reduce((n, k) => n + MODS[k].rew, 0) }; }
 export const DISTRICTS = [
   { name: 'Graveyard Gate', ground: 'tex_ground', tint: null, boss: 'gravekeeper', elite: 'brute', road: 0.16, puddle: 0.45, tree: 0.18, mix: [['ghost', 40, 0], ['child', 25, 0], ['ghoul', 25, 40], ['crow', 20, 90]] },
   { name: 'Ashen Streets', ground: 'tex_ash', tint: '#6a5a4a', boss: 'houndmaster', elite: 'brute', road: 0.55, puddle: 0.35, tree: 0.06, mix: [['ghoul', 30, 0], ['hound', 30, 15], ['spitter', 20, 50], ['crow', 15, 30], ['ghost', 10, 0]] },

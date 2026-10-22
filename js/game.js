@@ -1,5 +1,5 @@
 // A single Hauntfall run: movement, auto-weapons, swarm, loot, level-ups, boss. Drawn on a canvas, HUD lives in the DOM (ui.js).
-import { rnd, rint, pick, clamp, districtOf, makeGem, GEMS, ENEMIES, WEAPONS, UPGRADES, RARITIES, heroStats, makeItem, baseBonus } from './data.js';
+import { runOpts, rnd, rint, pick, clamp, districtOf, makeGem, GEMS, ENEMIES, WEAPONS, UPGRADES, RARITIES, heroStats, makeItem, baseBonus } from './data.js';
 import { spr, sprite, flashOf, flipped, glow, SHADOW, GEM, GOLD, KNIFE, AXE, HOLE, CONE, SPLAT, LEAF, FOG, FLARE, gemSprite, PUDDLE, TUFT, PATCH, frames, FRAME_PAD, TEX } from './art.js';
 const isGun = (s) => s === 'bullet' || s === 'flame' || s === 'grenade';
 const WEAPON_LEN = { katana: 30, sledge: 30, crossbow: 26, nailgun: 18, chainsaw: 26, flame: 30, grenade: 34, sniper: 44, minigun: 34, knife: 14, machete: 26, axe: 22, bat: 28, crowbar: 26, pistol: 16, revolver: 18, smg: 24, shotgun: 32, rifle: 38 };
@@ -25,11 +25,13 @@ export class Run {
   constructor(S, canvas, ui, opts = {}) {
     this.theme = districtOf(S.district); this.mode = opts.mode || 'run'; this.runLen = this.mode === 'haunt' ? 100 : RUN_LEN * (S.opts.speed == null ? 0.75 : S.opts.speed); this.hauntScale = this.mode === 'haunt' ? 1 + (opts.strength || 100) / 220 : 1;
     this.S = S; this.cv = canvas; this.x = canvas.getContext('2d'); this.ui = ui; this.afk = !!opts.afk; this.sound = S.opts.sound !== false;
+    { const ro = this.mode === 'haunt' ? { nm: 0, mods: [], rew: 1 } : runOpts(S); this.nm = ro.nm; this.mods = new Set(ro.mods); this.rewardMul = ro.rew; const M = this.mods;
+      this.hpMulT = (1 + 0.35 * ro.nm) * (M.has('armored') ? 1.6 : 1); this.dmgMulT = 1 + 0.25 * ro.nm; this.spawnMulT = (1 + 0.12 * ro.nm) * (M.has('swarm') ? 1.4 : 1); this.spdMulT = M.has('fast') ? 1.25 : 1; this.eliteGap = M.has('hunt') ? 16 : 32; this.modTaken = M.has('glass') ? 1.5 : 1; }
     this.hs = heroStats(S); this.perkSet = new Set(this.hs.perks || []); this.wRate = WEAPONS[this.hs.weaponKind].rate; this.district = S.district;
-    this.scrap = 0; this.xpMul = 1 + baseBonus(S).xp; this.t = 0; this.over = false; this.paused = false; this.shake = 0; this.kills = 0; this.gold = 0; this.xp = 0; this.level = 1; this.xpNeed = this.needFor(1);
+    this.scrap = 0; this.xpMul = (1 + baseBonus(S).xp) * (1 + ((this.rewardMul || 1) - 1) * 0.5); this.t = 0; this.over = false; this.paused = false; this.shake = 0; this.kills = 0; this.gold = 0; this.xp = 0; this.level = 1; this.xpNeed = this.needFor(1);
     this.hero = { x: 0, y: 0, hp: this.hs.hp, face: 1, inv: 0, flash: 0, vx: 0, vy: 0, aim: 0, bob: 0 };
-    this.maxHp = this.hs.hp; this.dmgMul = 1; this.rateMul = 1; this.extraN = 0; this.extraPierce = 0; this.speedMul = 1; this.magnetMul = 1; this.regen = this.hs.regen; this.crit = this.hs.crit; this.luckMul = 1;
-    this.salt = 0; this.beam = 0; this.fire = 0; this.picked = {}; this.goldMul = 1 + (baseBonus(S).gold || 0); this.dmgTaken = 1; this.turrets = [];
+    this.maxHp = this.hs.hp; this.dmgMul = 1; this.rateMul = this.mods.has('hexed') ? 0.85 : 1; this.extraN = 0; this.extraPierce = 0; this.speedMul = 1; this.magnetMul = 1; this.regen = this.hs.regen; this.crit = this.hs.crit; this.luckMul = 1 + (this.rewardMul - 1) * 0.6;
+    this.salt = 0; this.beam = 0; this.fire = 0; this.picked = {}; this.goldMul = (1 + (baseBonus(S).gold || 0)) * this.rewardMul; this.dmgTaken = 1; this.turrets = [];
     { const sp = this.hs.setSp; if (sp) { this.extraN += sp.extraN; this.salt = Math.max(this.salt, sp.salt); this.beam = Math.max(this.beam, sp.beam); this.fire = Math.max(this.fire, sp.fire); this.xpMul += sp.xp; } this.setTaken = sp ? sp.taken : 1; }
     // survivors who came along: each fights in their own way, scaled by their main skill
     this.crew = (S.squad || []).map((id) => S.base.survivors.find((x) => x.id === id)).filter(Boolean).slice(0, 2).map((sv, i) => ({ sv, role: sv.main, sk: sv.skills[sv.main], x: i ? 34 : -34, y: 10 + i * 8, cd: rnd(1, 3), cd2: 6, face: 1, bob: rnd(0, 6), moving: false, age: 0 }));
@@ -77,7 +79,7 @@ export class Run {
     h.inv = Math.max(0, h.inv - dt); h.flash = Math.max(0, h.flash - dt); h.fire = Math.max(0, (h.fire || 0) - dt); h.recoil = (h.recoil || 0) * Math.pow(0.001, dt); this.punch = Math.max(0, this.punch - dt * 2.2); this.fogT += dt;
     for (const c of this.corpses) c.t += dt; if (this.corpses.length && this.corpses[0].t > this.corpses[0].life) this.corpses.shift();
     for (const d of this.decals) d.t += dt; if (this.decals.length && this.decals[0].t > this.decals[0].life) this.decals.shift();
-    if (this.regen > 0) h.hp = Math.min(this.maxHp, h.hp + this.regen * dt);
+    if (this.regen > 0 && !this.mods.has('mercy')) h.hp = Math.min(this.maxHp, h.hp + this.regen * dt);
     // director
     this.direct(dt);
     this.buildGrid();
@@ -112,11 +114,11 @@ export class Run {
     const t = this.t, dm = 1 + 0.16 * (this.district - 1);
     if (t >= this.runLen && !this.bossOut) { this.spawnBoss(); }
     if (!this.bossOut) {
-      const rate = (1.2 + t / 36) * (1 + 0.5 * (this.district - 1)) * (t < this.bloodUntil ? 2.2 : 1); this.spawnAcc += rate * dt;
+      const rate = (1.2 + t / 36) * (1 + 0.5 * (this.district - 1)) * (t < this.bloodUntil ? 2.2 : 1) * this.spawnMulT; this.spawnAcc += rate * dt;
       const cap = 90 + Math.min(150, t * 0.55);
       while (this.spawnAcc >= 1 && this.enemies.length < cap) { this.spawnAcc -= 1; this.spawnOne(); }
       if (this.spawnAcc > 3) this.spawnAcc = 3;
-      if (t >= this.nextElite && this.nextElite < this.runLen - 10) { const n = 1 + Math.floor(t / 110) + Math.floor((this.district - 1) / 3); for (let i = 0; i < n; i++) this.spawnOne(Math.random() < 0.25 ? (this.theme.elite === 'brute' ? 'wraithlord' : 'brute') : this.theme.elite); this.nextElite += 32; this.ui.toast(n > 1 ? `${n} elites are hunting you!` : `${ENEMIES[this.theme.elite].name} is hunting you!`); sfx('boom', this.sound); this.shake = 0.5; }
+      if (t >= this.nextElite && this.nextElite < this.runLen - 10) { const n = 1 + Math.floor(t / 110) + Math.floor((this.district - 1) / 3); for (let i = 0; i < n; i++) this.spawnOne(Math.random() < 0.25 ? (this.theme.elite === 'brute' ? 'wraithlord' : 'brute') : this.theme.elite); this.nextElite += this.eliteGap; this.ui.toast(n > 1 ? `${n} elites are hunting you!` : `${ENEMIES[this.theme.elite].name} is hunting you!`); sfx('boom', this.sound); this.shake = 0.5; }
       if (t >= this.nextEvent && this.nextEvent < this.runLen - 12) { this.nextEvent += rnd(34, 46); this.event(pick(['crate', 'crate', 'blood', 'hunter'])); }
       if (t >= this.nextWave && this.nextWave < this.runLen - 8) { this.wave++; this.nextWave += 38; const n = 16 + this.wave * 5 + (this.district - 1) * 4, a0 = rnd(0, TAU); for (let i = 0; i < n; i++) { const e = this.spawnOne(); const a = a0 + (i / n) * TAU, R = Math.hypot(this.sw, this.sh) / 2 / this.scale + 60; e.x = this.hero.x + Math.cos(a) * R; e.y = this.hero.y + Math.sin(a) * R; } if (this.ui.banner) this.ui.banner(`Wave ${this.wave}`, 'They surround you'); sfx('boom', this.sound); this.shake = 0.4; }
     }
@@ -132,13 +134,13 @@ export class Run {
     const t = this.t;
     if (!type) { const tab = this.theme.mix.filter((m) => t >= m[2]); let tot = 0; for (const m of tab) tot += m[1]; let r = Math.random() * tot; type = tab[0][0]; for (const m of tab) { if (r < m[1]) { type = m[0]; break; } r -= m[1]; } }
     const def = ENEMIES[type], [x, y] = this.spawnPos(), sc = (1 + t / 100) * Math.pow(2.15, this.district - 1) * this.hauntScale;
-    this.enemies.push({ def, x, y, hp: def.hp * sc, maxHp: def.hp * sc, dmg: def.dmg * (1 + t / 190) * Math.pow(1.5, this.district - 1) * 1.2, r: def.r, vx: 0, vy: 0, flash: 0, ph: rnd(0, TAU), v: rint(1, 2), dash: rnd(1, 3), age: 0, face: 1, cd: rnd(2, 4) });
+    this.enemies.push({ def, x, y, hp: def.hp * sc * this.hpMulT, maxHp: def.hp * sc * this.hpMulT, dmg: this.dmgMulT * def.dmg * (1 + t / 190) * Math.pow(1.5, this.district - 1) * 1.2, r: def.r, vx: 0, vy: 0, flash: 0, ph: rnd(0, TAU), v: rint(1, 2), dash: rnd(1, 3), age: 0, face: 1, cd: rnd(2, 4) });
     return this.enemies[this.enemies.length - 1];
   }
   spawnBoss() {
     this.bossOut = true; for (const e of this.enemies) if (!e.def.boss) e.hp = Math.min(e.hp, 1);
     const def = this.mode === 'haunt' ? ENEMIES.revenant : ENEMIES[this.theme.boss], sc = Math.pow(2.4, this.district - 1) * (this.mode === 'haunt' ? this.hauntScale : 1), a = rnd(0, TAU), R = 460;
-    const b = { def, x: this.hero.x + Math.cos(a) * R, y: this.hero.y + Math.sin(a) * R, hp: def.hp * sc, maxHp: def.hp * sc, dmg: def.dmg * Math.pow(1.4, this.district - 1), r: def.r, vx: 0, vy: 0, flash: 0, ph: 0, v: 1, dash: 0, age: 0, face: 1, cd: 3, cd2: 5, slam: 0 };
+    const b = { def, x: this.hero.x + Math.cos(a) * R, y: this.hero.y + Math.sin(a) * R, hp: def.hp * sc * this.hpMulT, maxHp: def.hp * sc * this.hpMulT, dmg: this.dmgMulT * def.dmg * Math.pow(1.4, this.district - 1), r: def.r, vx: 0, vy: 0, flash: 0, ph: 0, v: 1, dash: 0, age: 0, face: 1, cd: 3, cd2: 5, slam: 0 };
     this.enemies.push(b); this.boss = b; this.ui.toast(this.mode === 'haunt' ? 'THE REVENANT COMES FOR THE CHURCH' : `${def.name.toUpperCase()} RISES`); this.ui.bossBar(true, def.name.toUpperCase()); if (this.ui.banner) this.ui.banner(def.name, this.mode === 'haunt' ? 'The church is under attack' : 'A boss approaches'); this.punch = 1.2; this.shake = 1; sfx('boom', this.sound);
   }
   // ---------- enemies ----------
@@ -150,7 +152,7 @@ export class Run {
       if (e.hp <= 0) { this.kill(e); continue; }
       e.age += dt; e.flash = Math.max(0, e.flash - dt);
       let dx = h.x - e.x, dy = h.y - e.y, d = Math.hypot(dx, dy) || 1; dx /= d; dy /= d;
-      let sp = e.def.speed, mx = dx, my = dy; const fxk = e.def.fx;
+      let sp = e.def.speed * this.spdMulT, mx = dx, my = dy; const fxk = e.def.fx;
       if (e.bleedT > 0) { e.bleedT -= dt; e.hp -= e.bleedD * dt; } if (e.burnT > 0) { e.burnT -= dt; e.hp -= e.burnD * dt; if (this.q < 2 && Math.random() < dt * 7 && this.fx.length < 260) this.fx.push({ k: 's', x: e.x + rnd(-8, 8), y: e.y - e.def.size * 0.4, vx: rnd(-20, 20), vy: rnd(-90, -40), t: 0, life: 0.35, col: '#ff8a30' }); } if (e.slowT > 0) { e.slowT -= dt; sp *= 0.6; }
       for (let zi = 0; zi < this.zones.length; zi++) { const z = this.zones[zi]; if (z.slow && (e.x - z.x) ** 2 + (e.y - z.y) ** 2 < z.r * z.r) { sp *= 0.5; break; } }
       if (fxk === 'ghost') { const w = Math.sin(e.age * 2.2 + e.ph) * 0.7; mx = dx - dy * w; my = dy + dx * w; }
@@ -183,7 +185,7 @@ export class Run {
   ring(x, y, r, dmg) { const h = this.hero; if (Math.hypot(h.x - x, h.y - y) < r + 10) this.hurt(dmg, null); }
   hurt(dmg, from) {
     const h = this.hero; if (h.inv > 0 || this.over) return;
-    const taken = dmg * (100 / (100 + this.hs.armor)) * this.dmgTaken * (this.setTaken || 1); h.hp -= taken; h.inv = 0.55; h.flash = 0.2; this.shake = Math.max(this.shake, 0.25); sfx('hurt', this.sound);
+    const taken = dmg * (100 / (100 + this.hs.armor)) * this.dmgTaken * this.modTaken * (this.setTaken || 1); h.hp -= taken; h.inv = 0.55; h.flash = 0.2; this.shake = Math.max(this.shake, 0.25); sfx('hurt', this.sound);
     this.text(h.x, h.y - 40, '-' + Math.round(taken), '#ff6a6a', 1); if (this.ui.hurt) this.ui.hurt();
   }
   kill(e) {

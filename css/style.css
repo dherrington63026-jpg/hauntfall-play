@@ -184,3 +184,10 @@ button.rc.crew { cursor: pointer; }
 .qrow { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center; background: #151b23; border: 1px solid #2c343e; border-radius: 10px; padding: 9px 10px; margin-top: 7px; } .qrow.done { opacity: 0.5; } .qrow.bonus { border-style: dashed; } .qinfo b { font-size: 13px; } .qinfo small { display: block; color: var(--dim); font-size: 11px; margin-top: 3px; } .qinfo .bar { margin-top: 5px; height: 6px; }
 .panel h2 small { font: 500 11px Inter; color: var(--dim); margin-left: 8px; }
 .qinfo .bar { background: #000a; border-radius: 4px; overflow: hidden; } .qinfo .bar i { display: block; height: 100%; background: linear-gradient(90deg, #c88a20, #ffd36a); }
+
+/* run options */
+.runopt { display: block; margin: 6px 0; font-size: 12px; padding: 7px 10px; border-color: #5a3d78; color: #d8c0ff; }
+.nmrow { display: grid; grid-template-columns: 44px 1fr 44px; gap: 8px; align-items: center; background: #151b23; border: 1px solid #2c343e; border-radius: 10px; padding: 8px; margin: 8px 0; } .nmrow b { font-size: 15px; color: #ff9a8a; } .nmrow small { display: block; color: var(--dim); font-size: 11px; }
+.modlist { display: grid; gap: 6px; } .modrow { display: grid; grid-template-columns: 1fr auto; text-align: left; gap: 2px 8px; padding: 8px 10px; } .modrow small { grid-column: 1; color: var(--dim); font-size: 11px; } .modrow em { grid-row: 1 / span 2; grid-column: 2; align-self: center; color: var(--gold); font-style: normal; font-weight: 800; } .modrow.on { border-color: #ff6a5a; background: #2a1618; }
+.total { text-align: center; margin: 10px 0 0; } .total b { color: var(--gold); }
+.sub.nm { color: #ff9a8a; font-weight: 700; }
