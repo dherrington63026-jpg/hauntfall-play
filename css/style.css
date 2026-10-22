@@ -198,3 +198,8 @@ button.rc.crew { cursor: pointer; }
 .dexcard b { font-size: 12px; } .dexcard small { color: var(--dim); font-size: 10px; line-height: 1.25; } .dexcard.elite { border-color: #8a6a2a; } .dexcard.boss { border-color: #a03a3a; }
 .dexcard.unseen img { filter: brightness(0) opacity(0.55); } .dexcard.unseen b { color: var(--dim); }
 @media (max-width: 560px) { .tabs button { padding: 7px 8px; font-size: 12px; } .top { flex-wrap: wrap; } }
+
+/* talents */
+.tgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; margin-top: 10px; }
+.tbranch { background: #11161d; border: 1px solid #2c343e; border-top: 3px solid var(--bc); border-radius: 12px; padding: 10px; } .tbranch h3 { margin: 0 0 6px; color: var(--bc); font: 700 14px Cinzel; letter-spacing: 0.08em; }
+.tnode { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; padding: 7px 0; border-top: 1px solid #1d242d; } .tnode:first-of-type { border-top: 0; } .tnode.has b { color: #fff; } .tinfo b { font-size: 13px; } .tinfo b em { color: var(--dim); font-style: normal; font-weight: 600; margin-left: 4px; } .tinfo small { display: block; color: #9ee6a0; font-size: 11px; margin: 2px 0 4px; } .tinfo .bar { height: 5px; background: #000a; border-radius: 3px; overflow: hidden; } .tinfo .bar i { display: block; height: 100%; background: var(--bc, #ffd36a); }

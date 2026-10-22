@@ -157,7 +157,8 @@ export function itemScore(it) { if (!it) return 0; let s = 0; const setMul = it.
 // ---------- hero stats from gear ----------
 export function heroStats(S) {
   const t = { dmg: 0, power: 0, rate: 0, hp: 0, armor: 0, speed: 0, crit: 0.05, critdmg: 0, pierce: 0, magnet: 0, luck: 0, regen: 0 };
-  let weapon = null; const B = baseBonus(S); t.dmg += B.dmg; t.rate += B.rate || 0; t.speed += B.speed || 0; t.hp += B.hp; t.regen += B.regen; t.luck += B.luck; t.magnet += B.magnet; t.crit += B.crit;
+  let weapon = null; const B = baseBonus(S); const TL = (k) => talentLvl(S, k);
+  t.dmg += 0.02 * TL('dmg'); t.rate += 0.015 * TL('rate'); t.crit += 0.01 * TL('crit'); t.critdmg += 0.04 * TL('critdmg'); t.hp += 8 * TL('hp'); t.armor += 2 * TL('armor'); t.regen += 0.2 * TL('regen'); t.speed += 0.01 * TL('speed'); t.luck += 0.02 * TL('luck'); t.magnet += 0.04 * TL('magnet'); t.dmg += B.dmg; t.rate += B.rate || 0; t.speed += B.speed || 0; t.hp += B.hp; t.regen += B.regen; t.luck += B.luck; t.magnet += B.magnet; t.crit += B.crit;
   for (const slot of SLOTS) { const it = S.gear[slot]; if (!it) continue; if (slot === 'weapon') weapon = it; for (const k in it.stats) if (!(slot === 'weapon' && k === 'dmg')) t[k] += itemStat(it, k); }
   for (const slot of SLOTS) { const it = S.gear[slot]; if (!it || !it.gems) continue; for (const g of it.gems) { if (!g) continue; const G = GEMS[g.type], m = gemMult(g.tier); t[G.stat] = (t[G.stat] || 0) + G.per * m; if (G.stat2) t[G.stat2] = (t[G.stat2] || 0) + G.per2 * m; } }
   const SB = setBonus(S); for (const k in SB.stats) t[k] = (t[k] || 0) + SB.stats[k];
@@ -210,6 +211,31 @@ export const ENEMIES = {
 };
 
 // ---------- districts: each has its own look, monsters and boss; past the sixth they repeat, ever tougher ----------
+// ---------- talents: permanent upgrades bought with Echoes (earned in runs and haunted nights) ----------
+export const TALENT_BRANCHES = [
+  { id: 'off', name: 'Offense', color: '#ff7a5a' }, { id: 'def', name: 'Defense', color: '#6ab0ff' }, { id: 'for', name: 'Fortune', color: '#ffd36a' }, { id: 'sur', name: 'Survival', color: '#9ae07a' },
+];
+export const TALENTS = {
+  dmg: { name: 'Sharpened', br: 'off', max: 20, base: 3, desc: (L) => `+${L * 2}% damage`, per: '+2% damage' },
+  rate: { name: 'Rapid Hands', br: 'off', max: 20, base: 3, desc: (L) => `+${(L * 1.5).toFixed(1)}% fire rate`, per: '+1.5% fire rate' },
+  crit: { name: 'Lethal Aim', br: 'off', max: 15, base: 4, desc: (L) => `+${L}% crit chance`, per: '+1% crit chance' },
+  critdmg: { name: 'Deep Cuts', br: 'off', max: 15, base: 4, desc: (L) => `+${L * 4}% crit damage`, per: '+4% crit damage' },
+  hp: { name: 'Thick Skin', br: 'def', max: 20, base: 3, desc: (L) => `+${L * 8} health`, per: '+8 health' },
+  armor: { name: 'Iron Will', br: 'def', max: 20, base: 3, desc: (L) => `+${L * 2} armor`, per: '+2 armor' },
+  regen: { name: 'Second Wind', br: 'def', max: 15, base: 4, desc: (L) => `+${(L * 0.2).toFixed(1)} health/sec`, per: '+0.2 health/sec' },
+  speed: { name: 'Light Feet', br: 'def', max: 15, base: 4, desc: (L) => `+${L}% move speed`, per: '+1% move speed' },
+  luck: { name: 'Lucky Charm', br: 'for', max: 20, base: 3, desc: (L) => `+${L * 2}% loot luck`, per: '+2% loot luck' },
+  gold: { name: 'Gold Rush', br: 'for', max: 20, base: 3, desc: (L) => `+${L * 3}% gold from runs`, per: '+3% gold' },
+  magnet: { name: 'Long Reach', br: 'for', max: 15, base: 3, desc: (L) => `+${L * 4}% pickup range`, per: '+4% pickup range' },
+  xp: { name: 'Quick Study', br: 'for', max: 20, base: 3, desc: (L) => `+${L * 3}% XP`, per: '+3% XP' },
+  revive: { name: 'Second Chance', br: 'sur', max: 3, base: 25, desc: (L) => `Once per run, come back at ${20 + L * 15}% health when you would die`, per: 'Better revive' },
+  echo: { name: 'Echo Seeker', br: 'sur', max: 10, base: 6, desc: (L) => `+${L * 5}% Echoes from runs`, per: '+5% Echoes' },
+  haunt: { name: 'Warded Doors', br: 'sur', max: 10, base: 5, desc: (L) => `+${L * 4}% church defense against haunted nights`, per: '+4% church defense' },
+};
+export const talentLvl = (S, k) => (S.tal && S.tal[k]) || 0;
+export const talentCost = (k, L) => Math.round(TALENTS[k].base * Math.pow(L + 1, 1.25));
+export function buyTalent(S, k) { const T = TALENTS[k], L = talentLvl(S, k); if (!T || L >= T.max) return 'max'; const c = talentCost(k, L); if ((S.echo || 0) < c) return 'poor'; S.echo -= c; S.tal = S.tal || {}; S.tal[k] = L + 1; return 'ok'; }
+export const echoGain = (S, kills, won, district, nm) => Math.round((Math.floor(kills / 40) + (won ? 4 + district : 0) + nm * 2) * (1 + 0.05 * talentLvl(S, 'echo')));
 // run modifiers (curses): each makes the run harder and pays more loot, gold and XP
 export const MODS = {
   swarm: { name: 'Swarm', desc: '40% more enemies', rew: 0.2 },
@@ -353,7 +379,7 @@ export function defense(S) {
   const F = flows(S); let d = 0;
   for (const [k, r] of Object.entries(S.base.rooms)) { if (r.lvl < 1) continue; const m = roomMult(S, k, F); if (r.type === 'armory') d += r.lvl * 10 * m; else if (r.type === 'watch') d += r.lvl * 6 * m; else if (r.type === 'chapel') d += r.lvl * 5 * m; }
   for (const sv of S.base.survivors) { const guard = sv.room && ['armory', 'watch', 'chapel'].includes(S.base.rooms[sv.room] && S.base.rooms[sv.room].type); d += sv.skills.weap * (guard ? 5 : 2); }
-  return Math.round(d + heroStats(S).power * 0.4);
+  return Math.round((d + heroStats(S).power * 0.4) * (1 + 0.04 * talentLvl(S, 'haunt')));
 }
 export const cleanseCost = (S, key) => ({ scrap: 6 + 3 * S.base.rooms[key].lvl });
 export function cleanse(S, key) { const r = S.base.rooms[key]; if (!r || !r.haunted) return 'bad'; const c = cleanseCost(S, key); if ((S.scrap || 0) < c.scrap) return 'poor'; S.scrap -= c.scrap; delete r.haunted; return 'ok'; }

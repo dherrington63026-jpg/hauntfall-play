@@ -1,7 +1,7 @@
 // Hauntfall screens and HUD (plain DOM over the canvas).
 import { ensureBook, addStats, mergeKills, syncDex, ACH, achCur, achDone, claimAch, achReady, dexMonsters } from './book.js';
 import { ensureQuests, track, claimable, questText, claimQuest, claimBonus, bonusReady, bonusFor, streakState, claimStreak, streakReward, rewardText } from './quests.js';
-import { MODS, MODS_MAX, NM_MAX, nmName, runOpts } from './data.js';
+import { TALENTS, TALENT_BRANCHES, talentLvl, talentCost, buyTalent, echoGain, MODS, MODS_MAX, NM_MAX, nmName, runOpts } from './data.js';
 import { PERKS, GEMS, GEM_KEYS, GEM_TIER, GEM_MAX, gemName, gemText, fuseCost, fuseGems, socketGem, unsocketGem, releaseGems, transmute, transmuteCost, loose, reattune, reattuneCost, dismantle, dismantleValue, SETS, setCounts, setBonus, maxUp, ascend, ascendCost, reforge, reforgeCost, districtName, districtOf, ENEMIES, RARITIES, SLOTS, SLOT_NAME, STAT_LABEL, PCT, WEAPONS, ROOMS, ROOM_ORDER, SKILLS, SKILL_KEYS, SKILL_BOOST, COLS, heroStats, itemStat, itemScore, upCost, salvageValue, autoEquip, writeSave, tickBase, startUpgrade, startBuild, buildOf, builderCount, BUILDERS_MAX, openSlots, newRoomCost, upgradeCost, upgradeSecs, topFloor, slotKey, parseKey, staffSlots, staffOf, survivorById, assign, recruit, beds, capacity, flows, jobOf, makeItem, tickHaunt, resolveHaunt, defense, hauntStrength, cleanse, cleanseCost } from './data.js';
 import { iconUrl } from './art.js';
 
@@ -191,10 +191,10 @@ function refreshBase() {
   for (const bd of S.base.builds) { const left = (bd.end - Date.now()) / 1000; for (const sel of [`[data-build="${bd.key}"]`, `[data-up="${bd.key}"]`, `[data-bld="${bd.key}"]`]) { const t = $(sel); if (t) t.textContent = fmtDur(left); } const bar = $(`[data-buildbar="${bd.key}"]`); if (bar) bar.style.width = Math.min(100, (1 - left / upgradeSecs(S.base.rooms[bd.key].lvl)) * 100) + '%'; }
 }
 let gtab = 'gear';
-const gsub = () => `<div class="gsub">${[['gear', 'Gear'], ['gems', `Gems <small>${S.gems.length}</small>`], ['forge', 'Forge']].map(([k, n]) => `<button data-act="gtab" data-g="${k}" class="${gtab === k ? 'on' : ''}">${n}</button>`).join('')}</div>`;
+const gsub = () => `<div class="gsub">${[['gear', 'Gear'], ['gems', `Gems <small>${S.gems.length}</small>`], ['forge', 'Forge'], ['tal', `Talents${(S.echo || 0) >= 3 ? ' <i class="qdot"></i>' : ''}`]].map(([k, n]) => `<button data-act="gtab" data-g="${k}" class="${gtab === k ? 'on' : ''}">${n}</button>`).join('')}</div>`;
 const gemChip = (g) => `<span class="gem" style="--gc:${GEMS[g.type].color}" title="${gemName(g)}"><i></i><b>${g.tier}</b></span>`;
 function renderGear() {
-  if (gtab === 'gems') return renderGems(); if (gtab === 'forge') return renderForge();
+  if (gtab === 'tal') return renderTalents(); if (gtab === 'gems') return renderGems(); if (gtab === 'forge') return renderForge();
   const hs = heroStats(S), bag = S.bag.slice().sort((a, b) => b.rar - a.rar || itemScore(b) - itemScore(a));
   const eq = SLOTS.map((sl) => S.gear[sl] ? cardHtml(S.gear[sl], `<b class="sl">${SLOT_NAME[sl]}</b>`) : `<div class="itc empty"><b class="sl">${SLOT_NAME[sl]}</b></div>`).join('');
   const detail = sel ? detailHtml(sel) : `<p class="dim">Tap an item to see it. Your stats: damage x${hs.dmgPct.toFixed(2)} · fire rate x${hs.ratePct.toFixed(2)} · ${Math.round(hs.hp)} health · ${hs.armor} armor · ${Math.round(hs.crit * 100)}% crit · speed ${Math.round(hs.speed)}.</p>`;
@@ -207,6 +207,12 @@ function renderGems() {
   const groups = {}; for (const g of S.gems) { const k = g.type + '|' + g.tier; (groups[k] = groups[k] || []).push(g); }
   const rows = Object.entries(groups).sort((a, b) => a[0].split('|')[0].localeCompare(b[0].split('|')[0]) || b[1][0].tier - a[1][0].tier).map(([k, arr]) => { const g = arr[0], can = arr.length >= 3 && g.tier < GEM_MAX; return `<div class="gemrow">${gemChip(g)}<div><b>${gemName(g)}</b><small>${gemText(g)}</small></div><span class="cnt">x${arr.length}</span><button class="${can ? 'go' : ''}" data-act="fuse" data-type="${g.type}" data-tier="${g.tier}" ${can && S.gold >= fuseCost(g.tier) ? '' : 'disabled'}>${g.tier >= GEM_MAX ? 'Max' : `Fuse 3 &rarr; ${GEM_TIER[g.tier + 1]}<small>${fuseCost(g.tier)} gold</small>`}</button></div>`; }).join('');
   screen(`${top()}${gsub()}<div class="body gear"><div class="panel"><div class="bagtop"><h2>Gems</h2><div class="btns"><button class="go" data-act="fuseall">Fuse all</button></div></div><p class="dim">Gems drop from elites and bosses. Socket them into blue, purple, gold and red gear (blue has 1 socket, red has 4). Fuse 3 of the same gem into one better one.</p>${rows || '<p class="dim">No gems yet. Beat elites and bosses to find them.</p>'}</div></div>${msg ? `<div class="msg">${msg}</div>` : ''}`, 'camp', 'g-gems');
+  flashMsg();
+}
+function renderTalents() {
+  const echo = S.echo || 0;
+  const branches = TALENT_BRANCHES.map((b) => `<div class="tbranch" style="--bc:${b.color}"><h3>${b.name}</h3>${Object.entries(TALENTS).filter(([, t]) => t.br === b.id).map(([k, t]) => { const L = talentLvl(S, k), max = L >= t.max, c = max ? 0 : talentCost(k, L), can = !max && echo >= c; return `<div class="tnode ${L ? 'has' : ''}"><div class="tinfo"><b>${t.name} <em>${L}/${t.max}</em></b><small>${L ? t.desc(L) : t.per + ' per level'}</small><div class="bar"><i style="width:${L / t.max * 100}%"></i></div></div><button class="${can ? 'go' : ''}" data-act="talent" data-k="${k}" ${can ? '' : 'disabled'}>${max ? 'Max' : c + ' echoes'}</button></div>`; }).join('')}</div>`).join('');
+  screen(`${top()}${gsub()}<div class="body gear"><div class="panel"><h2>Talents <small>${echo.toLocaleString()} Echoes to spend</small></h2><p class="dim">Echoes are the lingering power of the dead you cut down. Every run earns some: more kills, a boss win and a harder Nightmare earn more. Talents are permanent.</p></div><div class="tgrid">${branches}</div></div>${msg ? `<div class="msg">${msg}</div>` : ''}`, 'camp', 'g-tal');
   flashMsg();
 }
 function renderForge() {
@@ -305,6 +311,7 @@ function handle(act, d) {
   if (act === 'reforge') { const it = find(d.id); if (it) { const r = reforge(S, it); msg = r === 'ok' ? 'The bonuses were reforged.' : 'Not enough scrap.'; if (r === 'ok') save(); } renderGear(); return; }
   if (act === 'upmax') { const it = find(d.id); if (!it) return; const a = it.up; while (it.up < maxUp(it) && S.gold >= upCost(it, S)) { S.gold -= upCost(it, S); it.up++; } if (it.up > a) qtoast(track(S, 'upgrades', it.up - a)); msg = it.up > a ? `${it.name} went from +${a} to +${it.up}.` : ''; save(); renderGear(); return; }
   if (act === 'upgrade') { const it = find(d.id); if (!it || S.gold < upCost(it, S) || it.up >= maxUp(it)) return; S.gold -= upCost(it, S); it.up++; qtoast(track(S, 'upgrades', 1)); msg = `${it.name} is now +${it.up}.`; save(); renderGear(); return; }
+  if (act === 'talent') { const r = buyTalent(S, d.k); msg = r === 'ok' ? `${TALENTS[d.k].name} is now level ${talentLvl(S, d.k)}.` : r === 'poor' ? 'Not enough Echoes.' : 'Already at max.'; if (r === 'ok') save(); renderGear(); return; }
   if (act === 'gtab') { gtab = d.g; sel = null; renderGear(); return; }
   if (act === 'socketpick') { sheet = { kind: 'gempick', id: +d.id, i: +d.i }; renderGear(); return; }
   if (act === 'socketdo') { const it = find(sheet.id); if (it) { socketGem(S, it, sheet.i, +d.gem); save(); } sheet = null; renderGear(); return; }
@@ -328,6 +335,7 @@ function hauntDone(r) {
   for (const it of items) if (S.bag.length < 120) S.bag.push(it); else S.gold += salvageValue(it);
   S.gems.push(...(r.lootGems || []));
   if (won) qtoast(track(S, 'haunts', 1)); { const ab = achSet(); addStats(S, { kills: r.kills, haunts: won ? 1 : 0 }); mergeKills(S, r.killed); syncDex(S); achToast(ab); }
+  if (won) S.echo = (S.echo || 0) + 3;
   const rep = resolveHaunt(S, won, true); save(); r.destroy(); UI.stopAfkTimer();
   screen(`<div class="result ${won ? 'win' : 'lose'}"><h1>${won ? 'THE CHURCH HOLDS' : 'THE CHURCH FALLS'}</h1><p class="sub">${won ? 'You drove the ghosts back from the doors.' : 'The ghosts broke through while you fought.'}</p>
     <div class="stats"><div><small>Kills</small><b>${r.kills}</b></div><div><small>Gold</small><b>${r.gold + (won ? rep.gold : 0)}</b></div><div><small>Scrap</small><b>${r.scrap + (won ? rep.scrap : 0)}</b></div><div><small>Gear</small><b>${items.length}</b></div><div><small>Result</small><b>${won ? 'Held' : 'Lost'}</b></div></div>
@@ -339,6 +347,7 @@ UI.done = (r) => {
   if (r.mode === 'haunt') return hauntDone(r);
   const won = r.won, items = r.lootItems.slice().sort((a, b) => b.rar - a.rar), earned = r.gold + (won ? 120 * S.district : Math.floor(r.t / 10));
   let nmMsg = ''; if (won && r.nm > 0 && r.nm === (S.nm || 0) && S.nm < NM_MAX) { S.nm++; nmMsg = nmName(S.nm) + ' unlocked!'; } else if (won && r.nm === 0 && !(S.nm > 0)) { S.nm = 1; nmMsg = 'Nightmare I unlocked! Find it under Run options.'; }
+  const echoes = echoGain(S, r.kills, won, S.district, r.nm || 0); S.echo = (S.echo || 0) + echoes;
   S.gold += earned; S.scrap = (S.scrap || 0) + r.scrap; S.runs++; S.best = Math.max(S.best, r.kills); if (won) { S.wins++; if (S.district === S.maxDistrict) { S.maxDistrict++; } }
   for (const it of items) if (S.bag.length < 120) S.bag.push(it); else S.gold += salvageValue(it);
   S.gems.push(...(r.lootGems || []));
@@ -347,7 +356,7 @@ UI.done = (r) => {
   if (S.opts.afk) autoEquip(S);
   S.lastSeen = Date.now(); save();
   if (r.retreated) S.opts.afk = false; save(); const afk = !!S.opts.afk; r.destroy();
-  screen(`<div class="result ${won ? 'win' : 'lose'}"><h1>${won ? (r.boss ? r.boss.def.name.toUpperCase() + ' FALLS' : 'VICTORY') : r.retreated ? 'YOU GOT OUT' : 'YOU DIED'}</h1><p class="sub">${won ? 'The district is quiet. For now. A new district opens.' : r.retreated ? 'You slipped away with what you found.' : 'The dead take another one...'}</p>${r.nm || (r.mods && r.mods.size) ? `<p class="sub nm">${nmName(r.nm)}${r.mods && r.mods.size ? ' · ' + [...r.mods].map((k) => MODS[k].name).join(', ') : ''} · +${Math.round((r.rewardMul - 1) * 100)}% rewards</p>` : ''}${nmMsg ? `<p class="sub nm">${nmMsg}</p>` : ''}
+  screen(`<div class="result ${won ? 'win' : 'lose'}"><h1>${won ? (r.boss ? r.boss.def.name.toUpperCase() + ' FALLS' : 'VICTORY') : r.retreated ? 'YOU GOT OUT' : 'YOU DIED'}</h1><p class="sub">${won ? 'The district is quiet. For now. A new district opens.' : r.retreated ? 'You slipped away with what you found.' : 'The dead take another one...'}</p>${r.nm || (r.mods && r.mods.size) ? `<p class="sub nm">${nmName(r.nm)}${r.mods && r.mods.size ? ' · ' + [...r.mods].map((k) => MODS[k].name).join(', ') : ''} · +${Math.round((r.rewardMul - 1) * 100)}% rewards</p>` : ''}${nmMsg ? `<p class="sub nm">${nmMsg}</p>` : ''}<p class="sub nm">+${echoes} Echoes <small>(spend them in Gear &rarr; Talents)</small></p>
     <div class="stats"><div><small>Time</small><b>${Math.floor(r.t / 60)}:${String(Math.floor(r.t % 60)).padStart(2, '0')}</b></div><div><small>Kills</small><b>${r.kills}</b></div><div><small>Gold</small><b>${earned}</b></div><div><small>Scrap</small><b>${r.scrap}</b></div><div><small>Gear</small><b>${items.length}</b></div></div>
     <div class="bag small">${items.map((it) => cardHtml(it)).join('') || '<p class="dim">No gear this time.</p>'}</div>
     ${r.lootGems && r.lootGems.length ? `<div class="gemline">${r.lootGems.map(gemChip).join('')}<small>${r.lootGems.length} gem${r.lootGems.length > 1 ? 's' : ''}</small></div>` : ''}<div class="btns"><button class="go big" data-act="again">Run again</button><button class="big2" data-act="camp">Camp &amp; gear</button></div>${afk ? '<p class="dim" id="afkCount">AFK is on: the next run starts in 6 seconds. Tap <b>Camp &amp; gear</b> to stop it and look at your loot.</p>' : ''}</div>`);

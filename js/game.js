@@ -1,5 +1,5 @@
 // A single Hauntfall run: movement, auto-weapons, swarm, loot, level-ups, boss. Drawn on a canvas, HUD lives in the DOM (ui.js).
-import { runOpts, rnd, rint, pick, clamp, districtOf, makeGem, GEMS, ENEMIES, WEAPONS, UPGRADES, RARITIES, heroStats, makeItem, baseBonus } from './data.js';
+import { talentLvl, runOpts, rnd, rint, pick, clamp, districtOf, makeGem, GEMS, ENEMIES, WEAPONS, UPGRADES, RARITIES, heroStats, makeItem, baseBonus } from './data.js';
 import { spr, sprite, flashOf, flipped, glow, SHADOW, GEM, GOLD, KNIFE, AXE, HOLE, CONE, SPLAT, LEAF, FOG, FLARE, gemSprite, PUDDLE, TUFT, PATCH, frames, FRAME_PAD, TEX } from './art.js';
 const isGun = (s) => s === 'bullet' || s === 'flame' || s === 'grenade';
 const WEAPON_LEN = { katana: 30, sledge: 30, crossbow: 26, nailgun: 18, chainsaw: 26, flame: 30, grenade: 34, sniper: 44, minigun: 34, knife: 14, machete: 26, axe: 22, bat: 28, crowbar: 26, pistol: 16, revolver: 18, smg: 24, shotgun: 32, rifle: 38 };
@@ -28,10 +28,10 @@ export class Run {
     { const ro = this.mode === 'haunt' ? { nm: 0, mods: [], rew: 1 } : runOpts(S); this.nm = ro.nm; this.mods = new Set(ro.mods); this.rewardMul = ro.rew; const M = this.mods;
       this.hpMulT = (1 + 0.35 * ro.nm) * (M.has('armored') ? 1.6 : 1); this.dmgMulT = 1 + 0.25 * ro.nm; this.spawnMulT = (1 + 0.12 * ro.nm) * (M.has('swarm') ? 1.4 : 1); this.spdMulT = M.has('fast') ? 1.25 : 1; this.eliteGap = M.has('hunt') ? 16 : 32; this.modTaken = M.has('glass') ? 1.5 : 1; }
     this.hs = heroStats(S); this.perkSet = new Set(this.hs.perks || []); this.wRate = WEAPONS[this.hs.weaponKind].rate; this.district = S.district;
-    this.scrap = 0; this.xpMul = (1 + baseBonus(S).xp) * (1 + ((this.rewardMul || 1) - 1) * 0.5); this.t = 0; this.over = false; this.paused = false; this.shake = 0; this.kills = 0; this.gold = 0; this.xp = 0; this.level = 1; this.xpNeed = this.needFor(1);
+    this.scrap = 0; this.xpMul = (1 + baseBonus(S).xp + 0.03 * talentLvl(S, 'xp')) * (1 + ((this.rewardMul || 1) - 1) * 0.5); this.t = 0; this.over = false; this.paused = false; this.shake = 0; this.kills = 0; this.gold = 0; this.xp = 0; this.level = 1; this.xpNeed = this.needFor(1);
     this.hero = { x: 0, y: 0, hp: this.hs.hp, face: 1, inv: 0, flash: 0, vx: 0, vy: 0, aim: 0, bob: 0 };
     this.maxHp = this.hs.hp; this.dmgMul = 1; this.rateMul = this.mods.has('hexed') ? 0.85 : 1; this.extraN = 0; this.extraPierce = 0; this.speedMul = 1; this.magnetMul = 1; this.regen = this.hs.regen; this.crit = this.hs.crit; this.luckMul = 1 + (this.rewardMul - 1) * 0.6;
-    this.salt = 0; this.beam = 0; this.fire = 0; this.picked = {}; this.goldMul = (1 + (baseBonus(S).gold || 0)) * this.rewardMul; this.dmgTaken = 1; this.turrets = [];
+    this.salt = 0; this.beam = 0; this.fire = 0; this.picked = {}; this.goldMul = (1 + (baseBonus(S).gold || 0) + 0.03 * talentLvl(S, 'gold')) * this.rewardMul; this.dmgTaken = 1; this.turrets = [];
     { const sp = this.hs.setSp; if (sp) { this.extraN += sp.extraN; this.salt = Math.max(this.salt, sp.salt); this.beam = Math.max(this.beam, sp.beam); this.fire = Math.max(this.fire, sp.fire); this.xpMul += sp.xp; } this.setTaken = sp ? sp.taken : 1; }
     // survivors who came along: each fights in their own way, scaled by their main skill
     this.crew = (S.squad || []).map((id) => S.base.survivors.find((x) => x.id === id)).filter(Boolean).slice(0, 2).map((sv, i) => ({ sv, role: sv.main, sk: sv.skills[sv.main], x: i ? 34 : -34, y: 10 + i * 8, cd: rnd(1, 3), cd2: 6, face: 1, bob: rnd(0, 6), moving: false, age: 0 }));
@@ -91,7 +91,7 @@ export class Run {
     this.updateFx(dt);
     if (this.shake > 0) this.shake = Math.max(0, this.shake - dt * 2.5);
     this.cam.x += (h.x - this.cam.x) * Math.min(1, dt * 9); this.cam.y += (h.y - this.cam.y) * Math.min(1, dt * 9);
-    if (h.hp <= 0) this.end(false);
+    if (h.hp <= 0) { const rv = talentLvl(this.S, 'revive'); if (rv > 0 && !this.revived && this.mode !== 'haunt') { this.revived = true; h.hp = this.maxHp * (0.2 + 0.15 * rv); h.inv = 3; this.ui.toast('Second Chance! You get back up.'); if (this.ui.banner) this.ui.banner('Second Chance', 'You refuse to fall'); this.shake = 1; for (const e of this.enemies) { if (!e.def.boss && Math.hypot(e.x - h.x, e.y - h.y) < 220) { e.vx += (e.x - h.x) * 6; e.vy += (e.y - h.y) * 6; } } } else this.end(false); }
     this.ui.hud(this);
   }
   // ---------- AFK brain ----------
