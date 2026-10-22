@@ -546,6 +546,7 @@ export class Run {
     x.drawImage(s, e.x - s.width / 2 + jx, yy - s.height);
     if (e.flash > 0) { x.globalAlpha = 0.85; x.drawImage(flashOf(s), e.x - s.width / 2 + jx, yy - s.height); }
     x.globalAlpha = 1;
+    if (this.q < 2 && d.glow) { x.globalCompositeOperation = 'lighter'; x.globalAlpha = 0.55 + 0.2 * Math.sin(this.t * 6 + e.ph); x.drawImage(glow(d.glow, 96), e.x - s.height * 0.3, yy - s.height * 0.95, s.height * 0.6, s.height * 0.5); x.globalAlpha = 1; x.globalCompositeOperation = 'source-over'; }
     if (this.q < 2 && d.eye) { x.globalCompositeOperation = 'lighter'; x.drawImage(glow(d.eye, 32), e.x - 11 + (e.face < 0 ? 2 : -2), yy - s.height * 0.86 - 5, 22, 14); x.globalCompositeOperation = 'source-over'; }
     if (e.hp < e.maxHp && !d.boss && e.hp > 0) { const w = d.r * 2, by = yy - s.height - 6; x.fillStyle = 'rgba(0,0,0,.6)'; x.fillRect(e.x - w / 2, by, w, 4); x.fillStyle = d.elite ? '#ff9a3a' : '#e04a4a'; x.fillRect(e.x - w / 2, by, w * Math.max(0, e.hp / e.maxHp), 4); }
   }
@@ -581,6 +582,7 @@ export class Run {
     { const rr = 420 * S * k; l.save(); l.translate(sx(h.x), sy(h.y - 20)); l.rotate(h.aim); l.globalAlpha = 0.85; l.drawImage(CONE, 0, -rr * 0.5, rr, rr); l.restore(); }
     for (const z of this.zones) if (z.fire) hole(z.x, z.y, z.r * 2.4, 0.9);
     for (const b of this.ebul) hole(b.x, b.y, 70, 0.7);
+    { let gl = 0; for (const e of this.enemies) { if (e.def.glow && gl < 10 && Math.abs(e.x - camx) < W / 2 / S + 120 && Math.abs(e.y - camy) < H / 2 / S + 120) { hole(e.x, e.y - e.def.size * 0.5, e.def.size * 1.1, 0.55); gl++; } } }
     if (q < 1) {
       const C = 520; for (let cx = Math.floor((camx - W / 2 / S) / C) - 1; cx <= Math.floor((camx + W / 2 / S) / C) + 1; cx++) for (let cy = Math.floor((camy - H / 2 / S) / C) - 1; cy <= Math.floor((camy + H / 2 / S) / C) + 1; cy++) for (const p of this.props_at(cx, cy)) if (p.t === 'prop_lamp' || p.t === 'prop_pumpkin') hole(p.x, p.y - (p.t === 'prop_lamp' ? 120 : 14), p.t === 'prop_lamp' ? 210 : 90, p.t === 'prop_lamp' ? 0.85 : 0.6);
     }

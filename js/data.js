@@ -208,9 +208,9 @@ export const ENEMIES = {
   plaguedoc: { name: 'The Plague Doctor', sprite: 'boss_plaguedoc', hp: 4700, speed: 44, dmg: 40, r: 42, size: 232, xp: 190, fx: 'boss', boss: true, summon: 'plaguevic', eye: '#7dff6a' },
   warden: { name: 'The Asylum Warden', sprite: 'boss_warden', hp: 5000, speed: 42, dmg: 42, r: 46, size: 240, xp: 200, fx: 'boss', boss: true, summon: 'patient', eye: '#ff3a3a' },
   queen: { name: 'The Crimson Queen', sprite: 'boss_queen', hp: 5600, speed: 40, dmg: 46, r: 44, size: 240, xp: 240, fx: 'boss', boss: true, summon: 'noble', eye: '#ff3a5a' },
-  pumpkinhead: { name: 'Pumpkin Head', sprite: 'en_pumpkinhead', hp: 70, speed: 66, dmg: 13, r: 16, size: 102, xp: 5, fx: 'walk', eye: '#ffb040' },
-  scarecrow: { name: 'Scarecrow', sprite: 'en_scarecrow', hp: 95, speed: 52, dmg: 14, r: 17, size: 112, xp: 6, fx: 'walk', eye: '#ffb040' },
-  pumpkinking: { name: 'The Pumpkin King', sprite: 'boss_pumpkinking', hp: 900, speed: 54, dmg: 30, r: 34, size: 190, xp: 60, fx: 'walk', elite: true, eye: '#ffb040' },
+  pumpkinhead: { name: 'Pumpkin Head', sprite: 'en_pumpkinhead', hp: 70, speed: 66, dmg: 13, r: 17, size: 122, xp: 5, fx: 'walk', eye: '#ffb040', glow: '#ff8a20' },
+  scarecrow: { name: 'Scarecrow', sprite: 'en_scarecrow', hp: 95, speed: 52, dmg: 14, r: 18, size: 132, xp: 6, fx: 'walk', eye: '#ffb040', glow: '#ff7a30' },
+  pumpkinking: { name: 'The Pumpkin King', sprite: 'boss_pumpkinking', hp: 900, speed: 54, dmg: 30, r: 36, size: 220, xp: 60, fx: 'walk', elite: true, eye: '#ffb040', glow: '#ff8a20' },
   gravekeeper: { name: 'The Gravekeeper', sprite: 'boss_gravekeeper', hp: 3800, speed: 42, dmg: 34, r: 42, size: 225, eye: '#6dff6d', xp: 150, fx: 'boss', boss: true },
 };
 
