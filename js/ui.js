@@ -1,6 +1,7 @@
 // Hauntfall screens and HUD (plain DOM over the canvas).
 import { ensureBook, addStats, mergeKills, syncDex, ACH, achCur, achDone, claimAch, achReady, dexMonsters } from './book.js';
 import { ensureQuests, track, claimable, questText, claimQuest, claimBonus, bonusReady, bonusFor, streakState, claimStreak, streakReward, rewardText } from './quests.js';
+import { readyStory, chooseStory, fill, ensureStories } from './stories.js';
 import { TALENTS, TALENT_BRANCHES, talentLvl, talentCost, buyTalent, echoGain, MODS, MODS_MAX, NM_MAX, nmName, runOpts } from './data.js';
 import { PERKS, GEMS, GEM_KEYS, GEM_TIER, GEM_MAX, gemName, gemText, fuseCost, fuseGems, socketGem, unsocketGem, releaseGems, transmute, transmuteCost, loose, reattune, reattuneCost, dismantle, dismantleValue, SETS, setCounts, setBonus, maxUp, ascend, ascendCost, reforge, reforgeCost, districtName, districtOf, ENEMIES, RARITIES, SLOTS, SLOT_NAME, STAT_LABEL, PCT, WEAPONS, ROOMS, ROOM_ORDER, SKILLS, SKILL_KEYS, SKILL_BOOST, COLS, heroStats, itemStat, itemScore, upCost, salvageValue, autoEquip, writeSave, tickBase, startUpgrade, startBuild, buildOf, builderCount, BUILDERS_MAX, openSlots, newRoomCost, upgradeCost, upgradeSecs, topFloor, slotKey, parseKey, staffSlots, staffOf, survivorById, assign, recruit, beds, capacity, flows, jobOf, makeItem, tickHaunt, resolveHaunt, defense, hauntStrength, cleanse, cleanseCost } from './data.js';
 import { iconUrl } from './art.js';
@@ -104,6 +105,11 @@ function skillBars(sv, only) { return SKILL_KEYS.filter((k) => (only ? only.incl
 function svRow(sv, extra = '') { return `<div class="svrow">${portrait(sv)}<div class="svi"><h4>${sv.name} <small>${jobOf(sv)}</small></h4><div class="sks">${skillBars(sv)}</div><p class="dim">${sv.room && S.base.rooms[sv.room] ? 'Working: ' + ROOMS[S.base.rooms[sv.room].type].name : 'Idle'}</p></div>${extra}</div>`; }
 function sheetHtml() {
   if (!sheet) return '';
+  if (sheet.kind === 'story') {
+    if (sheet.res) { const r = sheet.res; return `<div class="sheetbg" data-act="closesheet"><div class="sheet"><div class="shead"><h3>${r.title}</h3><button data-act="closesheet">Close</button></div><p class="story">${r.text}</p>${r.got.length ? `<p class="total">${r.got.join(' · ')}</p>` : ''}${r.last ? '<p class="dim">That is the end of their story, and they will always remember that you listened.</p>' : '<p class="dim">There will be more to hear in a few hours.</p>'}<div class="btns"><button class="go" data-act="closesheet">Back to the church</button></div></div></div>`; }
+    const st = readyStory(S); if (!st) return '';
+    return `<div class="sheetbg"><div class="sheet"><div class="shead"><h3>${st.arc.title} <small>part ${st.n + 1} of 3</small></h3><button data-act="closesheet">Later</button></div><p class="story">${fill(st.beat.text, st.sv)}</p><div class="svlist">${st.beat.ch.map((c, i) => `<button class="storych" data-act="storychoose" data-i="${i}">${fill(c.label, st.sv)}</button>`).join('')}</div></div></div>`;
+  }
   if (sheet.kind === 'runopts') {
     const o = runOpts(S), un = S.nm || 0;
     const mods = Object.entries(MODS).map(([k, m]) => { const on = o.mods.includes(k), full = !on && o.mods.length >= MODS_MAX; return `<button class="modrow ${on ? 'on' : ''}" data-act="modtoggle" data-m="${k}" ${full ? 'disabled' : ''}><b>${m.name}</b><small>${m.desc}</small><em>+${Math.round(m.rew * 100)}%</em></button>`; }).join('');
@@ -168,6 +174,7 @@ function renderCamp() {
       <div class="bright"><h2>Hauntfall Church</h2><p>${WEAPONS[hs.weaponKind].name} · ${Math.round(hs.hp)} health · might ${hs.power} · best ${S.best} kills · ${S.wins} boss kills</p>
       <label class="chk"><input type="checkbox" id="afkChk" ${S.opts.afk ? 'checked' : ''}> AFK combat: explore, fight and loot by itself, then start the next run</label>
       <button class="big" data-act="run">Enter ${districtName(S.district)} <small>district ${S.district} · boss: ${ENEMIES[districtOf(S.district).boss].name}</small></button>
+      ${(() => { const st = readyStory(S); return st ? `<button class="evt" data-act="story">&#9733; ${st.sv.name.split(' ')[0]} has something to tell you <small>${st.arc.title} · part ${st.n + 1} of 3</small></button>` : ''; })()}
       <button class="runopt" data-act="runopts">${(() => { const o = runOpts(S); return o.nm || o.mods.length ? `Run options: ${nmName(o.nm)}${o.mods.length ? ' + ' + o.mods.length + ' curse' + (o.mods.length > 1 ? 's' : '') : ''} · +${Math.round((o.rew - 1) * 100)}% loot` : 'Run options: harder runs, better loot'; })()}</button>
       <div class="squadrow"><span>Crew ${squadOf().length}/2</span>${squadOf().map((sv) => `<span class="chipx">${portrait(sv)}<em>${sv.name.split(' ')[0]}</em></span>`).join('')}<button data-act="squadpick">${squadOf().length ? 'Change' : '+ Bring survivors'}</button></div>
       ${S.maxDistrict > 1 ? `<div class="stepper"><button data-act="dstep" data-s="-1" ${S.district <= 1 ? 'disabled' : ''}>&#9664;</button><span>District ${S.district} of ${S.maxDistrict}</span><button data-act="dstep" data-s="1" ${S.district >= S.maxDistrict ? 'disabled' : ''}>&#9654;</button></div>` : ''}</div></div>
@@ -275,6 +282,8 @@ function handle(act, d) {
   if (act === 'tab') { tab = d.t; sel = null; tab === 'camp' ? renderCamp() : tab === 'quests' ? renderQuests() : tab === 'book' ? renderBook() : renderGear(); return; }
   if (act === 'btab') { btab = d.b; renderBook(); return; }
   if (act === 'claima') { const a = claimAch(S, d.id); if (a) { msg = 'Achievement reward: ' + rewardText(a.rew); save(); } renderBook(); return; }
+  if (act === 'story') { if (readyStory(S)) { sheet = { kind: 'story' }; renderCamp(); } return; }
+  if (act === 'storychoose') { const st = readyStory(S); if (!st) return; const r = chooseStory(S, st.sv.id, +d.i); if (!r) return; if (r.poor) { msg = 'You cannot afford that.'; renderCamp(); return; } save(); sheet = { kind: 'story', res: r }; renderCamp(); return; }
   if (act === 'runopts') { sheet = { kind: 'runopts' }; renderCamp(); return; }
   if (act === 'nmstep') { const o = runOpts(S); S.opts.nm = Math.max(0, Math.min(Math.min(NM_MAX, S.nm || 0), o.nm + +d.s)); save(); renderCamp(); return; }
   if (act === 'modtoggle') { const o = runOpts(S), L = o.mods.slice(); const i = L.indexOf(d.m); if (i >= 0) L.splice(i, 1); else if (L.length < MODS_MAX) L.push(d.m); S.opts.mods = L; save(); renderCamp(); return; }

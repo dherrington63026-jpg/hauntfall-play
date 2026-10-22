@@ -203,3 +203,8 @@ button.rc.crew { cursor: pointer; }
 .tgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; margin-top: 10px; }
 .tbranch { background: #11161d; border: 1px solid #2c343e; border-top: 3px solid var(--bc); border-radius: 12px; padding: 10px; } .tbranch h3 { margin: 0 0 6px; color: var(--bc); font: 700 14px Cinzel; letter-spacing: 0.08em; }
 .tnode { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; padding: 7px 0; border-top: 1px solid #1d242d; } .tnode:first-of-type { border-top: 0; } .tnode.has b { color: #fff; } .tinfo b { font-size: 13px; } .tinfo b em { color: var(--dim); font-style: normal; font-weight: 600; margin-left: 4px; } .tinfo small { display: block; color: #9ee6a0; font-size: 11px; margin: 2px 0 4px; } .tinfo .bar { height: 5px; background: #000a; border-radius: 3px; overflow: hidden; } .tinfo .bar i { display: block; height: 100%; background: var(--bc, #ffd36a); }
+
+/* story events */
+.evt { display: block; width: 100%; margin: 6px 0; padding: 8px 10px; text-align: left; border-color: #c88a20; background: linear-gradient(90deg, #3a2a10, #1c1608); color: #ffe2a0; font-weight: 700; animation: pulseDot 2s infinite; } .evt small { display: block; color: #d8c090; font-weight: 500; font-size: 11px; margin-top: 2px; }
+.story { font-size: 14px; line-height: 1.55; color: #e6e2da; font-style: italic; margin: 10px 0; } .storych { display: block; width: 100%; text-align: left; padding: 11px 12px; margin-top: 7px; font-size: 13px; }
+.sheet h3 small { font: 500 11px Inter; color: var(--dim); margin-left: 6px; }
