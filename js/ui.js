@@ -4,6 +4,7 @@ import { ensureQuests, track, claimable, questText, claimQuest, claimBonus, bonu
 import { give, rewardText as rwText } from './quests.js';
 import { ensureRank, gainRank, runXp, rankNeed, rankRewards } from './rank.js';
 import { HEROES, heroOf } from './heroes.js';
+import { PETS, petOf, petLv, petNeed, petXp } from './pets.js';
 import { EVENT, EV_SHOP, EV_MILESTONES, eventActive, eventDaysLeft, evState } from './data.js';
 import { readyStory, chooseStory, fill, ensureStories } from './stories.js';
 import { TALENTS, TALENT_BRANCHES, talentLvl, talentCost, buyTalent, echoGain, MODS, MODS_MAX, NM_MAX, nmName, runOpts } from './data.js';
@@ -123,7 +124,7 @@ function sheetHtml() {
   }
   if (sheet.kind === 'heroes') {
     const lv = ensureRank(S).lv;
-    return `<div class="sheetbg" data-act="closesheet"><div class="sheet"><div class="shead"><h3>Choose your hero</h3><button data-act="closesheet">Close</button></div><p class="dim">New heroes unlock as your Rank grows. Each one starts every run with a small kit.</p><div class="svlist">${HEROES.filter((h) => hasArt('hero_' + h.id)).map((h) => { const ok = lv >= h.rank, on = S.hero === h.id; return `<div class="herorow ${ok ? '' : 'locked'} ${on ? 'on' : ''}"><img src="art/hero_${h.id}_1.png" alt=""><div><b>${h.name}</b> <small>${h.sub}</small><p>${h.desc}</p></div><button class="${ok && !on ? 'go' : ''}" data-act="pickhero" data-h="${h.id}" ${ok && !on ? '' : 'disabled'}>${on ? 'Chosen' : ok ? 'Choose' : 'Rank ' + h.rank}</button></div>`; }).join('')}</div></div></div>`;
+    return `<div class="sheetbg" data-act="closesheet"><div class="sheet"><div class="shead"><h3>Choose your hero</h3><button data-act="closesheet">Close</button></div><p class="dim">New heroes unlock as your Rank grows. Each one starts every run with a small kit.</p><div class="svlist">${HEROES.filter((h) => hasArt('hero_' + h.id)).map((h) => { const ok = lv >= h.rank, on = S.hero === h.id; return `<div class="herorow ${ok ? '' : 'locked'} ${on ? 'on' : ''}"><img src="art/hero_${h.id}_1.png" alt=""><div><b>${h.name}</b> <small>${h.sub}</small><p>${h.desc}</p></div><button class="${ok && !on ? 'go' : ''}" data-act="pickhero" data-h="${h.id}" ${ok && !on ? '' : 'disabled'}>${on ? 'Chosen' : ok ? 'Choose' : 'Rank ' + h.rank}</button></div>`; }).join('')}</div><h4>Companion</h4><div class="svlist"><div class="herorow ${S.pet ? '' : 'on'}"><div></div><div><b>No companion</b><p>Go out alone.</p></div><button data-act="pickpet" data-p="" ${S.pet ? '' : 'disabled'}>${S.pet ? 'Choose' : 'Chosen'}</button></div>${PETS.filter((p) => hasArt('pet_' + p.id)).map((p) => { const ok = lv >= p.rank, on = S.pet === p.id, L = petLv(S, p.id), pr = (S.pets && S.pets[p.id]) || { xp: 0 }; return `<div class="herorow ${ok ? '' : 'locked'} ${on ? 'on' : ''}"><img src="art/pet_${p.id}.png" alt=""><div><b>${p.name}</b> <small>level ${L}${L < 10 ? ' · ' + pr.xp + '/' + petNeed(L) + ' XP' : ' · max'}</small><p>${p.desc}</p></div><button class="${ok && !on ? 'go' : ''}" data-act="pickpet" data-p="${p.id}" ${ok && !on ? '' : 'disabled'}>${on ? 'Chosen' : ok ? 'Choose' : 'Rank ' + p.rank}</button></div>`; }).join('')}</div></div></div>`;
   }
   if (sheet.kind === 'evshop') {
     const ev = evState(S);
@@ -302,7 +303,8 @@ function renderBook() {
 const qtoast = (arr) => arr.forEach((t) => UI.toast('Quest complete: ' + t));
 function rankBlock(r, won) {
   const x = runXp({ kills: r.kills, won, bossKills: r.bossKills || 0, t: r.t }), lv = gainRank(S, x);
-  return `<p class="sub nm">+${x} Rank XP${lv.length ? ` · <b>RANK ${lv[lv.length - 1].lv}!</b> ${lv.map((l) => l.rewards.map(rwText).join(', ')).join(' · ')}` : ''}</p>`;
+  let pet = ''; { const pd = petOf(S.pet); if (pd) { const g = Math.floor((r.kills || 0) / 8) + (won ? 10 : 0) + Math.floor((r.t || 0) / 30), up = petXp(S, pd.id, g); pet = `<p class="sub nm">${pd.name} +${g} XP${up ? ` · <b>level ${up}!</b>` : ''}</p>`; } }
+  return pet + `<p class="sub nm">+${x} Rank XP${lv.length ? ` · <b>RANK ${lv[lv.length - 1].lv}!</b> ${lv.map((l) => l.rewards.map(rwText).join(', ')).join(' · ')}` : ''}</p>`;
 }
 function rankPanel() {
   const R = ensureRank(S), need = rankNeed(R.lv), next = Array.from({ length: 6 }, (_, i) => { const L = R.lv + 1 + i, rw = rankRewards(S, L), big = L % 5 === 0; return `<div class="sday ${big ? 'now' : ''}"><small>Rank ${L}</small><b>${rw.map(rwText).join(', ')}</b></div>`; }).join('');
@@ -330,6 +332,7 @@ function handle(act, d) {
   if (act === 'storychoose') { const st = readyStory(S); if (!st) return; const r = chooseStory(S, st.sv.id, +d.i); if (!r) return; if (r.poor) { msg = 'You cannot afford that.'; renderCamp(); return; } save(); sheet = { kind: 'story', res: r }; renderCamp(); return; }
   if (act === 'tutok') { S.tut = S.tut || {}; S.tut.camp = true; save(); renderCamp(); return; }
   if (act === 'heroes') { sheet = { kind: 'heroes' }; renderCamp(); return; }
+  if (act === 'pickpet') { const p = petOf(d.p); if (!d.p) { S.pet = null; save(); renderCamp(); return; } if (p && ensureRank(S).lv >= p.rank) { S.pet = p.id; save(); msg = `${p.name} will follow you.`; } renderCamp(); return; }
   if (act === 'pickhero') { const h = HEROES.find((x) => x.id === d.h); if (h && ensureRank(S).lv >= h.rank) { S.hero = h.id; save(); msg = `${h.name} is ready.`; } sheet = null; renderCamp(); return; }
   if (act === 'evshop') { sheet = { kind: 'evshop' }; renderCamp(); return; }
   if (act === 'evclaim') { const ev = evState(S), m = EV_MILESTONES.find((x) => x.n === +d.n); if (m && ev.total >= m.n && !ev.claimed[m.n]) { ev.claimed[m.n] = true; give(S, m.rew); msg = 'Reward: ' + rwText(m.rew); save(); } renderCamp(); return; }

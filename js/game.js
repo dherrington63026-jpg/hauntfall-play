@@ -1,5 +1,6 @@
 // A single Hauntfall run: movement, auto-weapons, swarm, loot, level-ups, boss. Drawn on a canvas, HUD lives in the DOM (ui.js).
 import { HEROES } from './heroes.js';
+import { petOf, petLv } from './pets.js';
 import { Music } from './music.js';
 import { SHRINES, CONTRACTS } from './data.js';
 import { EVOLUTIONS, eventActive, DISTRICTS, talentLvl, runOpts, rnd, rint, pick, clamp, districtOf, makeGem, GEMS, ENEMIES, WEAPONS, UPGRADES, RARITIES, heroStats, makeItem, baseBonus } from './data.js';
@@ -71,6 +72,7 @@ export class Run {
   update(dt) {
     if (this.paused || this.over) return;
     if (this.hitstop > 0) { this.hitstop -= dt; dt *= 0.12; }
+    if (!this.kitDone) { const pd = petOf(this.S.pet); if (pd) { const lv = petLv(this.S, pd.id); this.pet = { def: pd, lv, x: this.hero.x - 30, y: this.hero.y, cd: 2, face: 1, t: 0, lunge: 0, tx: 0, ty: 0, hit: false, pet: true }; if (pd.id === 'cat') { this.crit += 0.05 + 0.005 * lv; this.luckMul *= 1.08; } } }
     if (!this.kitDone) { this.kitDone = true; const HK = HEROES.find((x) => x.id === this.S.hero); if (HK && HK.kit) HK.kit(this); }
     this.t += dt; this.frame = (this.frame || 0) + 1; const h = this.hero;
     if (this.mode === 'run') { if (this.t > 1) this.hint('move', 'Drag your finger anywhere to move. You shoot on your own.'); if (this.t > 22) this.hint('dash', 'Tap DASH to dodge past enemies. Tap BURST when it fills to blast everything near you.'); }
@@ -91,7 +93,7 @@ export class Run {
     for (const d of this.decals) d.t += dt; if (this.decals.length && this.decals[0].t > this.decals[0].life) this.decals.shift();
     if (this.regen > 0 && !this.mods.has('mercy')) h.hp = Math.min(this.maxHp, h.hp + this.regen * dt);
     // director
-    this.direct(dt); this.updateMeta(dt);
+    this.direct(dt); this.updateMeta(dt); if (this.pet) this.updatePet(dt);
     this.buildGrid();
     this.updateEnemies(dt);
     this.updateWeapons(dt);
@@ -174,6 +176,22 @@ export class Run {
   contractDone(c) {
     const h = this.hero; if (this.ui.banner) this.ui.banner('Contract complete', 'Reward: ' + { gem: 'two gems', item: 'two good items', xp: 'a burst of experience', ult: 'a fully charged Ghost Burst' }[c.rew]); sfx('level', this.sound);
     if (c.rew === 'gem') { this.dropGem(h.x + 30, h.y, true); this.dropGem(h.x - 30, h.y, true); } else if (c.rew === 'item') { this.dropItem(h.x + 30, h.y, true); this.dropItem(h.x - 30, h.y, true); } else if (c.rew === 'xp') this.addXp(this.xpNeed * 0.9); else this.ult = this.ultMax;
+  }
+  updatePet(dt) {
+    const p = this.pet, h = this.hero, d = p.def, L = p.lv; p.t += dt; p.cd -= dt;
+    const base = this.hs.weaponDmg * this.dmgMul;
+    if (p.lunge > 0) {                                           // hound lunge: dash out, bite, come back
+      p.lunge -= dt; const k = 1 - p.lunge / 0.45;
+      if (k < 0.4) { p.x += (p.tx - p.x) * Math.min(1, dt * 16); p.y += (p.ty - p.y) * Math.min(1, dt * 16); }
+      else if (!p.hit) { p.hit = true; this.near(p.tx, p.ty, 46, (e) => { if (e.hp > 0 && Math.hypot(e.x - p.tx, e.y - p.ty) < e.r + 36) { const dx = e.x - h.x, dy = e.y - h.y, dd = Math.hypot(dx, dy) || 1; this.hitEnemy(e, base * (0.9 + 0.15 * L), Math.random() < this.crit, 200, dx / dd, dy / dd); } }); this.puff(p.tx, p.ty, '#9ad8ff', 6); }
+      return;
+    }
+    const tx = h.x - h.face * 38, ty = h.y + 6 + Math.sin(p.t * 3) * (d.id === 'raven' || d.id === 'wisp' ? 6 : 1.5);
+    p.x += (tx - p.x) * Math.min(1, dt * 5); p.y += (ty - p.y) * Math.min(1, dt * 5); p.face = h.x >= p.x ? 1 : -1;
+    if (d.id === 'hound' && p.cd <= 0) { const e = this.nearest(300); if (e) { p.cd = Math.max(1.0, 2.2 - 0.08 * L); p.lunge = 0.45; p.hit = false; p.tx = e.x; p.ty = e.y; } else p.cd = 0.4; }
+    else if (d.id === 'raven' && p.cd <= 0) { p.cd = Math.max(0.8, 1.7 - 0.06 * L); let n = 0; for (const e of this.enemies) { if (e.hp <= 0 || Math.hypot(e.x - p.x, e.y - p.y) > 340) continue; this.hitEnemy(e, base * (0.5 + 0.1 * L), false, 40, 0, 0); this.fx.push({ k: 'bolt', x: p.x, y: p.y - 20, x2: e.x, y2: e.y - 20, t: 0, life: 0.12 }); if (++n >= 2) break; } if (!n) p.cd = 0.3; }
+    else if (d.id === 'wisp' && p.cd <= 0) { p.cd = 5; h.hp = Math.min(this.maxHp, h.hp + this.maxHp * (0.012 + 0.002 * L)); this.text(h.x, h.y - 46, '+' + Math.round(this.maxHp * (0.012 + 0.002 * L)), '#8affc8', 1); for (let i = 0; i < 6 && this.fx.length < 260; i++) this.fx.push({ k: 's', x: p.x, y: p.y - 10, vx: rnd(-60, 60), vy: rnd(-90, -20), t: 0, life: 0.5, col: '#8affc8' }); }
+    else if (d.id === 'cat' && p.cd <= 0) { const e = this.nearest(100); if (e) { p.cd = Math.max(0.9, 2.2 - 0.08 * L); this.hitEnemy(e, base * (0.8 + 0.12 * L), Math.random() < this.crit, 60, (e.x - h.x), (e.y - h.y)); this.puff(e.x, e.y - 20, '#c8ffd8', 4); } else p.cd = 0.3; }
   }
   hint(key, text) { const T = (this.S.tut = this.S.tut || {}); if (T[key] || this.mode === 'haunt') return; T[key] = true; if (this.ui.hint) this.ui.hint(text); }
   pickEvent(t) {
@@ -457,7 +475,7 @@ export class Run {
     const list = this.dl || (this.dl = []); list.length = 0; const C = 520;
     for (let cx = Math.floor(x0 / C) - 1; cx <= Math.floor(x1 / C) + 1; cx++) for (let cy = Math.floor(y0 / C) - 1; cy <= Math.floor(y1 / C) + 1; cy++) for (const p of this.props_at(cx, cy)) if (p.x > x0 - 100 && p.x < x1 + 100 && p.y > y0 - 120 && p.y < y1 + 200) list.push(p);
     for (const e of this.enemies) if (e.x > x0 - 80 && e.x < x1 + 80 && e.y > y0 - 80 && e.y < y1 + 80) list.push(e);
-    list.push(h); for (const c of this.crew) list.push(c); for (const t of this.turrets) list.push(t); list.sort((a, b) => a.y - b.y);
+    list.push(h); if (this.pet) list.push(this.pet); for (const c of this.crew) list.push(c); for (const t of this.turrets) list.push(t); list.sort((a, b) => a.y - b.y);
     // gems and loot first (pre-made sprites, no gradients)
     for (const g of this.gems) { const s = g.v >= 5 ? GEM.p : g.v >= 2 ? GEM.b : GEM.g; if (g.x > x0 && g.x < x1 && g.y > y0 && g.y < y1) x.drawImage(s, g.x - 7, g.y - 7); }
     for (const l of this.loot) {
@@ -477,7 +495,7 @@ export class Run {
       else if (z.slow) { x.globalCompositeOperation = 'lighter'; x.globalAlpha = 0.55; x.drawImage(glow('#3a9aff', 128), z.x - z.r, z.y - z.r, z.r * 2, z.r * 2); x.globalAlpha = 1; x.globalCompositeOperation = 'source-over'; }
       else { x.globalCompositeOperation = 'lighter'; const r = z.r * (0.95 + Math.sin(this.t * 14) * 0.05); x.drawImage(glow('#ff8a2a', 128), z.x - r * 1.2, z.y - r * 1.2, r * 2.4, r * 2.4); x.globalCompositeOperation = 'source-over'; }
     }
-    for (let i = 0; i < list.length; i++) { const o = list[i]; if (o === h) this.drawHero(x); else if (o.def) this.drawEnemy(x, o); else if (o.sv) this.drawCrew(x, o); else if (o.turret) this.drawTurret(x, o); else this.drawProp(x, o); }
+    for (let i = 0; i < list.length; i++) { const o = list[i]; if (o === h) this.drawHero(x); else if (o.pet) this.drawPet(x, o); else if (o.def) this.drawEnemy(x, o); else if (o.sv) this.drawCrew(x, o); else if (o.turret) this.drawTurret(x, o); else this.drawProp(x, o); }
     // bullets and effects (additive)
     x.globalCompositeOperation = 'lighter';
     for (const b of this.bullets) {
@@ -555,6 +573,11 @@ export class Run {
     const k = Math.min(hx / (Math.abs(dx) || 1), hy / (Math.abs(dy) || 1)), px = camx + dx * k, py = camy + dy * k, a = Math.atan2(dy, dx);
     x.save(); x.translate(px, py); x.rotate(a); x.fillStyle = col; x.globalAlpha = 0.9; x.beginPath(); x.moveTo(14, 0); x.lineTo(-8, -9); x.lineTo(-4, 0); x.lineTo(-8, 9); x.closePath(); x.fill(); x.strokeStyle = '#000'; x.globalAlpha = 0.6; x.lineWidth = 1.5; x.stroke(); x.restore(); x.globalAlpha = 1;
   }
+  drawPet(x, p) {
+    const d = p.def, s = sprite('pet_' + d.id, 1, d.size), fl = p.face < 0; x.drawImage(SHADOW, p.x - 14, p.y - 4, 28, 9);
+    if (d.id === 'wisp') { x.globalCompositeOperation = 'lighter'; x.globalAlpha = 0.6 + 0.2 * Math.sin(p.t * 5); x.drawImage(glow('#6affd0', 96), p.x - 38, p.y - d.size - 4, 76, 76); x.globalAlpha = 1; x.globalCompositeOperation = 'source-over'; }
+    const img = fl ? flipped(s) : s, lift = d.id === 'raven' || d.id === 'wisp' ? 10 : 0; x.drawImage(img, p.x - img.width / 2, p.y - img.height - lift + 4);
+  }
   drawHero(x) {
     const h = this.hero, moving = h.moving, fr = frames('hero_' + this.S.hero, 1, 100, moving ? 'walk' : 'idle'), s0 = fr[Math.floor(h.bob * (moving ? 0.9 : 0.35)) % fr.length], s = h.face < 0 ? flipped(s0) : s0, bob = 0 + FRAME_PAD(100) * 0;
     x.drawImage(SHADOW, h.x - 20, h.y - 7, 40, 14);
@@ -582,6 +605,7 @@ export class Run {
     { const rr = 420 * S * k; l.save(); l.translate(sx(h.x), sy(h.y - 20)); l.rotate(h.aim); l.globalAlpha = 0.85; l.drawImage(CONE, 0, -rr * 0.5, rr, rr); l.restore(); }
     for (const z of this.zones) if (z.fire) hole(z.x, z.y, z.r * 2.4, 0.9);
     for (const b of this.ebul) hole(b.x, b.y, 70, 0.7);
+    if (this.pet && this.pet.def.id === 'wisp') hole(this.pet.x, this.pet.y - 30, 200, 0.75);
     { let gl = 0; for (const e of this.enemies) { if (e.def.glow && gl < 10 && Math.abs(e.x - camx) < W / 2 / S + 120 && Math.abs(e.y - camy) < H / 2 / S + 120) { hole(e.x, e.y - e.def.size * 0.5, e.def.size * 1.1, 0.55); gl++; } } }
     if (q < 1) {
       const C = 520; for (let cx = Math.floor((camx - W / 2 / S) / C) - 1; cx <= Math.floor((camx + W / 2 / S) / C) + 1; cx++) for (let cy = Math.floor((camy - H / 2 / S) / C) - 1; cy <= Math.floor((camy + H / 2 / S) / C) + 1; cy++) for (const p of this.props_at(cx, cy)) if (p.t === 'prop_lamp' || p.t === 'prop_pumpkin') hole(p.x, p.y - (p.t === 'prop_lamp' ? 120 : 14), p.t === 'prop_lamp' ? 210 : 90, p.t === 'prop_lamp' ? 0.85 : 0.6);
