@@ -1,7 +1,8 @@
 // Hauntfall screens and HUD (plain DOM over the canvas).
 import { ensureBook, addStats, mergeKills, syncDex, ACH, achCur, achDone, claimAch, achReady, dexMonsters } from './book.js';
 import { ensureQuests, track, claimable, questText, claimQuest, claimBonus, bonusReady, bonusFor, streakState, claimStreak, streakReward, rewardText } from './quests.js';
-import { give } from './quests.js';
+import { give, rewardText as rwText } from './quests.js';
+import { EVENT, EV_SHOP, EV_MILESTONES, eventActive, eventDaysLeft, evState } from './data.js';
 import { readyStory, chooseStory, fill, ensureStories } from './stories.js';
 import { TALENTS, TALENT_BRANCHES, talentLvl, talentCost, buyTalent, echoGain, MODS, MODS_MAX, NM_MAX, nmName, runOpts } from './data.js';
 import { PERKS, GEMS, GEM_KEYS, GEM_TIER, GEM_MAX, gemName, gemText, fuseCost, fuseGems, socketGem, unsocketGem, releaseGems, transmute, transmuteCost, loose, reattune, reattuneCost, dismantle, dismantleValue, SETS, setCounts, setBonus, maxUp, ascend, ascendCost, reforge, reforgeCost, districtName, districtOf, ENEMIES, RARITIES, SLOTS, SLOT_NAME, STAT_LABEL, PCT, WEAPONS, ROOMS, ROOM_ORDER, SKILLS, SKILL_KEYS, SKILL_BOOST, COLS, heroStats, itemStat, itemScore, upCost, salvageValue, autoEquip, writeSave, tickBase, startUpgrade, startBuild, buildOf, builderCount, BUILDERS_MAX, openSlots, newRoomCost, upgradeCost, upgradeSecs, topFloor, slotKey, parseKey, staffSlots, staffOf, survivorById, assign, recruit, beds, capacity, flows, jobOf, makeItem, tickHaunt, resolveHaunt, defense, hauntStrength, cleanse, cleanseCost } from './data.js';
@@ -111,6 +112,14 @@ function sheetHtml() {
     const st = readyStory(S); if (!st) return '';
     return `<div class="sheetbg"><div class="sheet"><div class="shead"><h3>${st.arc.title} <small>part ${st.n + 1} of 3</small></h3><button data-act="closesheet">Later</button></div><p class="story">${fill(st.beat.text, st.sv)}</p><div class="svlist">${st.beat.ch.map((c, i) => `<button class="storych" data-act="storychoose" data-i="${i}">${fill(c.label, st.sv)}</button>`).join('')}</div></div></div>`;
   }
+  if (sheet.kind === 'evshop') {
+    const ev = evState(S);
+    const ms = EV_MILESTONES.map((m) => { const got = !!ev.claimed[m.n], ok = ev.total >= m.n; return `<div class="qrow ${got ? 'done' : ''}"><div class="qinfo"><b>Collect ${m.n} pumpkins</b><div class="bar"><i style="width:${Math.min(100, ev.total / m.n * 100)}%"></i></div><small>${Math.min(ev.total, m.n)} / ${m.n} · reward: ${rwText(m.rew)}</small></div><button class="${ok && !got ? 'go' : ''}" data-act="evclaim" data-n="${m.n}" ${ok && !got ? '' : 'disabled'}>${got ? 'Done' : ok ? 'Claim' : 'Active'}</button></div>`; }).join('');
+    const shop = EV_SHOP.map((it) => { const had = it.once && ev.bought[it.id], can = ev.p >= it.cost && !had; return `<div class="qrow ${had ? 'done' : ''}"><div class="qinfo"><b>${it.name}</b><small>${it.desc}</small></div><button class="${can ? 'go' : ''}" data-act="evbuy" data-id="${it.id}" ${can ? '' : 'disabled'}>${had ? 'Owned' : it.cost + ' pumpkins'}</button></div>`; }).join('');
+    return `<div class="sheetbg" data-act="closesheet"><div class="sheet"><div class="shead"><h3>${EVENT.name} <small>${eventDaysLeft()} day${eventDaysLeft() === 1 ? '' : 's'} left</small></h3><button data-act="closesheet">Close</button></div>
+      <p class="dim">Pumpkins drop from monsters during the event, and the new Pumpkin Heads, Scarecrows and the Pumpkin King drop the most. Spend them here before the event ends.</p><p class="total">You have <b>${ev.p}</b> pumpkins · ${ev.total} collected in total</p>
+      <h4>Rewards for collecting</h4>${ms}<h4>Pumpkin Patch</h4>${shop}</div></div>`;
+  }
   if (sheet.kind === 'chal') {
     const rec = S.rec || {}, e = rec.endless || { t: 0, kills: 0, bosses: 0 }, ru = rec.rush || { best: 0, done: 0 }, mm = (t) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
     const eo = (S.wins || 0) >= 1, ro = (S.wins || 0) >= 3;
@@ -183,6 +192,7 @@ function renderCamp() {
       <div class="bright"><h2>Hauntfall Church</h2><p>${WEAPONS[hs.weaponKind].name} · ${Math.round(hs.hp)} health · might ${hs.power} · best ${S.best} kills · ${S.wins} boss kills</p>
       <label class="chk"><input type="checkbox" id="afkChk" ${S.opts.afk ? 'checked' : ''}> AFK combat: explore, fight and loot by itself, then start the next run</label>
       <button class="big" data-act="run">Enter ${districtName(S.district)} <small>district ${S.district} · boss: ${ENEMIES[districtOf(S.district).boss].name}</small></button>
+      ${eventActive() ? `<button class="evbanner" data-act="evshop">${EVENT.name} · ${eventDaysLeft()} day${eventDaysLeft() === 1 ? '' : 's'} left · ${evState(S).p} pumpkins<small>Pumpkin Patch: weapons, gear and rewards for the event</small></button>` : ''}
       ${(() => { const st = readyStory(S); return st ? `<button class="evt" data-act="story">&#9733; ${st.sv.name.split(' ')[0]} has something to tell you <small>${st.arc.title} · part ${st.n + 1} of 3</small></button>` : ''; })()}
       <button class="runopt chbtn" data-act="chalsheet">Challenges: Endless Descent &amp; Boss Rush</button>
       <button class="runopt" data-act="runopts">${(() => { const o = runOpts(S); return o.nm || o.mods.length ? `Run options: ${nmName(o.nm)}${o.mods.length ? ' + ' + o.mods.length + ' curse' + (o.mods.length > 1 ? 's' : '') : ''} · +${Math.round((o.rew - 1) * 100)}% loot` : 'Run options: harder runs, better loot'; })()}</button>
@@ -294,6 +304,9 @@ function handle(act, d) {
   if (act === 'claima') { const a = claimAch(S, d.id); if (a) { msg = 'Achievement reward: ' + rewardText(a.rew); save(); } renderBook(); return; }
   if (act === 'story') { if (readyStory(S)) { sheet = { kind: 'story' }; renderCamp(); } return; }
   if (act === 'storychoose') { const st = readyStory(S); if (!st) return; const r = chooseStory(S, st.sv.id, +d.i); if (!r) return; if (r.poor) { msg = 'You cannot afford that.'; renderCamp(); return; } save(); sheet = { kind: 'story', res: r }; renderCamp(); return; }
+  if (act === 'evshop') { sheet = { kind: 'evshop' }; renderCamp(); return; }
+  if (act === 'evclaim') { const ev = evState(S), m = EV_MILESTONES.find((x) => x.n === +d.n); if (m && ev.total >= m.n && !ev.claimed[m.n]) { ev.claimed[m.n] = true; give(S, m.rew); msg = 'Reward: ' + rwText(m.rew); save(); } renderCamp(); return; }
+  if (act === 'evbuy') { const ev = evState(S), it = EV_SHOP.find((x) => x.id === d.id); if (it && ev.p >= it.cost && !(it.once && ev.bought[it.id])) { ev.p -= it.cost; if (it.once) ev.bought[it.id] = true; if (it.id === 'cannon') { const w = makeItem(S, 1 + Math.floor((S.maxDistrict || 1) * 1.4), 4, 'weapon', 'pumpcannon'); w.name = "Hallows' Pumpkin Cannon"; w.perks = ['explosive', 'vamp']; S.bag.push(w); } else give(S, it.rew); msg = 'Bought: ' + it.name; save(); } renderCamp(); return; }
   if (act === 'chalsheet') { sheet = { kind: 'chal' }; renderCamp(); return; }
   if (act === 'chal') { sheet = null; cb.startMode(d.m); return; }
   if (act === 'runopts') { sheet = { kind: 'runopts' }; renderCamp(); return; }
@@ -392,12 +405,13 @@ UI.done = (r) => {
   S.gold += earned; S.scrap = (S.scrap || 0) + r.scrap; S.runs++; S.best = Math.max(S.best, r.kills); if (won) { S.wins++; if (S.district === S.maxDistrict) { S.maxDistrict++; } }
   for (const it of items) if (S.bag.length < 120) S.bag.push(it); else S.gold += salvageValue(it);
   S.gems.push(...(r.lootGems || []));
+  if (r.pumpkins) { const ev = evState(S); ev.p += r.pumpkins; ev.total += r.pumpkins; }
   const achBefore = achSet(); addStats(S, { kills: r.kills, elites: r.eliteKills || 0, bosses: won ? 1 : 0, crates: r.crates || 0, gems: (r.lootGems || []).length, runs: 1 }); mergeKills(S, r.killed); syncDex(S); achToast(achBefore);
   qtoast([...track(S, 'kills', r.kills), ...track(S, 'elites', r.eliteKills || 0), ...track(S, 'crates', r.crates || 0), ...track(S, 'gems', (r.lootGems || []).length), ...track(S, 'gold', earned), ...track(S, 'runs', 1), ...track(S, 'minutes', Math.floor(r.t / 60)), ...(won ? track(S, 'bosses', 1) : [])]);
   if (S.opts.afk) autoEquip(S);
   S.lastSeen = Date.now(); save();
   if (r.retreated) S.opts.afk = false; save(); const afk = !!S.opts.afk; r.destroy();
-  screen(`<div class="result ${won ? 'win' : 'lose'}"><h1>${won ? (r.boss ? r.boss.def.name.toUpperCase() + ' FALLS' : 'VICTORY') : r.retreated ? 'YOU GOT OUT' : 'YOU DIED'}</h1><p class="sub">${won ? 'The district is quiet. For now. A new district opens.' : r.retreated ? 'You slipped away with what you found.' : 'The dead take another one...'}</p>${r.nm || (r.mods && r.mods.size) ? `<p class="sub nm">${nmName(r.nm)}${r.mods && r.mods.size ? ' · ' + [...r.mods].map((k) => MODS[k].name).join(', ') : ''} · +${Math.round((r.rewardMul - 1) * 100)}% rewards</p>` : ''}${nmMsg ? `<p class="sub nm">${nmMsg}</p>` : ''}<p class="sub nm">+${echoes} Echoes <small>(spend them in Gear &rarr; Talents)</small></p>
+  screen(`<div class="result ${won ? 'win' : 'lose'}"><h1>${won ? (r.boss ? r.boss.def.name.toUpperCase() + ' FALLS' : 'VICTORY') : r.retreated ? 'YOU GOT OUT' : 'YOU DIED'}</h1><p class="sub">${won ? 'The district is quiet. For now. A new district opens.' : r.retreated ? 'You slipped away with what you found.' : 'The dead take another one...'}</p>${r.nm || (r.mods && r.mods.size) ? `<p class="sub nm">${nmName(r.nm)}${r.mods && r.mods.size ? ' · ' + [...r.mods].map((k) => MODS[k].name).join(', ') : ''} · +${Math.round((r.rewardMul - 1) * 100)}% rewards</p>` : ''}${nmMsg ? `<p class="sub nm">${nmMsg}</p>` : ''}<p class="sub nm">+${echoes} Echoes <small>(spend them in Gear &rarr; Talents)</small></p>${r.pumpkins ? `<p class="sub nm">+${r.pumpkins} pumpkins <small>(Pumpkin Patch in the church)</small></p>` : ''}
     <div class="stats"><div><small>Time</small><b>${Math.floor(r.t / 60)}:${String(Math.floor(r.t % 60)).padStart(2, '0')}</b></div><div><small>Kills</small><b>${r.kills}</b></div><div><small>Gold</small><b>${earned}</b></div><div><small>Scrap</small><b>${r.scrap}</b></div><div><small>Gear</small><b>${items.length}</b></div></div>
     <div class="bag small">${items.map((it) => cardHtml(it)).join('') || '<p class="dim">No gear this time.</p>'}</div>
     ${r.lootGems && r.lootGems.length ? `<div class="gemline">${r.lootGems.map(gemChip).join('')}<small>${r.lootGems.length} gem${r.lootGems.length > 1 ? 's' : ''}</small></div>` : ''}<div class="btns"><button class="go big" data-act="again">Run again</button><button class="big2" data-act="camp">Camp &amp; gear</button></div>${afk ? '<p class="dim" id="afkCount">AFK is on: the next run starts in 6 seconds. Tap <b>Camp &amp; gear</b> to stop it and look at your loot.</p>' : ''}</div>`);

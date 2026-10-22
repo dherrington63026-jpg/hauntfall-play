@@ -32,6 +32,7 @@ function rewardFor(S, big) {
   return { type: 'item', rar: big ? 3 : 1 };
 }
 export function rewardText(r) {
+  if (r.type === 'echo') return `${r.n} Echoes`;
   if (r.type === 'gold') return `${r.n.toLocaleString()} gold`;
   if (r.type === 'scrap') return `${r.n} scrap`;
   if (r.type === 'gem') return `${r.n} gem${r.n > 1 ? 's' : ''}`;
@@ -67,7 +68,7 @@ export function track(S, key, n = 1) {
   return done;
 }
 export function give(S, r) {
-  if (r.type === 'gold') S.gold += r.n; else if (r.type === 'scrap') S.scrap = (S.scrap || 0) + r.n;
+  if (r.type === 'echo') S.echo = (S.echo || 0) + r.n; else if (r.type === 'gold') S.gold += r.n; else if (r.type === 'scrap') S.scrap = (S.scrap || 0) + r.n;
   else if (r.type === 'gem') for (let i = 0; i < r.n; i++) S.gems.push(makeGem(S, r.tier));
   else S.bag.push(makeItem(S, 1 + Math.floor((S.maxDistrict || 1) * 1.4), r.rar, undefined, undefined, 0.4));
 }

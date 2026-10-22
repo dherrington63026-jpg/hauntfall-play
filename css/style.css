@@ -211,3 +211,6 @@ button.rc.crew { cursor: pointer; }
 
 /* challenges */
 .chbtn { border-color: #8a3a3a; color: #ffb0a0; } .chcard { background: #151b23; border: 1px solid #2c343e; border-radius: 12px; padding: 12px; margin-top: 10px; } .chcard h4 { margin: 0 0 4px; color: #ff9a8a; font: 700 15px Cinzel; } .chcard .rec { color: var(--gold); font-weight: 700; font-size: 12px; margin: 6px 0; } .chcard button { width: 100%; }
+
+/* hallows eve */
+.evbanner { display: block; width: 100%; margin: 6px 0; padding: 8px 10px; text-align: left; border-color: #e07a20; background: linear-gradient(90deg, #4a2406, #1e1006); color: #ffb060; font-weight: 800; } .evbanner small { display: block; color: #e0b080; font-weight: 500; font-size: 11px; margin-top: 2px; }

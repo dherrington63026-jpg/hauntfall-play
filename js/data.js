@@ -35,6 +35,7 @@ export const WEAPONS = {
   grenade:  { name: 'Grenade Launcher', icon: 'grenade', dmg: 2.6, rate: 1.3, n: 1, spread: 0.03, speed: 520, life: 0.9, pierce: 0, range: 480, shape: 'grenade', tier: 4, boom: 90 },
   sniper:   { name: 'Sniper Rifle', icon: 'sniper', dmg: 9.5, rate: 1.7, n: 1, spread: 0, speed: 1700, life: 0.7, pierce: 9, range: 820, shape: 'bullet', tier: 4 },
   minigun:  { name: 'Minigun', icon: 'minigun', dmg: 0.42, rate: 0.045, n: 1, spread: 0.2, speed: 900, life: 0.6, pierce: 1, range: 430, shape: 'bullet', tier: 5 },
+  pumpcannon: { name: 'Pumpkin Cannon', icon: 'pumpkincannon', dmg: 3.2, rate: 1.0, n: 1, spread: 0.03, speed: 480, life: 0.9, pierce: 0, range: 470, shape: 'pumpkin', tier: 9, boom: 115, perk: 'burn' },
   rifle:    { name: 'Rifle', icon: 'rifle', dmg: 3.4, rate: 0.6, n: 1, spread: 0.01, speed: 1200, life: 0.7, pierce: 5, range: 620, shape: 'bullet', tier: 4 },
 };
 const WEAPON_BY_TIER = [['knife'], ['machete', 'axe', 'bat', 'crowbar', 'katana', 'sledge'], ['pistol', 'revolver', 'crossbow', 'nailgun'], ['smg', 'shotgun', 'chainsaw', 'flame'], ['rifle', 'grenade', 'sniper'], ['minigun']];
@@ -207,10 +208,31 @@ export const ENEMIES = {
   plaguedoc: { name: 'The Plague Doctor', sprite: 'boss_plaguedoc', hp: 4700, speed: 44, dmg: 40, r: 42, size: 232, xp: 190, fx: 'boss', boss: true, summon: 'plaguevic', eye: '#7dff6a' },
   warden: { name: 'The Asylum Warden', sprite: 'boss_warden', hp: 5000, speed: 42, dmg: 42, r: 46, size: 240, xp: 200, fx: 'boss', boss: true, summon: 'patient', eye: '#ff3a3a' },
   queen: { name: 'The Crimson Queen', sprite: 'boss_queen', hp: 5600, speed: 40, dmg: 46, r: 44, size: 240, xp: 240, fx: 'boss', boss: true, summon: 'noble', eye: '#ff3a5a' },
+  pumpkinhead: { name: 'Pumpkin Head', sprite: 'en_pumpkinhead', hp: 70, speed: 66, dmg: 13, r: 16, size: 102, xp: 5, fx: 'walk', eye: '#ffb040' },
+  scarecrow: { name: 'Scarecrow', sprite: 'en_scarecrow', hp: 95, speed: 52, dmg: 14, r: 17, size: 112, xp: 6, fx: 'walk', eye: '#ffb040' },
+  pumpkinking: { name: 'The Pumpkin King', sprite: 'boss_pumpkinking', hp: 900, speed: 54, dmg: 30, r: 34, size: 190, xp: 60, fx: 'walk', elite: true, eye: '#ffb040' },
   gravekeeper: { name: 'The Gravekeeper', sprite: 'boss_gravekeeper', hp: 3800, speed: 42, dmg: 34, r: 42, size: 225, eye: '#6dff6d', xp: 150, fx: 'boss', boss: true },
 };
 
 // ---------- districts: each has its own look, monsters and boss; past the sixth they repeat, ever tougher ----------
+// ---------- Hallows' Eve limited event ----------
+export const EVENT = { id: 'hallows', name: "Hallows' Eve", start: '2026-10-22', end: '2026-11-01' };
+const dkey = (t) => { const d = new Date(t), p = (n) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`; };
+export const eventActive = (now = Date.now()) => { const k = dkey(now); return k >= EVENT.start && k <= EVENT.end; };
+export const eventDaysLeft = (now = Date.now()) => Math.max(0, Math.round((new Date(EVENT.end + 'T23:59:59').getTime() - now) / 86400000));
+export const evState = (S) => (S.ev = S.ev || { p: 0, total: 0, claimed: {}, bought: {} });
+export const EV_MILESTONES = [
+  { n: 30, rew: { type: 'gold', n: 300 } }, { n: 100, rew: { type: 'gem', tier: 2, n: 2 } }, { n: 250, rew: { type: 'item', rar: 3 } },
+  { n: 500, rew: { type: 'echo', n: 60 } }, { n: 800, rew: { type: 'item', rar: 4 } }, { n: 1200, rew: { type: 'gem', tier: 5, n: 3 } },
+];
+export const EV_SHOP = [
+  { id: 'cannon', name: 'Pumpkin Cannon', desc: 'A gold weapon that lobs exploding pumpkins. Only sold during the event.', cost: 120, once: true },
+  { id: 'chest', name: 'Haunted Gear Chest', desc: 'One purple piece of gear.', cost: 60, rew: { type: 'item', rar: 3 } },
+  { id: 'gems', name: 'Gem Pouch', desc: '3 gems.', cost: 35, rew: { type: 'gem', tier: 3, n: 3 } },
+  { id: 'echo', name: 'Echo Jar', desc: '40 Echoes for your talents.', cost: 25, rew: { type: 'echo', n: 40 } },
+  { id: 'gold', name: 'Sack of Gold', desc: '500 gold.', cost: 15, rew: { type: 'gold', n: 500 } },
+  { id: 'scrap', name: 'Scrap Crate', desc: '80 scrap.', cost: 15, rew: { type: 'scrap', n: 80 } },
+];
 // ---------- talents: permanent upgrades bought with Echoes (earned in runs and haunted nights) ----------
 export const TALENT_BRANCHES = [
   { id: 'off', name: 'Offense', color: '#ff7a5a' }, { id: 'def', name: 'Defense', color: '#6ab0ff' }, { id: 'for', name: 'Fortune', color: '#ffd36a' }, { id: 'sur', name: 'Survival', color: '#9ae07a' },
