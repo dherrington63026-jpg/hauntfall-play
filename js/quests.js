@@ -66,7 +66,7 @@ export function track(S, key, n = 1) {
   }
   return done;
 }
-function give(S, r) {
+export function give(S, r) {
   if (r.type === 'gold') S.gold += r.n; else if (r.type === 'scrap') S.scrap = (S.scrap || 0) + r.n;
   else if (r.type === 'gem') for (let i = 0; i < r.n; i++) S.gems.push(makeGem(S, r.tier));
   else S.bag.push(makeItem(S, 1 + Math.floor((S.maxDistrict || 1) * 1.4), r.rar, undefined, undefined, 0.4));

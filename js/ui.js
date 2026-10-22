@@ -1,4 +1,5 @@
 // Hauntfall screens and HUD (plain DOM over the canvas).
+import { ensureBook, addStats, mergeKills, syncDex, ACH, achCur, achDone, claimAch, achReady, dexMonsters } from './book.js';
 import { ensureQuests, track, claimable, questText, claimQuest, claimBonus, bonusReady, bonusFor, streakState, claimStreak, streakReward, rewardText } from './quests.js';
 import { MODS, MODS_MAX, NM_MAX, nmName, runOpts } from './data.js';
 import { PERKS, GEMS, GEM_KEYS, GEM_TIER, GEM_MAX, gemName, gemText, fuseCost, fuseGems, socketGem, unsocketGem, releaseGems, transmute, transmuteCost, loose, reattune, reattuneCost, dismantle, dismantleValue, SETS, setCounts, setBonus, maxUp, ascend, ascendCost, reforge, reforgeCost, districtName, districtOf, ENEMIES, RARITIES, SLOTS, SLOT_NAME, STAT_LABEL, PCT, WEAPONS, ROOMS, ROOM_ORDER, SKILLS, SKILL_KEYS, SKILL_BOOST, COLS, heroStats, itemStat, itemScore, upCost, salvageValue, autoEquip, writeSave, tickBase, startUpgrade, startBuild, buildOf, builderCount, BUILDERS_MAX, openSlots, newRoomCost, upgradeCost, upgradeSecs, topFloor, slotKey, parseKey, staffSlots, staffOf, survivorById, assign, recruit, beds, capacity, flows, jobOf, makeItem, tickHaunt, resolveHaunt, defense, hauntStrength, cleanse, cleanseCost } from './data.js';
@@ -56,7 +57,7 @@ let tab = 'camp', sel = null, msg = '';
 UI.camp = () => { tab = 'camp'; sel = null; sheet = null; const d = tickBase(S); const ev = tickHaunt(S); if (ev) sheet = { kind: 'hauntreport', rep: ev }; save(); if (d) { const r = S.base.rooms[d]; msg = `${ROOMS[r.type].name} ${r.lvl === 1 ? 'is ready' : 'is now level ' + r.lvl}!`; } renderCamp(); };
 function top() {
   const hs = heroStats(S);
-  return `<div class="top"><h1>HAUNTFALL</h1><div class="tabs"><button data-act="tab" data-t="camp" class="${tab === 'camp' ? 'on' : ''}">Church</button><button data-act="tab" data-t="gear" class="${tab === 'gear' ? 'on' : ''}">Gear</button><button data-act="tab" data-t="quests" class="${tab === 'quests' ? 'on' : ''}">Quests${claimable(S) ? ' <i class="qdot"></i>' : ''}</button></div><div class="stat"><span class="gold">${S.gold.toLocaleString()} gold</span><span class="scrap">${Math.floor(S.scrap || 0).toLocaleString()} scrap</span><span>Might ${hs.power}</span></div></div>`;
+  return `<div class="top"><h1>HAUNTFALL</h1><div class="tabs"><button data-act="tab" data-t="camp" class="${tab === 'camp' ? 'on' : ''}">Church</button><button data-act="tab" data-t="gear" class="${tab === 'gear' ? 'on' : ''}">Gear</button><button data-act="tab" data-t="quests" class="${tab === 'quests' ? 'on' : ''}">Quests${claimable(S) ? ' <i class="qdot"></i>' : ''}</button><button data-act="tab" data-t="book" class="${tab === 'book' ? 'on' : ''}">Book${achReady(S) ? ' <i class="qdot"></i>' : ''}</button></div><div class="stat"><span class="gold">${S.gold.toLocaleString()} gold</span><span class="scrap">${Math.floor(S.scrap || 0).toLocaleString()} scrap</span><span>Might ${hs.power}</span></div></div>`;
 }
 const fmtDur = (sec) => { sec = Math.max(0, Math.ceil(sec)); const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), x = sec % 60; return h ? `${h}h ${String(m).padStart(2, '0')}m` : m ? `${m}m ${String(x).padStart(2, '0')}s` : `${x}s`; };
 let sheet = null; // { kind: 'room'|'build'|'door'|'crew'|'staff'|'assign', key?, id? }
@@ -229,6 +230,27 @@ function detailHtml(it) {
 }
 function flashMsg() { if (!msg) return; const m = msg; setTimeout(() => { if (msg === m) { msg = ''; const el = $('.msg'); if (el) el.remove(); } }, 2600); }
 const perkBox = (it) => { if (it.slot !== 'weapon') return ''; const ks = [...(it.perks || [])]; const W = WEAPONS[it.kind]; if (W && W.perk && !ks.includes(W.perk)) ks.unshift(W.perk); return ks.length ? `<div class="perks">${ks.map((k) => `<p><b>${PERKS[k].name}</b> <small>${PERKS[k].desc}</small></p>`).join('')}</div>` : ''; };
+let btab = 'ach';
+const achToast = (before) => { for (const a of ACH) if (!before.has(a.id) && !S.ach[a.id] && achDone(S, a)) UI.toast('Achievement: ' + a.name); };
+const achSet = () => { ensureBook(S); syncDex(S); return new Set(ACH.filter((a) => S.ach[a.id] || achDone(S, a)).map((a) => a.id)); };
+const wDesc = (W) => { const kind = W.melee ? 'Melee' : W.shape === 'flame' ? 'Flame' : W.shape === 'grenade' ? 'Explosive' : W.shape === 'bullet' ? 'Gun' : 'Thrown'; return `${kind} · ${(1 / W.rate).toFixed(1)} attacks/sec · damage ${W.dmg}${W.n > 1 ? ' x' + W.n : ''}${W.perk ? ' · ' + PERKS[W.perk].name : ''}`; };
+function renderBook() {
+  ensureBook(S); syncDex(S);
+  const sub = `<div class="gsub">${[['ach', 'Achievements'], ['mon', 'Monsters'], ['wep', 'Weapons']].map(([k, n]) => `<button data-act="btab" data-b="${k}" class="${btab === k ? 'on' : ''}">${n}</button>`).join('')}</div>`;
+  let body = '';
+  if (btab === 'ach') {
+    const rows = ACH.slice().sort((a, b) => (S.ach[a.id] ? 1 : 0) - (S.ach[b.id] ? 1 : 0) || (achDone(S, b) ? 1 : 0) - (achDone(S, a) ? 1 : 0)).map((a) => { const c = achCur(S, a), ok = c >= a.target, got = !!S.ach[a.id]; return `<div class="qrow ${got ? 'done' : ''}"><div class="qinfo"><b>${a.name}</b><small>${a.desc} · reward: ${rewardText(a.rew)}</small><div class="bar"><i style="width:${c / a.target * 100}%"></i></div><small>${c.toLocaleString()} / ${a.target.toLocaleString()}</small></div><button class="${ok && !got ? 'go' : ''}" data-act="claima" data-id="${a.id}" ${ok && !got ? '' : 'disabled'}>${got ? 'Done' : ok ? 'Claim' : 'Locked'}</button></div>`; }).join('');
+    body = `<div class="panel"><h2>Achievements <small>${Object.keys(S.ach).length} / ${ACH.length}</small></h2>${rows}</div>`;
+  } else if (btab === 'mon') {
+    const list = dexMonsters(), seen = list.filter((m) => (S.dex.seen[m.sprite] || 0) > 0).length;
+    body = `<div class="panel"><h2>Monsters <small>${seen} / ${list.length} met</small></h2><div class="dexgrid">${list.map((m) => { const n = S.dex.seen[m.sprite] || 0; return `<div class="dexcard ${n ? '' : 'unseen'} ${m.boss ? 'boss' : m.elite ? 'elite' : ''}"><img src="art/${m.sprite}_1.png" alt=""><b>${n ? m.name : '???'}</b><small>${n ? (m.boss ? 'Boss · ' : m.elite ? 'Elite · ' : '') + n.toLocaleString() + ' defeated' : 'not met yet'}</small></div>`; }).join('')}</div></div>`;
+  } else {
+    const list = Object.entries(WEAPONS), have = list.filter(([k]) => S.dex.weapons[k]).length;
+    body = `<div class="panel"><h2>Weapons <small>${have} / ${list.length} found</small></h2><div class="dexgrid wide">${list.map(([k, W]) => { const ok = !!S.dex.weapons[k]; return `<div class="dexcard ${ok ? '' : 'unseen'}"><img src="art/icon_${W.icon}.png" alt=""><b>${ok ? W.name : '???'}</b><small>${ok ? wDesc(W) : 'not found yet'}</small></div>`; }).join('')}</div></div>`;
+  }
+  screen(`${top()}${sub}<div class="body gear">${body}</div>${msg ? `<div class="msg">${msg}</div>` : ''}`, 'camp', 'book-' + btab);
+  flashMsg();
+}
 const qtoast = (arr) => arr.forEach((t) => UI.toast('Quest complete: ' + t));
 function renderQuests() {
   ensureQuests(S);
@@ -244,7 +266,9 @@ function renderQuests() {
 const find = (id) => S.bag.find((x) => x.id === +id) || SLOTS.map((s) => S.gear[s]).find((x) => x && x.id === +id);
 function handle(act, d) {
   if (!$('#screen').classList.contains('on') && act !== 'again') return;
-  if (act === 'tab') { tab = d.t; sel = null; tab === 'camp' ? renderCamp() : tab === 'quests' ? renderQuests() : renderGear(); return; }
+  if (act === 'tab') { tab = d.t; sel = null; tab === 'camp' ? renderCamp() : tab === 'quests' ? renderQuests() : tab === 'book' ? renderBook() : renderGear(); return; }
+  if (act === 'btab') { btab = d.b; renderBook(); return; }
+  if (act === 'claima') { const a = claimAch(S, d.id); if (a) { msg = 'Achievement reward: ' + rewardText(a.rew); save(); } renderBook(); return; }
   if (act === 'runopts') { sheet = { kind: 'runopts' }; renderCamp(); return; }
   if (act === 'nmstep') { const o = runOpts(S); S.opts.nm = Math.max(0, Math.min(Math.min(NM_MAX, S.nm || 0), o.nm + +d.s)); save(); renderCamp(); return; }
   if (act === 'modtoggle') { const o = runOpts(S), L = o.mods.slice(); const i = L.indexOf(d.m); if (i >= 0) L.splice(i, 1); else if (L.length < MODS_MAX) L.push(d.m); S.opts.mods = L; save(); renderCamp(); return; }
@@ -303,7 +327,7 @@ function hauntDone(r) {
   const won = r.won, items = r.lootItems.slice().sort((a, b) => b.rar - a.rar); S.gold += r.gold; S.scrap = (S.scrap || 0) + r.scrap;
   for (const it of items) if (S.bag.length < 120) S.bag.push(it); else S.gold += salvageValue(it);
   S.gems.push(...(r.lootGems || []));
-  if (won) qtoast(track(S, 'haunts', 1));
+  if (won) qtoast(track(S, 'haunts', 1)); { const ab = achSet(); addStats(S, { kills: r.kills, haunts: won ? 1 : 0 }); mergeKills(S, r.killed); syncDex(S); achToast(ab); }
   const rep = resolveHaunt(S, won, true); save(); r.destroy(); UI.stopAfkTimer();
   screen(`<div class="result ${won ? 'win' : 'lose'}"><h1>${won ? 'THE CHURCH HOLDS' : 'THE CHURCH FALLS'}</h1><p class="sub">${won ? 'You drove the ghosts back from the doors.' : 'The ghosts broke through while you fought.'}</p>
     <div class="stats"><div><small>Kills</small><b>${r.kills}</b></div><div><small>Gold</small><b>${r.gold + (won ? rep.gold : 0)}</b></div><div><small>Scrap</small><b>${r.scrap + (won ? rep.scrap : 0)}</b></div><div><small>Gear</small><b>${items.length}</b></div><div><small>Result</small><b>${won ? 'Held' : 'Lost'}</b></div></div>
@@ -318,6 +342,7 @@ UI.done = (r) => {
   S.gold += earned; S.scrap = (S.scrap || 0) + r.scrap; S.runs++; S.best = Math.max(S.best, r.kills); if (won) { S.wins++; if (S.district === S.maxDistrict) { S.maxDistrict++; } }
   for (const it of items) if (S.bag.length < 120) S.bag.push(it); else S.gold += salvageValue(it);
   S.gems.push(...(r.lootGems || []));
+  const achBefore = achSet(); addStats(S, { kills: r.kills, elites: r.eliteKills || 0, bosses: won ? 1 : 0, crates: r.crates || 0, gems: (r.lootGems || []).length, runs: 1 }); mergeKills(S, r.killed); syncDex(S); achToast(achBefore);
   qtoast([...track(S, 'kills', r.kills), ...track(S, 'elites', r.eliteKills || 0), ...track(S, 'crates', r.crates || 0), ...track(S, 'gems', (r.lootGems || []).length), ...track(S, 'gold', earned), ...track(S, 'runs', 1), ...track(S, 'minutes', Math.floor(r.t / 60)), ...(won ? track(S, 'bosses', 1) : [])]);
   if (S.opts.afk) autoEquip(S);
   S.lastSeen = Date.now(); save();
