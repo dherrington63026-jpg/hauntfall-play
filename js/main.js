@@ -19,7 +19,7 @@ $('#pause').addEventListener('click', (e) => {
   const b = e.target.closest('[data-pa]'); if (!b) return; $('#pause').classList.remove('on');
   if (b.dataset.pa === 'resume') { if (run) run.paused = false; } else if (run) { run.retreat(); }
 });
-UI.init(S, { start: () => start(), startHaunt: () => { const H = S.base.haunt && S.base.haunt.active; if (H) start({ mode: 'haunt', strength: H.strength }); }, pause, run: () => run, makeDrop: () => makeItem(S, 1 + S.maxDistrict * 2, Math.random() < 0.25 ? 2 : Math.random() < 0.6 ? 1 : 0) });
+UI.init(S, { start: () => start(), startMode: (m) => start({ mode: m, afk: false }), startHaunt: () => { const H = S.base.haunt && S.base.haunt.active; if (H) start({ mode: 'haunt', strength: H.strength }); }, pause, run: () => run, makeDrop: () => makeItem(S, 1 + S.maxDistrict * 2, Math.random() < 0.25 ? 2 : Math.random() < 0.6 ? 1 : 0) });
 let ema = 16.7, slow = 0;
 function frame(t) {
   requestAnimationFrame(frame); const raw = Math.min(250, (t - last) || 16.7); last = t;

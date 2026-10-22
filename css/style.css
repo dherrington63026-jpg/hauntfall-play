@@ -208,3 +208,6 @@ button.rc.crew { cursor: pointer; }
 .evt { display: block; width: 100%; margin: 6px 0; padding: 8px 10px; text-align: left; border-color: #c88a20; background: linear-gradient(90deg, #3a2a10, #1c1608); color: #ffe2a0; font-weight: 700; animation: pulseDot 2s infinite; } .evt small { display: block; color: #d8c090; font-weight: 500; font-size: 11px; margin-top: 2px; }
 .story { font-size: 14px; line-height: 1.55; color: #e6e2da; font-style: italic; margin: 10px 0; } .storych { display: block; width: 100%; text-align: left; padding: 11px 12px; margin-top: 7px; font-size: 13px; }
 .sheet h3 small { font: 500 11px Inter; color: var(--dim); margin-left: 6px; }
+
+/* challenges */
+.chbtn { border-color: #8a3a3a; color: #ffb0a0; } .chcard { background: #151b23; border: 1px solid #2c343e; border-radius: 12px; padding: 12px; margin-top: 10px; } .chcard h4 { margin: 0 0 4px; color: #ff9a8a; font: 700 15px Cinzel; } .chcard .rec { color: var(--gold); font-weight: 700; font-size: 12px; margin: 6px 0; } .chcard button { width: 100%; }

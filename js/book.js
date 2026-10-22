@@ -59,6 +59,10 @@ export const ACH = [
   { id: 'f1', name: 'Home Sweet Home', desc: 'Build 5 rooms in the church', target: 5, cur: (S) => rooms(S).length, rew: SC(40) },
   { id: 'f2', name: 'Fortress', desc: 'Build 15 rooms in the church', target: 15, cur: (S) => rooms(S).length, rew: IT(3) },
   { id: 'f3', name: 'Foundations', desc: 'Raise your rooms to 50 levels in total', target: 50, cur: (S) => rooms(S).reduce((n, r) => n + r.lvl, 0), rew: GM(3, 2) },
+  { id: 'x1', name: 'Into the Dark', desc: 'Last 5 minutes in Endless Descent', target: 300, cur: (S) => (S.rec && S.rec.endless ? S.rec.endless.t : 0), rew: GM(2, 2) },
+  { id: 'x2', name: 'No End In Sight', desc: 'Last 15 minutes in Endless Descent', target: 900, cur: (S) => (S.rec && S.rec.endless ? S.rec.endless.t : 0), rew: IT(4) },
+  { id: 'x3', name: 'Rush Hour', desc: 'Beat 6 bosses in a Boss Rush', target: 6, cur: (S) => (S.rec && S.rec.rush ? S.rec.rush.best : 0), rew: GM(4, 2) },
+  { id: 'x4', name: 'Boss Rush Champion', desc: 'Clear the whole Boss Rush', target: 1, cur: (S) => (S.rec && S.rec.rush ? S.rec.rush.done : 0), rew: IT(5) },
   { id: 'p1', name: 'Neighbours', desc: 'Have 5 survivors living in the church', target: 5, cur: (S) => (S.base ? S.base.survivors.length : 0), rew: SC(40) },
   { id: 'p2', name: 'A Real Community', desc: 'Have 15 survivors living in the church', target: 15, cur: (S) => (S.base ? S.base.survivors.length : 0), rew: IT(4) },
 ];

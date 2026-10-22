@@ -1,6 +1,7 @@
 // Hauntfall screens and HUD (plain DOM over the canvas).
 import { ensureBook, addStats, mergeKills, syncDex, ACH, achCur, achDone, claimAch, achReady, dexMonsters } from './book.js';
 import { ensureQuests, track, claimable, questText, claimQuest, claimBonus, bonusReady, bonusFor, streakState, claimStreak, streakReward, rewardText } from './quests.js';
+import { give } from './quests.js';
 import { readyStory, chooseStory, fill, ensureStories } from './stories.js';
 import { TALENTS, TALENT_BRANCHES, talentLvl, talentCost, buyTalent, echoGain, MODS, MODS_MAX, NM_MAX, nmName, runOpts } from './data.js';
 import { PERKS, GEMS, GEM_KEYS, GEM_TIER, GEM_MAX, gemName, gemText, fuseCost, fuseGems, socketGem, unsocketGem, releaseGems, transmute, transmuteCost, loose, reattune, reattuneCost, dismantle, dismantleValue, SETS, setCounts, setBonus, maxUp, ascend, ascendCost, reforge, reforgeCost, districtName, districtOf, ENEMIES, RARITIES, SLOTS, SLOT_NAME, STAT_LABEL, PCT, WEAPONS, ROOMS, ROOM_ORDER, SKILLS, SKILL_KEYS, SKILL_BOOST, COLS, heroStats, itemStat, itemScore, upCost, salvageValue, autoEquip, writeSave, tickBase, startUpgrade, startBuild, buildOf, builderCount, BUILDERS_MAX, openSlots, newRoomCost, upgradeCost, upgradeSecs, topFloor, slotKey, parseKey, staffSlots, staffOf, survivorById, assign, recruit, beds, capacity, flows, jobOf, makeItem, tickHaunt, resolveHaunt, defense, hauntStrength, cleanse, cleanseCost } from './data.js';
@@ -33,7 +34,7 @@ UI.hud = (r) => {
   const now = performance.now(); if (now - lastHud < 50) return; lastHud = now;
   $('#hpFill').style.width = Math.max(0, r.hero.hp / r.maxHp * 100) + '%'; $('#hpText').textContent = `${Math.ceil(Math.max(0, r.hero.hp))} / ${Math.round(r.maxHp)}`;
   $('#xpFill').style.width = (r.xp / r.xpNeed * 100) + '%'; $('#lvl').textContent = r.level;
-  const t = Math.max(0, Math.floor(r.bossOut ? r.t - r.runLen : r.runLen - r.t)); $('#timer').textContent = r.bossOut ? 'BOSS' : `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
+  const t = Math.max(0, Math.floor(r.bossOut ? r.t - r.runLen : r.runLen - r.t)), el = Math.floor(r.t); $('#timer').textContent = r.mode === 'rush' ? `BOSS ${Math.min(r.rushIdx + 1, r.rushList.length)}/${r.rushList.length}` : r.mode === 'endless' ? `${Math.floor(el / 60)}:${String(el % 60).padStart(2, '0')}` : r.bossOut ? 'BOSS' : `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
   $('#gold').textContent = r.gold; $('#kills').textContent = r.kills; document.body.classList.toggle('low', r.hero.hp < r.maxHp * 0.3);
 };
 UI.toast = (msg) => { const d = document.createElement('div'); d.className = 'toast'; d.textContent = msg; $('#toasts').appendChild(d); setTimeout(() => d.remove(), 2200); while ($('#toasts').children.length > 3) $('#toasts').firstChild.remove(); };
@@ -110,6 +111,14 @@ function sheetHtml() {
     const st = readyStory(S); if (!st) return '';
     return `<div class="sheetbg"><div class="sheet"><div class="shead"><h3>${st.arc.title} <small>part ${st.n + 1} of 3</small></h3><button data-act="closesheet">Later</button></div><p class="story">${fill(st.beat.text, st.sv)}</p><div class="svlist">${st.beat.ch.map((c, i) => `<button class="storych" data-act="storychoose" data-i="${i}">${fill(c.label, st.sv)}</button>`).join('')}</div></div></div>`;
   }
+  if (sheet.kind === 'chal') {
+    const rec = S.rec || {}, e = rec.endless || { t: 0, kills: 0, bosses: 0 }, ru = rec.rush || { best: 0, done: 0 }, mm = (t) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
+    const eo = (S.wins || 0) >= 1, ro = (S.wins || 0) >= 3;
+    return `<div class="sheetbg" data-act="closesheet"><div class="sheet"><div class="shead"><h3>Challenges</h3><button data-act="closesheet">Close</button></div>
+      <div class="chcard"><h4>Endless Descent</h4><p class="dim">No boss to end it. The dead keep coming, stronger every minute, with a boss every few minutes. Survive as long as you can.</p><p class="rec">Best: ${e.t ? `${mm(e.t)} · ${e.bosses} boss${e.bosses === 1 ? '' : 'es'}` : 'not played yet'}</p><button class="${eo ? 'go' : ''}" data-act="chal" data-m="endless" ${eo ? '' : 'disabled'}>${eo ? 'Start' : 'Beat a district boss to unlock'}</button></div>
+      <div class="chcard"><h4>Boss Rush</h4><p class="dim">All twelve bosses, one after another, from the Gravekeeper to the Crimson Queen. A short breather and a free upgrade between each. Heals a little with every win.</p><p class="rec">Best: ${ru.best} / 12 bosses${ru.done ? ` · cleared ${ru.done}x` : ''}</p><button class="${ro ? 'go' : ''}" data-act="chal" data-m="rush" ${ro ? '' : 'disabled'}>${ro ? 'Start' : 'Beat 3 district bosses to unlock'}</button></div>
+      <p class="dim">Your Run options (Nightmare and curses) apply to challenges too, for more rewards.</p></div></div>`;
+  }
   if (sheet.kind === 'runopts') {
     const o = runOpts(S), un = S.nm || 0;
     const mods = Object.entries(MODS).map(([k, m]) => { const on = o.mods.includes(k), full = !on && o.mods.length >= MODS_MAX; return `<button class="modrow ${on ? 'on' : ''}" data-act="modtoggle" data-m="${k}" ${full ? 'disabled' : ''}><b>${m.name}</b><small>${m.desc}</small><em>+${Math.round(m.rew * 100)}%</em></button>`; }).join('');
@@ -175,6 +184,7 @@ function renderCamp() {
       <label class="chk"><input type="checkbox" id="afkChk" ${S.opts.afk ? 'checked' : ''}> AFK combat: explore, fight and loot by itself, then start the next run</label>
       <button class="big" data-act="run">Enter ${districtName(S.district)} <small>district ${S.district} · boss: ${ENEMIES[districtOf(S.district).boss].name}</small></button>
       ${(() => { const st = readyStory(S); return st ? `<button class="evt" data-act="story">&#9733; ${st.sv.name.split(' ')[0]} has something to tell you <small>${st.arc.title} · part ${st.n + 1} of 3</small></button>` : ''; })()}
+      <button class="runopt chbtn" data-act="chalsheet">Challenges: Endless Descent &amp; Boss Rush</button>
       <button class="runopt" data-act="runopts">${(() => { const o = runOpts(S); return o.nm || o.mods.length ? `Run options: ${nmName(o.nm)}${o.mods.length ? ' + ' + o.mods.length + ' curse' + (o.mods.length > 1 ? 's' : '') : ''} · +${Math.round((o.rew - 1) * 100)}% loot` : 'Run options: harder runs, better loot'; })()}</button>
       <div class="squadrow"><span>Crew ${squadOf().length}/2</span>${squadOf().map((sv) => `<span class="chipx">${portrait(sv)}<em>${sv.name.split(' ')[0]}</em></span>`).join('')}<button data-act="squadpick">${squadOf().length ? 'Change' : '+ Bring survivors'}</button></div>
       ${S.maxDistrict > 1 ? `<div class="stepper"><button data-act="dstep" data-s="-1" ${S.district <= 1 ? 'disabled' : ''}>&#9664;</button><span>District ${S.district} of ${S.maxDistrict}</span><button data-act="dstep" data-s="1" ${S.district >= S.maxDistrict ? 'disabled' : ''}>&#9654;</button></div>` : ''}</div></div>
@@ -284,6 +294,8 @@ function handle(act, d) {
   if (act === 'claima') { const a = claimAch(S, d.id); if (a) { msg = 'Achievement reward: ' + rewardText(a.rew); save(); } renderBook(); return; }
   if (act === 'story') { if (readyStory(S)) { sheet = { kind: 'story' }; renderCamp(); } return; }
   if (act === 'storychoose') { const st = readyStory(S); if (!st) return; const r = chooseStory(S, st.sv.id, +d.i); if (!r) return; if (r.poor) { msg = 'You cannot afford that.'; renderCamp(); return; } save(); sheet = { kind: 'story', res: r }; renderCamp(); return; }
+  if (act === 'chalsheet') { sheet = { kind: 'chal' }; renderCamp(); return; }
+  if (act === 'chal') { sheet = null; cb.startMode(d.m); return; }
   if (act === 'runopts') { sheet = { kind: 'runopts' }; renderCamp(); return; }
   if (act === 'nmstep') { const o = runOpts(S); S.opts.nm = Math.max(0, Math.min(Math.min(NM_MAX, S.nm || 0), o.nm + +d.s)); save(); renderCamp(); return; }
   if (act === 'modtoggle') { const o = runOpts(S), L = o.mods.slice(); const i = L.indexOf(d.m); if (i >= 0) L.splice(i, 1); else if (L.length < MODS_MAX) L.push(d.m); S.opts.mods = L; save(); renderCamp(); return; }
@@ -339,6 +351,25 @@ document.addEventListener('click', (e) => { const b = e.target.closest('.itc[dat
 UI.gearTab = () => { tab = 'gear'; renderGear(); };
 
 // ---------- results ----------
+function challengeDone(r) {
+  S.rec = S.rec || {}; S.rec.endless = S.rec.endless || { t: 0, kills: 0, bosses: 0 }; S.rec.rush = S.rec.rush || { best: 0, done: 0 };
+  const rush = r.mode === 'rush', won = r.won, items = r.lootItems.slice().sort((a, b) => b.rar - a.rar); let gold, echoes, newBest = false;
+  if (rush) { gold = r.gold + r.bossKills * 100; echoes = r.bossKills * 8 + (won ? 40 : 0); if (r.bossKills > S.rec.rush.best) { S.rec.rush.best = r.bossKills; newBest = true; } if (won) { S.rec.rush.done++; give(S, { type: 'item', rar: 4 }); give(S, { type: 'item', rar: 4 }); give(S, { type: 'gem', tier: 4, n: 3 }); } }
+  else { gold = r.gold + Math.floor(r.t * 1.2); echoes = Math.floor(r.t / 20) + r.bossKills * 6; if (r.t > S.rec.endless.t) { S.rec.endless = { t: Math.floor(r.t), kills: r.kills, bosses: r.bossKills }; newBest = true; } }
+  echoes = Math.round(echoes * (1 + 0.05 * talentLvl(S, 'echo')));
+  S.gold += gold; S.echo = (S.echo || 0) + echoes; S.scrap = (S.scrap || 0) + r.scrap; S.runs++;
+  for (const it of items) if (S.bag.length < 120) S.bag.push(it); else S.gold += salvageValue(it);
+  S.gems.push(...(r.lootGems || []));
+  const ab = achSet(); addStats(S, { kills: r.kills, elites: r.eliteKills || 0, bosses: r.bossKills || 0, crates: r.crates || 0, gems: (r.lootGems || []).length, runs: 1 }); mergeKills(S, r.killed); syncDex(S); achToast(ab);
+  qtoast([...track(S, 'kills', r.kills), ...track(S, 'elites', r.eliteKills || 0), ...track(S, 'crates', r.crates || 0), ...track(S, 'gems', (r.lootGems || []).length), ...track(S, 'runs', 1), ...track(S, 'bosses', r.bossKills || 0), ...track(S, 'minutes', Math.floor(r.t / 60))]);
+  S.lastSeen = Date.now(); save(); r.destroy(); UI.stopAfkTimer();
+  const mm = (t) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
+  screen(`<div class="result ${won ? 'win' : 'lose'}"><h1>${rush ? (won ? 'BOSS RUSH CLEARED' : 'THE RUSH ENDS') : 'YOU FELL'}</h1><p class="sub">${rush ? `You beat ${r.bossKills} of ${r.rushList.length} bosses.` : `You lasted ${mm(r.t)} and beat ${r.bossKills} boss${r.bossKills === 1 ? '' : 'es'}.`}${newBest ? ' <b>New personal best!</b>' : ''}</p>
+    <div class="stats"><div><small>Time</small><b>${mm(r.t)}</b></div><div><small>Kills</small><b>${r.kills}</b></div><div><small>Gold</small><b>${gold}</b></div><div><small>Echoes</small><b>${echoes}</b></div><div><small>Gear</small><b>${items.length}</b></div></div>
+    <div class="bag small">${items.map((it) => cardHtml(it)).join('')}</div>${r.lootGems && r.lootGems.length ? `<div class="gemline">${r.lootGems.map(gemChip).join('')}</div>` : ''}
+    <div class="btns"><button class="go big" data-act="chal" data-m="${r.mode}">Try again</button><button class="big" data-act="camp">Back to the church</button></div></div>`, 'camp');
+  $('#screen').onclick = null;
+}
 function hauntDone(r) {
   const won = r.won, items = r.lootItems.slice().sort((a, b) => b.rar - a.rar); S.gold += r.gold; S.scrap = (S.scrap || 0) + r.scrap;
   for (const it of items) if (S.bag.length < 120) S.bag.push(it); else S.gold += salvageValue(it);
@@ -354,6 +385,7 @@ function hauntDone(r) {
 }
 UI.done = (r) => {
   if (r.mode === 'haunt') return hauntDone(r);
+  if (r.mode === 'endless' || r.mode === 'rush') return challengeDone(r);
   const won = r.won, items = r.lootItems.slice().sort((a, b) => b.rar - a.rar), earned = r.gold + (won ? 120 * S.district : Math.floor(r.t / 10));
   let nmMsg = ''; if (won && r.nm > 0 && r.nm === (S.nm || 0) && S.nm < NM_MAX) { S.nm++; nmMsg = nmName(S.nm) + ' unlocked!'; } else if (won && r.nm === 0 && !(S.nm > 0)) { S.nm = 1; nmMsg = 'Nightmare I unlocked! Find it under Run options.'; }
   const echoes = echoGain(S, r.kills, won, S.district, r.nm || 0); S.echo = (S.echo || 0) + echoes;
