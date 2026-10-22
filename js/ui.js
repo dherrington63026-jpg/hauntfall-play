@@ -1,4 +1,5 @@
 // Hauntfall screens and HUD (plain DOM over the canvas).
+import { ensureQuests, track, claimable, questText, claimQuest, claimBonus, bonusReady, bonusFor, streakState, claimStreak, streakReward, rewardText } from './quests.js';
 import { PERKS, GEMS, GEM_KEYS, GEM_TIER, GEM_MAX, gemName, gemText, fuseCost, fuseGems, socketGem, unsocketGem, releaseGems, transmute, transmuteCost, loose, reattune, reattuneCost, dismantle, dismantleValue, SETS, setCounts, setBonus, maxUp, ascend, ascendCost, reforge, reforgeCost, districtName, districtOf, ENEMIES, RARITIES, SLOTS, SLOT_NAME, STAT_LABEL, PCT, WEAPONS, ROOMS, ROOM_ORDER, SKILLS, SKILL_KEYS, SKILL_BOOST, COLS, heroStats, itemStat, itemScore, upCost, salvageValue, autoEquip, writeSave, tickBase, startUpgrade, startBuild, buildOf, builderCount, BUILDERS_MAX, openSlots, newRoomCost, upgradeCost, upgradeSecs, topFloor, slotKey, parseKey, staffSlots, staffOf, survivorById, assign, recruit, beds, capacity, flows, jobOf, makeItem, tickHaunt, resolveHaunt, defense, hauntStrength, cleanse, cleanseCost } from './data.js';
 import { iconUrl } from './art.js';
 
@@ -54,7 +55,7 @@ let tab = 'camp', sel = null, msg = '';
 UI.camp = () => { tab = 'camp'; sel = null; sheet = null; const d = tickBase(S); const ev = tickHaunt(S); if (ev) sheet = { kind: 'hauntreport', rep: ev }; save(); if (d) { const r = S.base.rooms[d]; msg = `${ROOMS[r.type].name} ${r.lvl === 1 ? 'is ready' : 'is now level ' + r.lvl}!`; } renderCamp(); };
 function top() {
   const hs = heroStats(S);
-  return `<div class="top"><h1>HAUNTFALL</h1><div class="tabs"><button data-act="tab" data-t="camp" class="${tab === 'camp' ? 'on' : ''}">Church</button><button data-act="tab" data-t="gear" class="${tab === 'gear' ? 'on' : ''}">Gear</button></div><div class="stat"><span class="gold">${S.gold.toLocaleString()} gold</span><span class="scrap">${Math.floor(S.scrap || 0).toLocaleString()} scrap</span><span>Might ${hs.power}</span></div></div>`;
+  return `<div class="top"><h1>HAUNTFALL</h1><div class="tabs"><button data-act="tab" data-t="camp" class="${tab === 'camp' ? 'on' : ''}">Church</button><button data-act="tab" data-t="gear" class="${tab === 'gear' ? 'on' : ''}">Gear</button><button data-act="tab" data-t="quests" class="${tab === 'quests' ? 'on' : ''}">Quests${claimable(S) ? ' <i class="qdot"></i>' : ''}</button></div><div class="stat"><span class="gold">${S.gold.toLocaleString()} gold</span><span class="scrap">${Math.floor(S.scrap || 0).toLocaleString()} scrap</span><span>Might ${hs.power}</span></div></div>`;
 }
 const fmtDur = (sec) => { sec = Math.max(0, Math.ceil(sec)); const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), x = sec % 60; return h ? `${h}h ${String(m).padStart(2, '0')}m` : m ? `${m}m ${String(x).padStart(2, '0')}s` : `${x}s`; };
 let sheet = null; // { kind: 'room'|'build'|'door'|'crew'|'staff'|'assign', key?, id? }
@@ -217,10 +218,25 @@ function detailHtml(it) {
 }
 function flashMsg() { if (!msg) return; const m = msg; setTimeout(() => { if (msg === m) { msg = ''; const el = $('.msg'); if (el) el.remove(); } }, 2600); }
 const perkBox = (it) => { if (it.slot !== 'weapon') return ''; const ks = [...(it.perks || [])]; const W = WEAPONS[it.kind]; if (W && W.perk && !ks.includes(W.perk)) ks.unshift(W.perk); return ks.length ? `<div class="perks">${ks.map((k) => `<p><b>${PERKS[k].name}</b> <small>${PERKS[k].desc}</small></p>`).join('')}</div>` : ''; };
+const qtoast = (arr) => arr.forEach((t) => UI.toast('Quest complete: ' + t));
+function renderQuests() {
+  ensureQuests(S);
+  const st = streakState(S), ladder = Array.from({ length: 7 }, (_, i) => { const r = streakReward(S, i), got = st.claimedToday ? i <= st.dayIdx : i < st.dayIdx, now = !st.claimedToday && i === st.dayIdx; return `<div class="sday ${got ? 'got' : ''} ${now ? 'now' : ''}"><small>Day ${i + 1}</small><b>${rewardText(r)}</b></div>`; }).join('');
+  const qrow = (q, sc, i) => { const ok = q.prog >= q.target; return `<div class="qrow ${q.claimed ? 'done' : ''}"><div class="qinfo"><b>${questText(q)}</b><div class="bar"><i style="width:${Math.min(100, q.prog / q.target * 100)}%"></i></div><small>${Math.min(q.prog, q.target).toLocaleString()} / ${q.target.toLocaleString()} · reward: ${rewardText(q.rew)}</small></div><button class="${ok && !q.claimed ? 'go' : ''}" data-act="claimq" data-s="${sc}" data-i="${i}" ${ok && !q.claimed ? '' : 'disabled'}>${q.claimed ? 'Done' : ok ? 'Claim' : 'Active'}</button></div>`; };
+  const block = (sc, title, L, sub) => `<div class="panel"><h2>${title} <small>${sub}</small></h2>${L.list.map((q, i) => qrow(q, sc, i)).join('')}<div class="qrow bonus ${L.bonus ? 'done' : ''}"><div class="qinfo"><b>Finish all three</b><small>Bonus: ${rewardText(bonusFor(S, sc))}</small></div><button class="${bonusReady(S, sc) ? 'go' : ''}" data-act="claimb" data-s="${sc}" ${bonusReady(S, sc) ? '' : 'disabled'}>${L.bonus ? 'Done' : 'Claim'}</button></div></div>`;
+  const left = (t) => { const s = Math.max(0, Math.floor((t - Date.now()) / 1000)); return fmtDur(s); };
+  const dEnd = new Date(); dEnd.setHours(24, 0, 0, 0); const wEnd = new Date(S.q.weekly.week + 'T00:00:00'); wEnd.setDate(wEnd.getDate() + 7);
+  screen(`${top()}<div class="body gear"><div class="panel"><h2>Daily reward <small>${st.n} day${st.n === 1 ? '' : 's'} in a row</small></h2><div class="ladder">${ladder}</div><div class="btns"><button class="${st.claimedToday ? '' : 'go big'}" data-act="claims" ${st.claimedToday ? 'disabled' : ''}>${st.claimedToday ? 'Come back tomorrow' : 'Claim today\'s reward'}</button></div><p class="dim">Miss a day and the streak starts over. The seven-day ladder repeats.</p></div>
+    ${block('daily', 'Daily quests', S.q.daily, 'new ones in ' + left(dEnd.getTime()))}${block('weekly', 'Weekly quests', S.q.weekly, 'new ones in ' + left(wEnd.getTime()))}</div>${msg ? `<div class="msg">${msg}</div>` : ''}`, 'camp', 'quests');
+  flashMsg();
+}
 const find = (id) => S.bag.find((x) => x.id === +id) || SLOTS.map((s) => S.gear[s]).find((x) => x && x.id === +id);
 function handle(act, d) {
   if (!$('#screen').classList.contains('on') && act !== 'again') return;
-  if (act === 'tab') { tab = d.t; sel = null; tab === 'camp' ? renderCamp() : renderGear(); return; }
+  if (act === 'tab') { tab = d.t; sel = null; tab === 'camp' ? renderCamp() : tab === 'quests' ? renderQuests() : renderGear(); return; }
+  if (act === 'claimq') { const r = claimQuest(S, d.s, +d.i); if (r) { msg = 'Reward: ' + rewardText(r); save(); } renderQuests(); return; }
+  if (act === 'claimb') { const r = claimBonus(S, d.s); if (r) { msg = 'Bonus: ' + rewardText(r); save(); } renderQuests(); return; }
+  if (act === 'claims') { const r = claimStreak(S); if (r) { msg = 'Daily reward: ' + rewardText(r); save(); } renderQuests(); return; }
   if (act === 'run') { cb.start(); return; }
   if (act === 'dstep') { S.district = Math.max(1, Math.min(S.maxDistrict, S.district + +d.s)); save(); renderCamp(); return; }
   if (act === 'district') { S.district = +d.d; save(); renderCamp(); return; }
@@ -238,10 +254,10 @@ function handle(act, d) {
   if (act === 'staffpick') { sheet = { kind: 'staff', key: d.key }; renderCamp(); return; }
   if (act === 'closesheet') { sheet = null; if (tab === 'gear') renderGear(); else renderCamp(); return; }
   if (act === 'assignto') { const r = assign(S, +d.id, d.key || null); if (r === 'full') msg = 'That room is already fully staffed.'; else save(); if (sheet && sheet.kind === 'assign') sheet = { kind: 'crew' }; else if (sheet && sheet.kind === 'staff') sheet = { kind: 'room', key: sheet.key }; renderCamp(); return; }
-  if (act === 'letin') { const r = recruit(S, +d.i); msg = r === 'ok' ? 'Welcome to the church!' : r === 'nobeds' ? 'No free beds. Build a Bedroom.' : 'Nobody there.'; save(); if (!S.base.door.length) sheet = null; renderCamp(); return; }
+  if (act === 'letin') { const r = recruit(S, +d.i); if (r === 'ok') qtoast(track(S, 'recruits', 1)); msg = r === 'ok' ? 'Welcome to the church!' : r === 'nobeds' ? 'No free beds. Build a Bedroom.' : 'Nobody there.'; save(); if (!S.base.door.length) sheet = null; renderCamp(); return; }
   if (act === 'turnaway') { S.base.door.splice(+d.i, 1); save(); if (!S.base.door.length) sheet = null; renderCamp(); return; }
-  if (act === 'room') { const r = startUpgrade(S, d.key); if (r === 'ok') { save(); msg = `${ROOMS[S.base.rooms[d.key].type].name} upgrade started.`; } else msg = r === 'busy' ? 'Your builders are busy.' : 'Not enough gold or scrap.'; renderCamp(); return; }
-  if (act === 'build') { const r = startBuild(S, sheet.key, d.type); if (r === 'ok') { save(); msg = `Building the ${ROOMS[d.type].name}...`; sheet = null; } else msg = r === 'busy' ? 'Your builders are busy.' : 'Not enough gold or scrap.'; renderCamp(); return; }
+  if (act === 'room') { const r = startUpgrade(S, d.key); if (r === 'ok') { qtoast(track(S, 'builds', 1)); save(); msg = `${ROOMS[S.base.rooms[d.key].type].name} upgrade started.`; } else msg = r === 'busy' ? 'Your builders are busy.' : 'Not enough gold or scrap.'; renderCamp(); return; }
+  if (act === 'build') { const r = startBuild(S, sheet.key, d.type); if (r === 'ok') { qtoast(track(S, 'builds', 1)); save(); msg = `Building the ${ROOMS[d.type].name}...`; sheet = null; } else msg = r === 'busy' ? 'Your builders are busy.' : 'Not enough gold or scrap.'; renderCamp(); return; }
   if (act === 'again') { cb.start(); return; }
   if (act === 'camp') { UI.stopAfkTimer(); UI.camp(); return; }
   if (act === 'pick') { sel = find(d.id) || null; renderGear(); return; }
@@ -249,8 +265,8 @@ function handle(act, d) {
   if (act === 'unequip') { const it = find(d.id); if (!it) return; S.gear[it.slot] = null; S.bag.push(it); sel = it; save(); renderGear(); return; }
   if (act === 'ascend') { const it = find(d.id); if (it) { const r = ascend(S, it); msg = r === 'ok' ? `${it.name} ascended! Max level is now +${maxUp(it)}.` : 'Not enough gold or scrap.'; if (r === 'ok') save(); } renderGear(); return; }
   if (act === 'reforge') { const it = find(d.id); if (it) { const r = reforge(S, it); msg = r === 'ok' ? 'The bonuses were reforged.' : 'Not enough scrap.'; if (r === 'ok') save(); } renderGear(); return; }
-  if (act === 'upmax') { const it = find(d.id); if (!it) return; const a = it.up; while (it.up < maxUp(it) && S.gold >= upCost(it, S)) { S.gold -= upCost(it, S); it.up++; } msg = it.up > a ? `${it.name} went from +${a} to +${it.up}.` : ''; save(); renderGear(); return; }
-  if (act === 'upgrade') { const it = find(d.id); if (!it || S.gold < upCost(it, S) || it.up >= maxUp(it)) return; S.gold -= upCost(it, S); it.up++; msg = `${it.name} is now +${it.up}.`; save(); renderGear(); return; }
+  if (act === 'upmax') { const it = find(d.id); if (!it) return; const a = it.up; while (it.up < maxUp(it) && S.gold >= upCost(it, S)) { S.gold -= upCost(it, S); it.up++; } if (it.up > a) qtoast(track(S, 'upgrades', it.up - a)); msg = it.up > a ? `${it.name} went from +${a} to +${it.up}.` : ''; save(); renderGear(); return; }
+  if (act === 'upgrade') { const it = find(d.id); if (!it || S.gold < upCost(it, S) || it.up >= maxUp(it)) return; S.gold -= upCost(it, S); it.up++; qtoast(track(S, 'upgrades', 1)); msg = `${it.name} is now +${it.up}.`; save(); renderGear(); return; }
   if (act === 'gtab') { gtab = d.g; sel = null; renderGear(); return; }
   if (act === 'socketpick') { sheet = { kind: 'gempick', id: +d.id, i: +d.i }; renderGear(); return; }
   if (act === 'socketdo') { const it = find(sheet.id); if (it) { socketGem(S, it, sheet.i, +d.gem); save(); } sheet = null; renderGear(); return; }
@@ -273,6 +289,7 @@ function hauntDone(r) {
   const won = r.won, items = r.lootItems.slice().sort((a, b) => b.rar - a.rar); S.gold += r.gold; S.scrap = (S.scrap || 0) + r.scrap;
   for (const it of items) if (S.bag.length < 120) S.bag.push(it); else S.gold += salvageValue(it);
   S.gems.push(...(r.lootGems || []));
+  if (won) qtoast(track(S, 'haunts', 1));
   const rep = resolveHaunt(S, won, true); save(); r.destroy(); UI.stopAfkTimer();
   screen(`<div class="result ${won ? 'win' : 'lose'}"><h1>${won ? 'THE CHURCH HOLDS' : 'THE CHURCH FALLS'}</h1><p class="sub">${won ? 'You drove the ghosts back from the doors.' : 'The ghosts broke through while you fought.'}</p>
     <div class="stats"><div><small>Kills</small><b>${r.kills}</b></div><div><small>Gold</small><b>${r.gold + (won ? rep.gold : 0)}</b></div><div><small>Scrap</small><b>${r.scrap + (won ? rep.scrap : 0)}</b></div><div><small>Gear</small><b>${items.length}</b></div><div><small>Result</small><b>${won ? 'Held' : 'Lost'}</b></div></div>
@@ -286,6 +303,7 @@ UI.done = (r) => {
   S.gold += earned; S.scrap = (S.scrap || 0) + r.scrap; S.runs++; S.best = Math.max(S.best, r.kills); if (won) { S.wins++; if (S.district === S.maxDistrict) { S.maxDistrict++; } }
   for (const it of items) if (S.bag.length < 120) S.bag.push(it); else S.gold += salvageValue(it);
   S.gems.push(...(r.lootGems || []));
+  qtoast([...track(S, 'kills', r.kills), ...track(S, 'elites', r.eliteKills || 0), ...track(S, 'crates', r.crates || 0), ...track(S, 'gems', (r.lootGems || []).length), ...track(S, 'gold', earned), ...track(S, 'runs', 1), ...track(S, 'minutes', Math.floor(r.t / 60)), ...(won ? track(S, 'bosses', 1) : [])]);
   if (S.opts.afk) autoEquip(S);
   S.lastSeen = Date.now(); save();
   if (r.retreated) S.opts.afk = false; save(); const afk = !!S.opts.afk; r.destroy();

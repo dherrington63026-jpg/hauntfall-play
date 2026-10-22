@@ -177,3 +177,10 @@ button.rc.crew { cursor: pointer; }
 .spdrow { display: flex; align-items: center; gap: 6px; margin: 4px 0 10px; } .spdrow small { flex: none; color: var(--dim); } .spdrow button { flex: 1; padding: 8px 4px; } .spdrow button.on { border-color: var(--gold); color: var(--gold); }
 
 .perks { margin: 8px 0; padding: 8px 10px; border-radius: 10px; background: #1a1424; border: 1px solid #5a3d78; } .perks p { margin: 3px 0; font-size: 12px; } .perks b { color: #c9a0ff; } .perks small { color: #b8b0c8; display: block; }
+
+/* quests */
+.qdot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: #ffd36a; box-shadow: 0 0 8px #ffd36a; margin-left: 4px; animation: pulseDot 1s infinite; }
+.ladder { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; margin: 8px 0; } .sday { background: #151b23; border: 1px solid #2c343e; border-radius: 8px; padding: 6px 3px; text-align: center; font-size: 10px; } .sday small { display: block; color: var(--dim); } .sday b { font-size: 10px; line-height: 1.15; display: block; margin-top: 2px; } .sday.got { opacity: 0.45; border-color: #4a8a4a; } .sday.now { border-color: var(--gold); box-shadow: 0 0 10px #ffd36a55; }
+.qrow { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center; background: #151b23; border: 1px solid #2c343e; border-radius: 10px; padding: 9px 10px; margin-top: 7px; } .qrow.done { opacity: 0.5; } .qrow.bonus { border-style: dashed; } .qinfo b { font-size: 13px; } .qinfo small { display: block; color: var(--dim); font-size: 11px; margin-top: 3px; } .qinfo .bar { margin-top: 5px; height: 6px; }
+.panel h2 small { font: 500 11px Inter; color: var(--dim); margin-left: 8px; }
+.qinfo .bar { background: #000a; border-radius: 4px; overflow: hidden; } .qinfo .bar i { display: block; height: 100%; background: linear-gradient(90deg, #c88a20, #ffd36a); }
