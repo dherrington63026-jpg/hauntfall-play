@@ -117,6 +117,7 @@ export function ensureStories(S, now = Date.now()) {
 // the first survivor whose next story part is due
 export function readyStory(S, now = Date.now()) {
   if (!S.base) return null; ensureStories(S, now);
+  if (now < (S.storyGate || 0)) return null;   // one story at a time, a few hours apart, so a full church does not spam the button
   const list = S.base.survivors.filter((sv) => sv.story.beat < 3 && now >= sv.story.next).sort((a, b) => a.story.next - b.story.next);
   if (!list.length) return null;
   const sv = list[0], arc = STORIES[arcOf(sv)], beat = arc.beats[sv.story.beat];
@@ -138,6 +139,6 @@ export function chooseStory(S, svId, idx, now = Date.now()) {
   const sv = S.base.survivors.find((x) => x.id === svId); if (!sv || !sv.story || sv.story.beat >= 3) return null;
   const arc = STORIES[arcOf(sv)], beat = arc.beats[sv.story.beat], ch = beat.ch[idx]; if (!ch) return null;
   if (ch.eff.gold < 0 && S.gold < -ch.eff.gold) return { poor: true };
-  const got = apply(S, sv, ch.eff); sv.story.beat++; sv.story.next = now + (5 + Math.random() * 4) * H;
+  const got = apply(S, sv, ch.eff); sv.story.beat++; sv.story.next = now + (5 + Math.random() * 4) * H; S.storyGate = now + (2 + Math.random() * 2) * H;
   return { text: fill(ch.res, sv), got, last: sv.story.beat >= 3, title: arc.title };
 }
