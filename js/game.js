@@ -472,6 +472,7 @@ export class Run {
     const tex = TEX[this.theme.ground] || TEX.tex_ground, gtex = !!(this.theme.ground && TEX[this.theme.ground]);
     if (tex) { if (!this.pat) { this.pat = x.createPattern(tex, 'repeat'); this.pat.setTransform(new DOMMatrix().scale(0.5)); } x.fillStyle = this.pat; } else x.fillStyle = '#1b2220';
     x.fillRect(x0, y0, x1 - x0, y1 - y0);
+    if (tex && this.q < 2) { x.globalCompositeOperation = 'lighter'; x.globalAlpha = 1; x.fillRect(x0, y0, x1 - x0, y1 - y0); x.globalAlpha = 1; x.globalCompositeOperation = 'source-over'; }
     if (this.theme.tint && !gtex) { x.globalCompositeOperation = 'multiply'; x.fillStyle = this.theme.tint; x.fillRect(x0, y0, x1 - x0, y1 - y0); x.globalCompositeOperation = 'source-over'; }
     // ground dressing: roads, fallen leaves, blood and ectoplasm stains
     for (let cx = Math.floor(x0 / 520) - 1; cx <= Math.floor(x1 / 520) + 1; cx++) for (let cy = Math.floor(y0 / 520) - 1; cy <= Math.floor(y1 / 520) + 1; cy++) {
@@ -608,13 +609,13 @@ export class Run {
   }
   drawDark(x, W, H, S, camx, camy, ox, oy, q) {
     // night: dark layer with soft holes for the flashlight, lamps and fires (all pre-made glow sprites)
-    if (q >= 2) { x.setTransform(this.dpr, 0, 0, this.dpr, 0, 0); x.fillStyle = 'rgba(3,5,10,0.55)'; x.fillRect(0, 0, W, H); return; }
+    if (q >= 2) { x.setTransform(this.dpr, 0, 0, this.dpr, 0, 0); x.fillStyle = 'rgba(3,5,10,0.32)'; x.fillRect(0, 0, W, H); return; }
     const l = this.lx, lw = this.light.width, lh = this.light.height, k = lw / W;
-    l.setTransform(1, 0, 0, 1, 0, 0); l.globalCompositeOperation = 'source-over'; l.globalAlpha = 1; l.fillStyle = 'rgba(3,5,10,0.66)'; l.fillRect(0, 0, lw, lh);
+    l.setTransform(1, 0, 0, 1, 0, 0); l.globalCompositeOperation = 'source-over'; l.globalAlpha = 1; l.fillStyle = 'rgba(3,5,10,0.30)'; l.fillRect(0, 0, lw, lh);
     l.globalCompositeOperation = 'destination-out';
     const sx = (wx) => (W / 2 + (wx - camx) * S) * k, sy = (wy) => (H / 2 + (wy - camy) * S) * k;
     const hole = (wx, wy, r, a) => { const rr = r * S * k; l.globalAlpha = a; l.drawImage(HOLE, sx(wx) - rr, sy(wy) - rr, rr * 2, rr * 2); };
-    const h = this.hero; hole(h.x, h.y - 20, 340, 0.96);
+    const h = this.hero; hole(h.x, h.y - 20, 440, 0.98);
     { const rr = 420 * S * k; l.save(); l.translate(sx(h.x), sy(h.y - 20)); l.rotate(h.aim); l.globalAlpha = 0.85; l.drawImage(CONE, 0, -rr * 0.5, rr, rr); l.restore(); }
     for (const z of this.zones) if (z.fire) hole(z.x, z.y, z.r * 2.4, 0.9);
     for (const b of this.ebul) hole(b.x, b.y, 70, 0.7);
@@ -625,7 +626,7 @@ export class Run {
     }
     for (const e of this.enemies) if (e.def.boss) hole(e.x, e.y - 60, 280, 0.8);
     l.globalAlpha = 1; x.setTransform(1, 0, 0, 1, 0, 0); x.drawImage(this.light, 0, 0, this.cv.width, this.cv.height);
-    if (q < 1) { x.setTransform(1, 0, 0, 1, 0, 0); x.globalCompositeOperation = 'soft-light'; const gg = x.createRadialGradient(this.cv.width / 2, this.cv.height / 2, 0, this.cv.width / 2, this.cv.height / 2, Math.hypot(this.cv.width, this.cv.height) / 2); gg.addColorStop(0, 'rgba(255,196,120,0.30)'); gg.addColorStop(1, 'rgba(40,90,150,0.55)'); x.fillStyle = gg; x.fillRect(0, 0, this.cv.width, this.cv.height); x.globalCompositeOperation = 'source-over'; }
+    if (q < 1) { x.setTransform(1, 0, 0, 1, 0, 0); x.globalCompositeOperation = 'soft-light'; const gg = x.createRadialGradient(this.cv.width / 2, this.cv.height / 2, 0, this.cv.width / 2, this.cv.height / 2, Math.hypot(this.cv.width, this.cv.height) / 2); gg.addColorStop(0, 'rgba(255,196,120,0.30)'); gg.addColorStop(1, 'rgba(40,90,150,0.25)'); x.fillStyle = gg; x.fillRect(0, 0, this.cv.width, this.cv.height); x.globalCompositeOperation = 'source-over'; }
     if (q < 1) { x.globalCompositeOperation = 'lighter'; x.globalAlpha = 0.10; const T = this.fogT; for (let i = 0; i < 4; i++) { const fx = ((i * 0.31 + T * 0.012 * (1 + i * 0.3)) % 1.3 - 0.15) * this.cv.width, fy = (0.2 + i * 0.22 + Math.sin(T * 0.2 + i) * 0.05) * this.cv.height, sz = this.cv.width * 0.7; x.drawImage(FOG, fx - sz / 2, fy - sz / 2, sz, sz * 0.7); } x.globalAlpha = 1; x.globalCompositeOperation = 'source-over'; }
   }
 }
