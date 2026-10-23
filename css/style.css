@@ -269,3 +269,6 @@ button.rc.crew { cursor: pointer; }
 .tutcard { background: linear-gradient(180deg, #1a2230, #10151d); border: 1px solid #6ab0ff; border-radius: 14px; padding: 12px 14px; margin: 8px 0 12px; } .tutcard b:first-child { font: 700 16px Cinzel; color: #9ad0ff; } .tutcard p { font-size: 13px; line-height: 1.55; color: #cfd8e2; margin: 6px 0 10px; } .tutcard button { width: 100%; }
 
 .spdrow button[data-mu].on { border-color: var(--gold); color: var(--gold); }
+#combo { top: auto; bottom: 58px; }
+
+#pause .legal { margin: 0 0 12px; font-size: 12px; color: var(--dim); } #pause .legal a { color: #9ad0ff; }

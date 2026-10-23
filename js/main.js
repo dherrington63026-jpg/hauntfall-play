@@ -3,6 +3,7 @@ import { loadArt } from './art.js';
 import { Run } from './game.js';
 import { UI } from './ui.js';
 import { Music } from './music.js';
+import { STORE_LIVE } from './config.js';
 
 const $ = (s) => document.querySelector(s), cv = $('#cv');
 const S = loadSave() || newSave();
@@ -10,7 +11,7 @@ let run = null, last = 0;
 function start(o = {}) {
   UI.stopAfkTimer(); UI.hideAll(); if (run) run.destroy();
   run = new Run(S, cv, UI, { afk: S.opts.afk, ...o }); UI.showHud(); Music.play(o.mode === 'haunt' || o.mode === 'rush' ? 'boss' : 'explore');
-  window.__run = run;
+  if (!STORE_LIVE) window.__run = run;
 }
 const spd = () => (S.opts.speed == null ? 0.75 : S.opts.speed);
 function syncAudio() { for (const b of document.querySelectorAll('#pause [data-mu]')) b.classList.toggle('on', b.dataset.mu === 'music' ? S.opts.music !== false : S.opts.sound !== false); }
@@ -43,8 +44,8 @@ function frame(t) {
   $('#loading').classList.add('off');
   requestAnimationFrame(frame);
   const q = new URLSearchParams(location.search);
-  if (q.get('run')) { S.hero = S.hero || 'f'; if (q.get('afk')) S.opts.afk = true; start(); }
+  if (!STORE_LIVE && q.get('run')) { S.hero = S.hero || 'f'; if (q.get('afk')) S.opts.afk = true; start(); }
   else if (S.runs === 0 && !S.heroPicked) UI.heroPick(() => { S.heroPicked = true; writeSave(S); UI.camp(); });
   else UI.camp();
 })();
-window.__S = S;
+if (!STORE_LIVE) window.__S = S;
