@@ -10,14 +10,14 @@ button.big { width: 100%; padding: 16px; font: 800 18px Cinzel, serif; letter-sp
 /* HUD */
 #hud { position: fixed; left: 0; right: 0; top: 0; display: none; padding: max(8px, env(safe-area-inset-top)) 10px 0; pointer-events: none; gap: 10px; align-items: flex-start; justify-content: space-between; }
 #hud.on { display: flex; }
-#hud .left { display: flex; gap: 8px; align-items: center; flex: 1 0 42%; max-width: 360px; } #hud .mid { flex: 0 1 auto; min-width: 0; } #hud .mid .sm { font-size: 11px; } #hud button { pointer-events: auto; }
+#hud .left { display: flex; gap: 8px; align-items: center; flex: 1 0 42%; max-width: 360px; } #hud .mid { flex: 0 1 auto; min-width: 0; } #hud .mid .sm { font-size: 11px; white-space: nowrap; line-height: 1.2; } #hud button { pointer-events: auto; }
 .lv { width: 44px; height: 44px; border-radius: 50%; background: #11161c; border: 2px solid var(--gold); display: grid; place-items: center; font: 800 18px Cinzel; color: var(--gold); flex: none; }
 .bars { flex: 1; } .hp { position: relative; height: 20px; background: #000a; border: 1px solid #000; border-radius: 6px; overflow: hidden; } .hp i { position: absolute; inset: 0 auto 0 0; width: 100%; background: linear-gradient(#ff6a5a, #b52a22); transition: width 0.1s; }
 .hp span { position: absolute; inset: 0; text-align: center; font: 800 12px/20px Inter; text-shadow: 0 1px 2px #000; }
 .xp { height: 7px; margin-top: 4px; background: #000a; border-radius: 4px; overflow: hidden; } .xp i { display: block; height: 100%; width: 0; background: linear-gradient(#8ae0ff, #3a8fd0); }
 .mid { text-align: center; text-shadow: 0 2px 6px #000; } #timer { font: 800 26px Cinzel; letter-spacing: 0.1em; } .sm { font-size: 12px; color: var(--dim); } .sm b { color: var(--ink); }
 .right { display: flex; gap: 6px; } .right button { padding: 8px 12px; background: #0009; } #btnAfk { font-size: 12px; }
-#bossbar { position: absolute; left: 50%; top: 74px; transform: translateX(-50%); width: min(520px, 80vw); display: none; text-align: center; } #bossbar.on { display: block; }
+#bossbar { position: absolute; left: 50%; top: 84px; transform: translateX(-50%); width: min(520px, 80vw); display: none; text-align: center; } #bossbar.on { display: block; }
 #bossbar b { font: 800 13px Cinzel; letter-spacing: 0.2em; color: #ff8a6a; text-shadow: 0 1px 4px #000; } .bb { height: 12px; background: #000a; border: 1px solid #000; border-radius: 6px; overflow: hidden; margin-top: 3px; } .bb i { display: block; height: 100%; width: 100%; background: linear-gradient(#a6ff8a, #3a9a2a); }
 #toasts { position: fixed; left: 50%; top: 96px; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 6px; pointer-events: none; z-index: 20; }
 .toast { padding: 6px 14px; border-radius: 16px; background: #000c; border: 1px solid #fff3; font: 700 13px Inter; text-align: center; animation: pop 0.25s; }
@@ -272,3 +272,4 @@ button.rc.crew { cursor: pointer; }
 #combo { top: auto; bottom: 58px; }
 
 #pause .legal { margin: 0 0 12px; font-size: 12px; color: var(--dim); } #pause .legal a { color: #9ad0ff; }
+@media (max-width: 400px) { #hud { gap: 6px; padding-left: 8px; padding-right: 8px; } #timer { font-size: 21px; } #hud .left { flex-basis: 33%; } .right { gap: 4px; } .right button { padding: 7px 8px; font-size: 12px; } .lv { transform: scale(0.88); transform-origin: left center; } }
