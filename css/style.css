@@ -273,3 +273,4 @@ button.rc.crew { cursor: pointer; }
 
 #pause .legal { margin: 0 0 12px; font-size: 12px; color: var(--dim); } #pause .legal a { color: #9ad0ff; }
 @media (max-width: 400px) { #hud { gap: 6px; padding-left: 8px; padding-right: 8px; } #timer { font-size: 21px; } #hud .left { flex-basis: 33%; } .right { gap: 4px; } .right button { padding: 7px 8px; font-size: 12px; } .lv { transform: scale(0.88); transform-origin: left center; } }
+.bagtop > .btns { width: 100%; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
