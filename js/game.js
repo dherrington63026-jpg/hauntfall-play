@@ -212,6 +212,7 @@ export class Run {
     const t = this.t;
     if (!type && this.eventOn && Math.random() < 0.08) type = Math.random() < 0.5 ? 'pumpkinhead' : 'scarecrow';
     if (!type) { const tab = this.theme.mix.filter((m) => t >= m[2]); let tot = 0; for (const m of tab) tot += m[1]; let r = Math.random() * tot; type = tab[0][0]; for (const m of tab) { if (r < m[1]) { type = m[0]; break; } r -= m[1]; } }
+    if (!this._forceShooter && ENEMIES[type].fx === 'shooter' && !ENEMIES[type].elite) { let n = 0; for (const o of this.enemies) if (o.def.fx === 'shooter' && !o.def.elite) n++; if (n >= 5 + Math.floor(this.district / 3)) { const alt = this.theme.mix.find((m) => ENEMIES[m[0]].fx !== 'shooter' && !ENEMIES[m[0]].elite && this.t >= m[2]); type = alt ? alt[0] : 'ghoul'; } }
     const def = ENEMIES[type], [x, y] = this.spawnPos(), sc = (1 + t / 100) * Math.pow(2.15, this.district - 1) * this.hauntScale * (this.mode === 'endless' ? 1 + t / 200 : 1);
     this.enemies.push({ def, x, y, hp: def.hp * sc * this.hpMulT, maxHp: def.hp * sc * this.hpMulT, dmg: this.dmgMulT * def.dmg * (this.mode === 'endless' ? 1 + t / 400 : 1) * (1 + t / 190) * Math.pow(1.5, this.district - 1) * 1.2, r: def.r, vx: 0, vy: 0, flash: 0, ph: rnd(0, TAU), v: rint(1, 2), dash: rnd(1, 3), age: 0, face: 1, cd: rnd(2, 4) });
     return this.enemies[this.enemies.length - 1];
@@ -242,8 +243,8 @@ export class Run {
       else if (fxk === 'dash') { e.dash -= dt; if (e.dash < 0) { e.dash = rnd(1.8, 3); e.dashT = 0.4; } if (e.dashT > 0) { e.dashT -= dt; sp *= 3.2; } else sp *= 0.6; }
       else if (fxk === 'shooter') {
         const sh = e.def.shot; e.cd -= dt;
-        if (d > 300) { /* close in */ } else if (d < 210) { mx = -dx; my = -dy; sp *= 0.8; } else { sp = 0; }
-        if (e.cd <= 0 && d < 520) { e.cd = sh.cd * rnd(0.85, 1.2); const base = Math.atan2(h.y - e.y, h.x - e.x); for (let i = 0; i < sh.n; i++) { const a = sh.ring ? base + i * TAU / sh.n : base + (sh.n === 1 ? 0 : (i - (sh.n - 1) / 2) * (sh.spread || 0.3)); this.ebul.push({ x: e.x, y: e.y - e.def.size * 0.4, vx: Math.cos(a) * sh.spd, vy: Math.sin(a) * sh.spd, life: 4, dmg: e.dmg * sh.dmg, r: 8 }); } sfx('shoot', this.sound && Math.random() < 0.3); }
+        if (d > 190) { /* close in */ } else if (d < 110) { mx = -dx; my = -dy; sp *= 0.8; } else { sp = 0; }
+        if (e.cd <= 0 && d < 250 && this.ebul.length < 60) { e.cd = sh.cd * 1.5 * rnd(0.85, 1.2); const base = Math.atan2(h.y - e.y, h.x - e.x); for (let i = 0; i < sh.n; i++) { const a = sh.ring ? base + i * TAU / sh.n : base + (sh.n === 1 ? 0 : (i - (sh.n - 1) / 2) * (sh.spread || 0.3)); this.ebul.push({ x: e.x, y: e.y - e.def.size * 0.4, vx: Math.cos(a) * sh.spd, vy: Math.sin(a) * sh.spd, life: 3, dmg: e.dmg * sh.dmg, r: 8 }); } sfx('shoot', this.sound && Math.random() < 0.3); }
       }
       else if (fxk === 'boss') this.bossAi(e, dt, dx, dy, d);
       if (fxk === 'boss' && e.slam > 0) sp = 0;
@@ -277,12 +278,12 @@ export class Run {
     this.combo++; this.comboT = 2.2; if (this.combo > this.comboBest) this.comboBest = this.combo; if (this.ui.combo) this.ui.combo(this.combo);
     { const ci = [10, 25, 50, 100, 200, 400].indexOf(this.combo); if (ci >= 0) { this.ult = Math.min(this.ultMax, this.ult + 6 * this.ultGain); if (this.ui.banner) this.ui.banner(['Rampage', 'Massacre', 'Unstoppable', 'Godlike', 'Legend', 'Mythic'][ci], `${this.combo} kills in a row`); sfx('level', this.sound); this.punch = 0.7; } }
     if (e.def.elite || e.mini) { this.hitstop = Math.max(this.hitstop, 0.1); this.shake = Math.max(this.shake, 0.4); this.fx.push({ k: 'ring', x: e.x, y: e.y, r: 130, t: 0, life: 0.4 }); }
-    this.kills++; this.killed[e.def.sprite] = (this.killed[e.def.sprite] || 0) + 1; if (e.def.elite || e.mini) this.eliteKills++; if (this.perkSet.has('vamp')) this.hero.hp = Math.min(this.maxHp, this.hero.hp + this.maxHp * 0.02); const d = e.def, luck = this.luck(); this.scrap += d.boss ? 25 : d.elite ? 5 : (Math.random() < 0.06 ? 1 : 0);
+    this.kills++; this.killed[e.def.sprite] = (this.killed[e.def.sprite] || 0) + 1; if (e.def.elite || e.mini) this.eliteKills++; if (this.perkSet.has('vamp')) this.hero.hp = Math.min(this.maxHp, this.hero.hp + this.maxHp * 0.02); const d = e.def, luck = this.luck(), dl = Math.min(2.2, luck); this.scrap += d.boss ? 25 : d.elite ? 5 : (Math.random() < 0.06 ? 1 : 0);
     this.puff(e.x, e.y, d.fx === 'ghost' ? '#cfe4ff' : '#8a5a5a', d.boss ? 40 : d.elite ? 18 : 6); sfx('kill', this.sound);
     if (this.q < 2 && d.fx !== 'ghost' && !d.hover && this.corpses.length < 30) this.corpses.push({ x: e.x, y: e.y, s: sprite(d.sprite, e.v, d.size), face: e.face, t: 0, life: d.boss ? 2.4 : 1.1, dir: Math.random() < 0.5 ? 1 : -1 });
     if (this.q < 2) { const gh = d.fx === 'ghost'; if (gh) this.fx.push({ k: 'gf', x: e.x, y: e.y - 16, s: sprite(d.sprite, e.v, d.size), face: e.face, t: 0, life: 0.7 }); else if (this.decals.length < 70) this.decals.push({ x: e.x, y: e.y, t: 0, life: 9, s: pick(SPLAT.r), sc: d.boss ? 3 : d.elite ? 1.8 : 1 }); if (gh && this.decals.length < 70) this.decals.push({ x: e.x, y: e.y, t: 0, life: 6, s: pick(SPLAT.g), sc: 1 }); }
     const xp = d.xp; this.gems.push({ x: e.x + rnd(-6, 6), y: e.y + rnd(-6, 6), v: xp, t: 0 });
-    if (Math.random() < 0.1 * luck) this.loot.push({ kind: 'gold', x: e.x + rnd(-14, 14), y: e.y + rnd(-14, 14), v: Math.round(rint(1, 2) * (1 + this.district) * this.goldMul), t: 0 });
+    if (Math.random() < 0.07 * dl) this.loot.push({ kind: 'gold', x: e.x + rnd(-14, 14), y: e.y + rnd(-14, 14), v: Math.round(rint(1, 2) * (1 + this.district * 0.6) * this.goldMul), t: 0 });
     if (this.eventOn) { const hp = d.sprite === 'en_pumpkinhead' || d.sprite === 'en_scarecrow'; if (e.king) for (let i = 0; i < 8; i++) this.loot.push({ kind: 'pumpkin', v: 3, x: e.x + rnd(-40, 40), y: e.y + rnd(-40, 40), t: 0 }); else if (Math.random() < (d.elite ? 0.6 : hp ? 0.5 : 0.05) * Math.min(2, luck)) this.loot.push({ kind: 'pumpkin', v: d.elite ? 3 : 1, x: e.x + rnd(-14, 14), y: e.y + rnd(-14, 14), t: 0 }); }
     if (d.boss && this.mode === 'endless') { this.bossKills++; this.bossOut = false; this.boss = null; this.nextBossT = this.t + 150; Music.play('explore'); this.ui.bossBar(false); this.ui.toast('Boss defeated!'); this.dropGem(e.x, e.y, true); for (let i = 0; i < 3; i++) this.dropItem(e.x + rnd(-40, 40), e.y + rnd(-40, 40), true, true); this.hitstop = 0.3; this.shake = 1; this.hero.hp = Math.min(this.maxHp, this.hero.hp + this.maxHp * 0.25); }
     else if (d.boss && this.mode === 'rush') {
@@ -291,12 +292,12 @@ export class Run {
     }
     else if (d.boss) { for (let i = 0; i < 1; i++) this.dropGem(e.x + rnd(-30, 30), e.y + rnd(-30, 30), true); this.won = true; this.hitstop = 0.35; for (let i = 0; i < 4; i++) this.dropItem(e.x + rnd(-40, 40), e.y + rnd(-40, 40), true, true); this.ui.bossBar(false); this.shake = 1; setTimeout(() => this.end(true), 2200); this.slowmo = 1; }
     else if (e.mini) { for (let i = 0; i < 1; i++) this.dropGem(e.x + rnd(-20, 20), e.y + rnd(-20, 20)); for (let i = 0; i < 3; i++) this.dropItem(e.x + rnd(-24, 24), e.y + rnd(-24, 24), true); }
-    else if (d.elite) { if (Math.random() < 0.12 * luck) this.dropGem(e.x + rnd(-20, 20), e.y + rnd(-20, 20)); for (let i = 0; i < 2; i++) this.dropItem(e.x + rnd(-24, 24), e.y + rnd(-24, 24), true); }
-    else { if (Math.random() < 0.012 * luck) this.dropItem(e.x, e.y, false); if (Math.random() < 0.0015 * luck) this.dropGem(e.x, e.y); }
+    else if (d.elite) { if (Math.random() < 0.08 * dl) this.dropGem(e.x + rnd(-20, 20), e.y + rnd(-20, 20)); this.dropItem(e.x + rnd(-24, 24), e.y + rnd(-24, 24), true); if (Math.random() < 0.4) this.dropItem(e.x + rnd(-24, 24), e.y + rnd(-24, 24), true); }
+    else { if (Math.random() < 0.005 * dl) this.dropItem(e.x, e.y, false); if (Math.random() < 0.001 * dl) this.dropGem(e.x, e.y); }
   }
   dropGem(x, y, bossTier) { const tier = 1 + Math.floor((this.district - 1) / 2) + (bossTier ? 1 : 0) + (Math.random() < 0.25 ? 1 : 0); this.loot.push({ kind: 'gem', gem: makeGem(this.S, tier), x, y, t: 0 }); }
   dropItem(x, y, good, boss) {
-    const t = this.t, r = Math.random(), luck = this.luck();
+    const t = this.t, r = Math.random(), luck = Math.min(3, this.luck());
     // rarity: grows with time and district; elites/bosses roll better
     let w = [60, 28, 9, 2.5, 0.45, 0.05].map((v, i) => v * (i >= 2 ? (1 + t / 200 + 0.18 * (this.district - 1)) * luck : 1));
     if (good) w = [0, 25, 40, 24, 9, 2].map((v, i) => v * (i >= 3 ? luck : 1)); if (boss) w = [0, 0, 24, 40, 28, 8].map((v, i) => v * (i >= 4 ? luck : 1));
@@ -305,12 +306,17 @@ export class Run {
     this.loot.push({ kind: 'item', item: it, x, y, t: 0 });
   }
   // ---------- weapons ----------
+  target(maxD) {
+    const h = this.hero, lim = maxD * maxD; let best = null, bs = Infinity;
+    for (const e of this.enemies) { const d2 = (e.x - h.x) ** 2 + (e.y - h.y) ** 2; if (d2 > lim) continue; const s = Math.sqrt(d2) - (e.def.fx === 'shooter' ? 150 : 0) - (e.def.elite || e.def.boss ? 70 : 0); if (s < bs) { bs = s; best = e; } }
+    return best;
+  }
   nearest(maxD) { const h = this.hero; let best = null, bd = maxD * maxD; for (const e of this.enemies) { const d2 = (e.x - h.x) ** 2 + (e.y - h.y) ** 2; if (d2 < bd) { bd = d2; best = e; } } return best; }
   dmgOf(mul = 1) { const crit = Math.random() < this.crit; return { v: this.hs.weaponDmg * this.hs.dmgPct * this.dmgMul * mul * (crit ? this.hs.critDmg : 1), crit }; }
   updateWeapons(dt) {
     const W = WEAPONS[this.hs.weaponKind], h = this.hero;
     this.cool -= dt;
-    const tgt = this.nearest(W.range + 60); if (tgt) h.aim = Math.atan2(tgt.y - h.y, tgt.x - h.x);
+    const tgt = this.target(W.range + 60); if (tgt) h.aim = Math.atan2(tgt.y - h.y, tgt.x - h.x);
     if (this.cool > 0 || !tgt) return;
     this.cool = W.rate / (this.hs.ratePct * this.rateMul); h.fire = isGun(W.shape) ? 0.07 : 0.14; h.recoil = isGun(W.shape) ? 5 : 0; if (isGun(W.shape) && this.q < 2 && W.shape !== 'flame') this.fx.push({ k: 'p', x: h.x, y: h.y - 40, vx: -Math.sin(h.aim) * 80 + rnd(-20, 20), vy: Math.cos(h.aim) * 80 + rnd(-60, -20), t: 0, life: 0.5, col: '#e8c860', r: 1.5 });
     const n = W.n + this.extraN, pierce = W.pierce ? W.pierce + this.extraPierce + this.hs.pierceBonus : 0;
@@ -564,6 +570,8 @@ export class Run {
     x.drawImage(s, e.x - s.width / 2 + jx, yy - s.height);
     if (e.flash > 0) { x.globalAlpha = 0.85; x.drawImage(flashOf(s), e.x - s.width / 2 + jx, yy - s.height); }
     x.globalAlpha = 1;
+    if (d.fx === 'shooter' && this.q < 3) { const hh = this.hero; x.strokeStyle = 'rgba(255,60,60,.9)'; x.lineWidth = 2.4; x.beginPath(); x.ellipse(e.x, yy + 2, d.r + 9 + Math.sin(this.t * 4 + e.ph) * 1.5, (d.r + 8) * 0.4, 0, 0, TAU); x.stroke();
+      if (e.cd < 0.5 && e.cd > 0) { x.globalAlpha = 0.3 + (0.5 - e.cd); x.strokeStyle = '#ff4a4a'; x.lineWidth = 1; x.setLineDash([4, 5]); x.beginPath(); x.moveTo(e.x, yy - s.height * 0.4); x.lineTo(hh.x, hh.y - 30); x.stroke(); x.setLineDash([]); x.globalAlpha = 1; } }
     if (this.q < 2 && d.glow) { x.globalCompositeOperation = 'lighter'; x.globalAlpha = 0.55 + 0.2 * Math.sin(this.t * 6 + e.ph); x.drawImage(glow(d.glow, 96), e.x - s.height * 0.3, yy - s.height * 0.95, s.height * 0.6, s.height * 0.5); x.globalAlpha = 1; x.globalCompositeOperation = 'source-over'; }
     if (this.q < 2 && d.eye) { x.globalCompositeOperation = 'lighter'; x.drawImage(glow(d.eye, 32), e.x - 11 + (e.face < 0 ? 2 : -2), yy - s.height * 0.86 - 5, 22, 14); x.globalCompositeOperation = 'source-over'; }
     if (e.hp < e.maxHp && !d.boss && e.hp > 0) { const w = d.r * 2, by = yy - s.height - 6; x.fillStyle = 'rgba(0,0,0,.6)'; x.fillRect(e.x - w / 2, by, w, 4); x.fillStyle = d.elite ? '#ff9a3a' : '#e04a4a'; x.fillRect(e.x - w / 2, by, w * Math.max(0, e.hp / e.maxHp), 4); }
