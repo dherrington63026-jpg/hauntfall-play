@@ -165,7 +165,7 @@ export class Run {
       if (t - s.born > s.life) { this.shrine = null; this.ui.toast('The shrine fades away'); }
       else if (!this.paused && Math.hypot(s.x - h.x, s.y - h.y) < 44) {
         this.shrine = null; const def = s.def;
-        if (this.afk) { const o = def.opts[h.hp > this.maxHp * 0.6 ? 0 : 1]; o.apply(this); this.ui.toast(`${def.name}: ${o.name}`); }
+        if (this.afk && this.S.opts.autopick !== false) { const o = def.opts[h.hp > this.maxHp * 0.6 ? 0 : 1]; o.apply(this); this.ui.toast(`${def.name}: ${o.name}`); }
         else { this.paused = true; this.ui.levelUp(def.opts.map((o, i) => ({ id: 'shrine_' + def.id + '_' + i, name: o.name, desc: o.desc, run: o })), (u) => { u.run.apply(this); this.ui.toast(`${def.name}: ${u.name}`); this.paused = false; }, def.name.toUpperCase()); }
       }
     }
@@ -432,7 +432,7 @@ export class Run {
     const pool = UPGRADES.filter((u) => (this.picked[u.id] || 0) < u.max && (!u.needs || u.needs(this))), shuffled = pool.sort(() => Math.random() - 0.5);
     const evos = EVOLUTIONS.filter((e) => !this.evo[e.id] && e.need(this.picked)), choices = []; if (evos.length) choices.push({ ...evos[0], evo: true, max: 1 });
     for (const u of shuffled) { if (choices.length >= 3) break; if (u.weapon && choices.some((c) => c.weapon) && Math.random() < 0.6) continue; choices.push(u); } for (const u of shuffled) { if (choices.length >= 3) break; if (!choices.includes(u)) choices.push(u); }
-    if (this.afk) { const u = choices.find((c) => c.evo) || choices.find((c) => ['dmg', 'rate', 'multi', 'salt', 'beam', 'fire', 'bell', 'mines', 'storm', 'chain', 'explosive', 'ignite', 'crit', 'armor', 'vamp', 'hp'].includes(c.id)) || choices[0]; this.pickUpgrade(u); return; }
+    if (this.afk && this.S.opts.autopick !== false) { const u = choices.find((c) => c.evo) || choices.find((c) => ['dmg', 'rate', 'multi', 'salt', 'beam', 'fire', 'bell', 'mines', 'storm', 'chain', 'explosive', 'ignite', 'crit', 'armor', 'vamp', 'hp'].includes(c.id)) || choices[0]; this.pickUpgrade(u); return; }
     this.paused = true; this.ui.levelUp(choices, (u) => { this.pickUpgrade(u); this.paused = false; });
   }
   pickUpgrade(u) { if (u.evo) { this.evo[u.id] = true; this.picked[u.id] = 1; u.apply(this); this.ui.toast(`EVOLVED: ${u.name}`); if (this.ui.banner) this.ui.banner(u.name, 'Evolution'); this.shake = 0.8; this.punch = 1; return; } this.picked[u.id] = (this.picked[u.id] || 0) + 1; u.apply(this); this.ui.toast(`${u.name}${this.picked[u.id] > 1 ? ' ' + this.picked[u.id] : ''}`); }

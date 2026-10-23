@@ -14,11 +14,11 @@ function start(o = {}) {
   if (!STORE_LIVE) window.__run = run;
 }
 const spd = () => (S.opts.speed == null ? 0.75 : S.opts.speed);
-function syncAudio() { for (const b of document.querySelectorAll('#pause [data-mu]')) b.classList.toggle('on', b.dataset.mu === 'music' ? S.opts.music !== false : S.opts.sound !== false); }
+function syncAudio() { for (const b of document.querySelectorAll('#pause [data-mu]')) b.classList.toggle('on', b.dataset.mu === 'music' ? S.opts.music !== false : b.dataset.mu === 'autopick' ? S.opts.autopick !== false : S.opts.sound !== false); }
 function syncSpeed() { syncAudio(); for (const b of document.querySelectorAll('#pause [data-sp]')) b.classList.toggle('on', Math.abs(+b.dataset.sp - spd()) < 0.01); }
 function pause() { if (!run || run.over) return; run.paused = true; syncSpeed(); $('#pause').classList.add('on'); }
 $('#pause').addEventListener('click', (e) => {
-  const mu = e.target.closest('[data-mu]'); if (mu) { if (mu.dataset.mu === 'music') { S.opts.music = S.opts.music === false; Music.setOn(S.opts.music !== false); } else { S.opts.sound = S.opts.sound === false; if (run) run.sound = S.opts.sound !== false; } writeSave(S); syncAudio(); return; }
+  const mu = e.target.closest('[data-mu]'); if (mu) { if (mu.dataset.mu === 'autopick') { S.opts.autopick = S.opts.autopick === false; } else if (mu.dataset.mu === 'music') { S.opts.music = S.opts.music === false; Music.setOn(S.opts.music !== false); } else { S.opts.sound = S.opts.sound === false; if (run) run.sound = S.opts.sound !== false; } writeSave(S); syncAudio(); return; }
   const sp = e.target.closest('[data-sp]'); if (sp) { S.opts.speed = +sp.dataset.sp; writeSave(S); syncSpeed(); return; }
   const b = e.target.closest('[data-pa]'); if (!b) return; $('#pause').classList.remove('on');
   if (b.dataset.pa === 'resume') { if (run) run.paused = false; } else if (run) { run.retreat(); }
