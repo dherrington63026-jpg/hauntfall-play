@@ -426,6 +426,17 @@ export function makeSurvivor(S) {
 export const survivorById = (S, id) => S.base.survivors.find((x) => x.id === id);
 export const beds = (S) => 2 + roomsOfType(S, 'bedroom').reduce((n, [, r]) => n + r.lvl * 2, 0);
 export const staffOf = (S, key) => S.base.survivors.filter((x) => x.room === key);
+// put every survivor who is home in the post where their skill counts most (power and water first, so nothing starves)
+const POST_PRIORITY = ['gen', 'water', 'kitchen', 'garden', 'infirmary', 'workshop', 'market', 'armory', 'range', 'lab', 'watch', 'chapel', 'garage', 'vault'];
+export function autoAssign(S) {
+  const away = new Set(S.squad || []), crew = S.base.survivors.filter((sv) => !away.has(sv.id)); let placed = 0;
+  for (const sv of crew) sv.room = null;
+  const used = {}, pairs = [];
+  for (const [key, r] of Object.entries(S.base.rooms)) { const R = ROOMS[r.type]; if (!R || !R.skill || r.lvl < 1) continue; const pr = POST_PRIORITY.indexOf(r.type), bonus = 1 + (pr < 0 ? 0 : (POST_PRIORITY.length - pr) * 0.02); for (const sv of crew) pairs.push({ sv, key, slots: staffSlots(r.lvl), v: (sv.skills[R.skill] || 0) * bonus + 0.01 * r.lvl }); }
+  pairs.sort((a, b) => b.v - a.v);
+  for (const p of pairs) { if (p.sv.room || (used[p.key] || 0) >= p.slots) continue; p.sv.room = p.key; used[p.key] = (used[p.key] || 0) + 1; placed++; }
+  return placed;
+}
 export function assign(S, svId, key) { const sv = survivorById(S, svId); if (!sv) return 'bad'; if (!key) { sv.room = null; return 'ok'; } const r = S.base.rooms[key]; if (!r || r.lvl < 1 || !ROOMS[r.type].skill) return 'bad'; if (sv.room !== key && staffOf(S, key).length >= staffSlots(r.lvl)) return 'full'; sv.room = key; return 'ok'; }
 export function recruit(S, idx) {
   if (S.base.survivors.length >= beds(S)) return 'nobeds'; const sv = S.base.door[idx]; if (!sv) return 'bad'; S.base.door.splice(idx, 1); S.base.survivors.push(sv);

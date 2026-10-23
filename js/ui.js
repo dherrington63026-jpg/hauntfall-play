@@ -8,7 +8,7 @@ import { PETS, petOf, petLv, petNeed, petXp } from './pets.js';
 import { EVENT, EV_SHOP, EV_MILESTONES, eventActive, eventDaysLeft, evState } from './data.js';
 import { readyStory, chooseStory, fill, ensureStories } from './stories.js';
 import { TALENTS, TALENT_BRANCHES, talentLvl, talentCost, buyTalent, echoGain, MODS, MODS_MAX, NM_MAX, nmName, runOpts } from './data.js';
-import { PERKS, GEMS, GEM_KEYS, GEM_TIER, GEM_MAX, gemName, gemText, fuseCost, fuseGems, socketGem, unsocketGem, releaseGems, transmute, transmuteCost, loose, reattune, reattuneCost, dismantle, dismantleValue, SETS, setCounts, setBonus, maxUp, ascend, ascendCost, reforge, reforgeCost, districtName, districtOf, ENEMIES, RARITIES, SLOTS, SLOT_NAME, STAT_LABEL, PCT, WEAPONS, ROOMS, ROOM_ORDER, SKILLS, SKILL_KEYS, SKILL_BOOST, COLS, heroStats, itemStat, itemScore, upCost, salvageValue, autoEquip, writeSave, tickBase, startUpgrade, startBuild, buildOf, builderCount, BUILDERS_MAX, openSlots, newRoomCost, upgradeCost, upgradeSecs, topFloor, slotKey, parseKey, staffSlots, staffOf, survivorById, assign, recruit, beds, capacity, flows, jobOf, makeItem, tickHaunt, resolveHaunt, defense, hauntStrength, cleanse, cleanseCost } from './data.js';
+import { PERKS, GEMS, GEM_KEYS, GEM_TIER, GEM_MAX, gemName, gemText, fuseCost, fuseGems, socketGem, unsocketGem, releaseGems, transmute, transmuteCost, loose, reattune, reattuneCost, autoAssign, dismantle, dismantleValue, SETS, setCounts, setBonus, maxUp, ascend, ascendCost, reforge, reforgeCost, districtName, districtOf, ENEMIES, RARITIES, SLOTS, SLOT_NAME, STAT_LABEL, PCT, WEAPONS, ROOMS, ROOM_ORDER, SKILLS, SKILL_KEYS, SKILL_BOOST, COLS, heroStats, itemStat, itemScore, upCost, salvageValue, autoEquip, writeSave, tickBase, startUpgrade, startBuild, buildOf, builderCount, BUILDERS_MAX, openSlots, newRoomCost, upgradeCost, upgradeSecs, topFloor, slotKey, parseKey, staffSlots, staffOf, survivorById, assign, recruit, beds, capacity, flows, jobOf, makeItem, tickHaunt, resolveHaunt, defense, hauntStrength, cleanse, cleanseCost } from './data.js';
 import { iconUrl, hasArt } from './art.js';
 import { Music } from './music.js';
 
@@ -178,7 +178,7 @@ function sheetHtml() {
   }
   if (sheet.kind === 'crew') {
     const rows = S.base.survivors.map((sv) => svRow(sv, `<div class="svbtn"><button data-act="assignpick" data-id="${sv.id}">${sv.room ? 'Move' : 'Assign'}</button></div>`)).join('');
-    return wrap(`<div class="shead"><h3>Survivors <em>${S.base.survivors.length}/${beds(S)} beds</em></h3><button data-act="closesheet">Close</button></div><p class="dim">Each survivor eats and drinks 0.8 a day-hour. Skill points boost the room they work in by ${SKILL_BOOST * 100}% each.</p><div class="svlist">${rows || '<p class="dim">No survivors yet. They arrive at the front door.</p>'}</div>`);
+    return wrap(`<div class="shead"><h3>Survivors <em>${S.base.survivors.length}/${beds(S)} beds</em></h3><button data-act="closesheet">Close</button></div><div class="btns"><button class="go" data-act="autoassign">Auto-assign best for every post</button></div><p class="dim">Each survivor eats and drinks 0.8 a day-hour. Skill points boost the room they work in by ${SKILL_BOOST * 100}% each.</p><div class="svlist">${rows || '<p class="dim">No survivors yet. They arrive at the front door.</p>'}</div>`);
   }
   if (sheet.kind === 'assign') { // pick a room for one survivor
     const sv = survivorById(S, sheet.id), rows = Object.entries(S.base.rooms).filter(([, r]) => r.lvl > 0 && ROOMS[r.type].skill).map(([k, r]) => { const R = ROOMS[r.type], v = sv.skills[R.skill], free = staffSlots(r.lvl) - staffOf(S, k).length; return `<div class="opt"><img src="art/room_${R.art}.jpg" alt=""><div><h4>${R.name} <small>Lv ${r.lvl}</small></h4><p>${SKILLS[R.skill]} ${v} &rarr; <b class="bonus">+${Math.round(v * SKILL_BOOST * 100)}%</b> output</p><p class="dim">${free > 0 || sv.room === k ? 'Open spots: ' + Math.max(free, 0) : 'Full'}</p></div><button ${sv.room === k ? 'disabled' : free > 0 ? 'class="go"' : 'disabled'} data-act="assignto" data-key="${k}" data-id="${sv.id}">${sv.room === k ? 'Here' : 'Send'}</button></div>`; }).join('');
@@ -359,6 +359,7 @@ function handle(act, d) {
   if (act === 'slot') { sheet = { kind: 'build', key: d.key }; renderCamp(); return; }
   if (act === 'door') { sheet = { kind: 'door' }; renderCamp(); return; }
   if (act === 'crew') { sheet = { kind: 'crew' }; renderCamp(); return; }
+  if (act === 'autoassign') { const n = autoAssign(S); save(); msg = n ? `Assigned ${n} survivor${n === 1 ? '' : 's'} to the posts where they work best.` : 'No free posts to staff.'; renderCamp(); return; }
   if (act === 'assignpick') { sheet = { kind: 'assign', id: +d.id }; renderCamp(); return; }
   if (act === 'staffpick') { sheet = { kind: 'staff', key: d.key }; renderCamp(); return; }
   if (act === 'closesheet') { sheet = null; if (tab === 'gear') renderGear(); else renderCamp(); return; }
