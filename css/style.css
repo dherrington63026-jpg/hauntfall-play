@@ -10,7 +10,7 @@ button.big { width: 100%; padding: 16px; font: 800 18px Cinzel, serif; letter-sp
 /* HUD */
 #hud { position: fixed; left: 0; right: 0; top: 0; display: none; padding: max(8px, env(safe-area-inset-top)) 10px 0; pointer-events: none; gap: 10px; align-items: flex-start; justify-content: space-between; }
 #hud.on { display: flex; }
-#hud .left { display: flex; gap: 8px; align-items: center; flex: 1; max-width: 360px; } #hud button { pointer-events: auto; }
+#hud .left { display: flex; gap: 8px; align-items: center; flex: 1 0 42%; max-width: 360px; } #hud .mid { flex: 0 1 auto; min-width: 0; } #hud .mid .sm { font-size: 11px; } #hud button { pointer-events: auto; }
 .lv { width: 44px; height: 44px; border-radius: 50%; background: #11161c; border: 2px solid var(--gold); display: grid; place-items: center; font: 800 18px Cinzel; color: var(--gold); flex: none; }
 .bars { flex: 1; } .hp { position: relative; height: 20px; background: #000a; border: 1px solid #000; border-radius: 6px; overflow: hidden; } .hp i { position: absolute; inset: 0 auto 0 0; width: 100%; background: linear-gradient(#ff6a5a, #b52a22); transition: width 0.1s; }
 .hp span { position: absolute; inset: 0; text-align: center; font: 800 12px/20px Inter; text-shadow: 0 1px 2px #000; }
