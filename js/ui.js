@@ -36,6 +36,7 @@ UI.syncAfk = syncAfk;
 // ---------- HUD ----------
 let lastHud = 0;
 UI.hud = (r) => {
+  { const th = $('#threat'); if (th) th.textContent = r.mode === 'haunt' || r.mode === 'rush' ? '-' : r.press.toFixed(1); }
   { const uf = $('#ultFill'), df = $('#dashFill'); if (uf) { uf.style.height = Math.min(100, r.ult / r.ultMax * 100) + '%'; $('#btnUlt').classList.toggle('ready', r.ult >= r.ultMax); df.style.height = Math.min(100, (1 - r.dashCd / r.dashMax) * 100) + '%'; $('#btnDash').classList.toggle('ready', r.dashCd <= 0); } }
   const now = performance.now(); if (now - lastHud < 50) return; lastHud = now;
   $('#hpFill').style.width = Math.max(0, r.hero.hp / r.maxHp * 100) + '%'; $('#hpText').textContent = `${Math.ceil(Math.max(0, r.hero.hp))} / ${Math.round(r.maxHp)}`;
