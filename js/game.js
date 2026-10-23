@@ -470,7 +470,7 @@ export class Run {
     const vw = W / S, vh = H / S, x0 = camx - vw / 2 - 60, x1 = camx + vw / 2 + 60, y0 = camy - vh / 2 - 60, y1 = camy + vh / 2 + 60;
     // ground
     const tex = TEX[this.theme.ground] || TEX.tex_ground, gtex = !!(this.theme.ground && TEX[this.theme.ground]);
-    if (tex) { if (!this.pat) { this.pat = x.createPattern(tex, 'repeat'); this.pat.setTransform(new DOMMatrix().scale(0.5)); } x.fillStyle = this.pat; } else x.fillStyle = '#1b2220';
+    if (tex) { if (!this.pat) { this.pat = x.createPattern(tex, 'repeat'); this.pat.setTransform(new DOMMatrix().scale(0.32)); } x.fillStyle = this.pat; } else x.fillStyle = '#1b2220';
     x.fillRect(x0, y0, x1 - x0, y1 - y0);
     if (tex && this.q < 2) { x.globalCompositeOperation = 'lighter'; x.globalAlpha = 0.12; x.fillRect(x0, y0, x1 - x0, y1 - y0); x.globalAlpha = 1; x.globalCompositeOperation = 'source-over'; }
     if (this.theme.tint && !gtex) { x.globalCompositeOperation = 'multiply'; x.fillStyle = this.theme.tint; x.fillRect(x0, y0, x1 - x0, y1 - y0); x.globalCompositeOperation = 'source-over'; }
