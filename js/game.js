@@ -368,7 +368,7 @@ export class Run {
     for (const b of this.bullets) {
       b.life -= dt; b.x += b.vx * dt; b.y += b.vy * dt; b.spin += dt * 18; if (b.life <= 0) { if (b.boom) this.boom(b.x, b.y, b.boom, b.dmg, b.crit); continue; }
       let dead = false;
-      this.near(b.x, b.y, b.r + 40, (e) => { if (dead || e.hp <= 0 || b.hit.has(e)) return; if (Math.hypot(e.x - b.x, e.y - b.y) < e.r + b.r) { b.hit.add(e); const d = Math.hypot(b.vx, b.vy) || 1; this.hitEnemy(e, b.dmg, b.crit, 40, b.vx / d, b.vy / d); if (b.boom) { this.boom(b.x, b.y, b.boom, b.dmg, b.crit, e); dead = true; } else if (b.hit.size > b.pierce) dead = true; } });
+      this.near(b.x, b.y, b.r + 90, (e) => { if (dead || e.hp <= 0 || b.hit.has(e)) return; if (Math.hypot(e.x - b.x, e.y - Math.min(44, e.def.size * 0.3) - (e.def.fx === 'ghost' || e.def.hover ? 16 : 0) - b.y) < e.r + b.r + 3) { b.hit.add(e); const d = Math.hypot(b.vx, b.vy) || 1; this.hitEnemy(e, b.dmg, b.crit, 40, b.vx / d, b.vy / d); if (b.boom) { this.boom(b.x, b.y, b.boom, b.dmg, b.crit, e); dead = true; } else if (b.hit.size > b.pierce) dead = true; } });
       if (!dead) keep.push(b);
     }
     this.bullets = keep;
