@@ -84,7 +84,7 @@ function resBar() {
   return `<div class="resbar"><div class="rc ${F.demand > F.supply ? 'bad' : ''}" data-r="pow">&#9889; <b>${Math.round(F.supply)}</b>/${Math.round(F.demand)}<small>power</small></div>
     <div class="rc ${r.water <= 0 ? 'bad' : ''}" data-r="water">&#128167; <b>${Math.floor(r.water)}</b><small>${rate1(F.rate.water)}</small></div>
     <div class="rc ${r.food <= 0 ? 'bad' : ''}" data-r="food">&#127830; <b>${Math.floor(r.food)}</b><small>${rate1(F.rate.food)}</small></div>
-    <button class="rc crew" data-act="crew">&#128101; <b>${pop}</b>/${bd}<small>survivors</small></button><button class="rc crew" data-act="builders">&#128296; <b>${S.base.builds.length}</b>/${builderCount(S)}<small>builders</small></button></div>${F.demand > F.supply ? '<p class="warn">Not enough electricity: rooms are running slow. Build or upgrade a Generator.</p>' : ''}`;
+    <button class="rc crew" data-act="crew">&#128101; <b>${pop}</b>/${bd}<small>survivors</small></button><button class="rc crew" data-act="builders">&#128296; <b>${S.base.builds.length}</b>/${builderCount(S)}<small>builders</small></button><button class="rc crew" data-act="autoassign">&#9733; <b>Auto</b><small>assign crew</small></button></div>${F.demand > F.supply ? '<p class="warn">Not enough electricity: rooms are running slow. Build or upgrade a Generator.</p>' : ''}`;
 }
 function hauntBanner() {
   const H = S.base.haunt && S.base.haunt.active; if (!H) return '';
@@ -365,7 +365,7 @@ function handle(act, d) {
   if (act === 'slot') { sheet = { kind: 'build', key: d.key }; renderCamp(); return; }
   if (act === 'door') { sheet = { kind: 'door' }; renderCamp(); return; }
   if (act === 'crew') { sheet = { kind: 'crew' }; renderCamp(); return; }
-  if (act === 'autoassign') { const n = autoAssign(S); save(); msg = n ? `Assigned ${n} survivor${n === 1 ? '' : 's'} to the posts where they work best.` : 'No free posts to staff.'; renderCamp(); return; }
+  if (act === 'autoassign') { const n = autoAssign(S); save(); msg = n ? `Assigned ${n} survivor${n === 1 ? '' : 's'} to the posts where they work best.` : (S.base.survivors.length ? 'No free posts to staff.' : 'No survivors yet. They knock at the front door.'); renderCamp(); return; }
   if (act === 'assignpick') { sheet = { kind: 'assign', id: +d.id }; renderCamp(); return; }
   if (act === 'staffpick') { sheet = { kind: 'staff', key: d.key }; renderCamp(); return; }
   if (act === 'closesheet') { sheet = null; if (tab === 'gear') renderGear(); else renderCamp(); return; }
