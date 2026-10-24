@@ -252,6 +252,7 @@ export const TALENTS = {
   xp: { name: 'Quick Study', br: 'for', max: 20, base: 3, desc: (L) => `+${L * 3}% XP`, per: '+3% XP' },
   revive: { name: 'Second Chance', br: 'sur', max: 3, base: 25, desc: (L) => `Once per run, come back at ${20 + L * 15}% health when you would die`, per: 'Better revive' },
   echo: { name: 'Echo Seeker', br: 'sur', max: 10, base: 6, desc: (L) => `+${L * 5}% Echoes from runs`, per: '+5% Echoes' },
+  build: { name: 'Master Builder', br: 'sur', max: 15, base: 5, desc: (L) => `-${L * 4}% building and upgrade time`, per: '-4% build time' },
   haunt: { name: 'Warded Doors', br: 'sur', max: 10, base: 5, desc: (L) => `+${L * 4}% church defense against haunted nights`, per: '+4% church defense' },
 };
 export const talentLvl = (S, k) => (S.tal && S.tal[k]) || 0;
@@ -404,6 +405,9 @@ export function openSlots(S) {
 }
 export const newRoomCost = (S) => { const n = Object.keys(S.base.rooms).length; return { gold: Math.round(90 * Math.pow(1.38, n - 1)), scrap: Math.round(6 * Math.pow(1.3, n - 1)), secs: Math.min(43200, Math.round(30 * Math.pow(1.45, n - 1))) }; };
 export const upgradeCost = (lvl) => ({ gold: Math.round(50 * Math.pow(1.6, lvl)), scrap: Math.round(4 * Math.pow(1.5, lvl)) });
+export const buildMul = (S) => 1 - 0.04 * ((S.tal && S.tal.build) || 0);
+export const rushCost = (b, now = Date.now()) => Math.max(10, Math.ceil(Math.max(0, b.end - now) / 60000) * 12);
+export function rushBuild(S, key) { const b = S.base.builds.find((x) => x.key === key); if (!b) return 'bad'; const c = rushCost(b); if (S.gold < c) return 'poor'; S.gold -= c; b.end = Date.now(); return 'ok'; }
 export const upgradeSecs = (lvl) => Math.min(43200, Math.round(20 * Math.pow(1.5, lvl)));
 
 // ----- builders: how many rooms can be built or upgraded at the same time (more will be a purchase later; all 5 are free for now) -----
@@ -519,11 +523,11 @@ export function tickBase(S, now = Date.now()) {
 export function startBuild(S, key, type) {
   if (S.base.builds.length >= builderCount(S)) return 'busy'; if (S.base.rooms[key] || !ROOMS[type]) return 'bad'; const c = newRoomCost(S);
   if (S.gold < c.gold || (S.scrap || 0) < c.scrap) return 'poor'; S.gold -= c.gold; S.scrap -= c.scrap;
-  S.base.rooms[key] = { type, lvl: 0, building: true }; S.base.builds.push({ key, kind: 'new', end: Date.now() + c.secs * 1000 }); return 'ok';
+  S.base.rooms[key] = { type, lvl: 0, building: true }; S.base.builds.push({ key, kind: 'new', end: Date.now() + Math.round(c.secs * buildMul(S)) * 1000 }); return 'ok';
 }
 export function startUpgrade(S, key) {
   const r = S.base.rooms[key]; if (S.base.builds.length >= builderCount(S) || !r || buildOf(S, key)) return 'busy'; const c = upgradeCost(r.lvl);
-  if (S.gold < c.gold || (S.scrap || 0) < c.scrap) return 'poor'; S.gold -= c.gold; S.scrap -= c.scrap; S.base.builds.push({ key, kind: 'up', end: Date.now() + upgradeSecs(r.lvl) * 1000 }); return 'ok';
+  if (S.gold < c.gold || (S.scrap || 0) < c.scrap) return 'poor'; S.gold -= c.gold; S.scrap -= c.scrap; S.base.builds.push({ key, kind: 'up', end: Date.now() + Math.round(upgradeSecs(r.lvl) * buildMul(S)) * 1000 }); return 'ok';
 }
 const OLD_MAP = { watch: 'watch', gen: 'gen', workshop: 'workshop', kitchen: 'kitchen', bedroom: 'bedroom', armory: 'armory', infirmary: 'infirmary', store: 'store', chapel: 'chapel' };
 function fixBase(S) {
