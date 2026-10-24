@@ -4,7 +4,7 @@ import { petOf, petLv } from './pets.js';
 import { Music } from './music.js';
 import { SHRINES, CONTRACTS } from './data.js';
 import { EVOLUTIONS, eventActive, DISTRICTS, talentLvl, runOpts, rnd, rint, pick, clamp, districtOf, makeGem, GEMS, ENEMIES, WEAPONS, UPGRADES, RARITIES, heroStats, makeItem, baseBonus } from './data.js';
-import { spr, sprite, flashOf, flipped, glow, SHADOW, GEM, GOLD, KNIFE, AXE, HOLE, CONE, SPLAT, LEAF, FOG, FLARE, gemSprite, PUDDLE, TUFT, PATCH, frames, FRAME_PAD, TEX } from './art.js';
+import { spr, sprite, flashOf, flipped, glow, SHADOW, GEM, GOLD, KNIFE, AXE, HOLE, CONE, SPLAT, LEAF, FOG, FLARE, gemSprite, PUDDLE, TUFT, PATCH, frames, FRAME_PAD, TEX, LW, LH, setRes } from './art.js';
 const isGun = (s) => s === 'bullet' || s === 'flame' || s === 'grenade' || s === 'pumpkin';
 const WEAPON_LEN = { katana: 30, sledge: 30, crossbow: 26, nailgun: 18, chainsaw: 26, flame: 30, grenade: 34, sniper: 44, minigun: 34, knife: 14, machete: 26, axe: 22, bat: 28, crowbar: 26, pistol: 16, revolver: 18, smg: 24, shotgun: 32, rifle: 38 };
 const PROP_H = { prop_tree: 230, prop_car: 130, prop_lamp: 150, prop_tomb3: 100, prop_fence: 70, prop_bush: 60, prop_pumpkin: 40, prop_tomb1: 74, prop_tomb2: 74 };
@@ -64,7 +64,7 @@ export class Run {
   resize() {
     const coarse = matchMedia('(pointer: coarse)').matches, cap = this.q >= 2 ? 0.8 : this.q >= 1 ? 1 : (coarse ? 1.25 : 1.75), dpr = Math.min(devicePixelRatio || 1, cap), W = innerWidth, H = innerHeight;
     this.cv.width = Math.round(W * dpr); this.cv.height = Math.round(H * dpr); this.cv.style.width = W + 'px'; this.cv.style.height = H + 'px';
-    this.dpr = dpr; this.sw = W; this.sh = H; this.scale = Math.min(W, H) / 560; // portrait and landscape both show about 640 px across the short side
+    this.dpr = dpr; this.sw = W; this.sh = H; this.scale = Math.min(W, H) / 560; setRes(this.q < 1 && !coarse ? Math.min(2, Math.max(1, Math.ceil(dpr * this.scale))) : 1); // portrait and landscape both show about 640 px across the short side
     const lk = this.q >= 1 ? 0.25 : 0.33; this.light.width = Math.max(2, Math.round(W * lk)); this.light.height = Math.max(2, Math.round(H * lk)); this.pat = null;
   }
   setQuality(q) { if (q === this.q) return; this.q = q; this.resize(); }
@@ -470,7 +470,7 @@ export class Run {
     const vw = W / S, vh = H / S, x0 = camx - vw / 2 - 60, x1 = camx + vw / 2 + 60, y0 = camy - vh / 2 - 60, y1 = camy + vh / 2 + 60;
     // ground
     const tex = TEX[this.theme.ground] || TEX.tex_ground, gtex = !!(this.theme.ground && TEX[this.theme.ground]);
-    if (tex) { if (!this.pat) { this.pat = x.createPattern(tex, 'repeat'); this.pat.setTransform(new DOMMatrix().scale(0.32)); } x.fillStyle = this.pat; } else x.fillStyle = '#1b2220';
+    if (tex) { if (!this.pat) { this.pat = x.createPattern(tex, 'repeat'); this.pat.setTransform(new DOMMatrix().scale(0.2)); } x.fillStyle = this.pat; } else x.fillStyle = '#1b2220';
     x.fillRect(x0, y0, x1 - x0, y1 - y0);
     if (tex && this.q < 2) { x.globalCompositeOperation = 'lighter'; x.globalAlpha = 0.12; x.fillRect(x0, y0, x1 - x0, y1 - y0); x.globalAlpha = 1; x.globalCompositeOperation = 'source-over'; }
     if (this.theme.tint && !gtex) { x.globalCompositeOperation = 'multiply'; x.fillStyle = this.theme.tint; x.fillRect(x0, y0, x1 - x0, y1 - y0); x.globalCompositeOperation = 'source-over'; }
@@ -482,7 +482,7 @@ export class Run {
       if (this.q < 2) { for (const lf of ci.leaves) x.drawImage(LEAF[lf.v], lf.x, lf.y); for (const tf of ci.tufts) x.drawImage(TUFT[tf.v], tf.x, tf.y); x.globalAlpha = 0.8; for (const pd of ci.puddles) x.drawImage(PUDDLE, pd.x - pd.s / 2, pd.y - pd.s * 0.2, pd.s, pd.s * 0.42); x.globalAlpha = 1; }
     }
     for (const d of this.decals) { const a = Math.min(1, (d.life - d.t) / 2) * 0.75; if (d.x < x0 || d.x > x1 || d.y < y0 || d.y > y1) continue; x.globalAlpha = a; const w = 44 * d.sc; x.drawImage(d.s, d.x - w / 2, d.y - w * 0.3, w, w * 0.6); } x.globalAlpha = 1;
-    for (const c of this.corpses) { if (c.x < x0 || c.x > x1 || c.y < y0 || c.y > y1) continue; const k = c.t / c.life, ease = Math.min(1, k * 4), s0 = c.face < 0 ? flipped(c.s) : c.s; x.save(); x.translate(c.x, c.y); x.rotate(c.dir * 1.45 * ease); x.globalAlpha = k > 0.55 ? 1 - (k - 0.55) / 0.45 : 1; x.drawImage(s0, -s0.width / 2, -s0.height * (1 - 0.35 * ease)); x.restore(); } x.globalAlpha = 1;
+    for (const c of this.corpses) { if (c.x < x0 || c.x > x1 || c.y < y0 || c.y > y1) continue; const k = c.t / c.life, ease = Math.min(1, k * 4), s0 = c.face < 0 ? flipped(c.s) : c.s; x.save(); x.translate(c.x, c.y); x.rotate(c.dir * 1.45 * ease); x.globalAlpha = k > 0.55 ? 1 - (k - 0.55) / 0.45 : 1; x.drawImage(s0, -LW(s0) / 2, -LH(s0) * (1 - 0.35 * ease)); x.restore(); } x.globalAlpha = 1;
     // things standing on the ground, drawn back to front (list is reused every frame)
     const list = this.dl || (this.dl = []); list.length = 0; const C = 520;
     for (let cx = Math.floor(x0 / C) - 1; cx <= Math.floor(x1 / C) + 1; cx++) for (let cy = Math.floor(y0 / C) - 1; cy <= Math.floor(y1 / C) + 1; cy++) for (const p of this.props_at(cx, cy)) if (p.x > x0 - 100 && p.x < x1 + 100 && p.y > y0 - 120 && p.y < y1 + 200) list.push(p);
@@ -492,13 +492,13 @@ export class Run {
     for (const g of this.gems) { const s = g.v >= 5 ? GEM.p : g.v >= 2 ? GEM.b : GEM.g; if (g.x > x0 && g.x < x1 && g.y > y0 && g.y < y1) x.drawImage(s, g.x - 7, g.y - 7); }
     for (const l of this.loot) {
       if (l.x < x0 || l.x > x1 || l.y < y0 || l.y > y1) continue;
-      if (l.kind === 'pumpkin') { const sp = sprite('prop_pumpkin', 1, 26); x.globalCompositeOperation = 'lighter'; x.drawImage(glow('#ff8a20', 64), l.x - 22, l.y - 22, 44, 44); x.globalCompositeOperation = 'source-over'; x.drawImage(sp, l.x - sp.width / 2, l.y - sp.height + 4 - Math.sin(this.t * 4 + l.x) * 2); }
+      if (l.kind === 'pumpkin') { const sp = sprite('prop_pumpkin', 1, 26); x.globalCompositeOperation = 'lighter'; x.drawImage(glow('#ff8a20', 64), l.x - 22, l.y - 22, 44, 44); x.globalCompositeOperation = 'source-over'; x.drawImage(sp, l.x - LW(sp) / 2, l.y - LH(sp) + 4 - Math.sin(this.t * 4 + l.x) * 2); }
       else if (l.kind === 'crate') { x.globalCompositeOperation = 'lighter'; x.drawImage(glow('#ffd24a', 128), l.x - 56, l.y - 56, 112, 112); x.globalAlpha = 0.5; x.fillStyle = '#ffd24a'; x.fillRect(l.x - 3, l.y - 110, 6, 110); x.globalAlpha = 1; x.globalCompositeOperation = 'source-over'; x.fillStyle = '#5a3d1f'; x.fillRect(l.x - 13, l.y - 20, 26, 20); x.strokeStyle = '#c99a3a'; x.lineWidth = 2; x.strokeRect(l.x - 13, l.y - 20, 26, 20); x.fillStyle = '#c99a3a'; x.fillRect(l.x - 13, l.y - 12, 26, 3); }
       else if (l.kind === 'gold') x.drawImage(GOLD, l.x - 6, l.y - 6);
       else if (l.kind === 'gem') { const c = GEMS[l.gem.type].color; x.globalCompositeOperation = 'lighter'; x.drawImage(glow(c, 64), l.x - 24, l.y - 24, 48, 48); x.globalCompositeOperation = 'source-over'; x.drawImage(gemSprite(c), l.x - 9, l.y - 9 - Math.sin(this.t * 4 + l.x) * 2); }
       else { const c = RARITIES[l.item.rar].color; x.globalCompositeOperation = 'lighter'; x.drawImage(glow(c, 96), l.x - 40, l.y - 40, 80, 80); x.fillStyle = c; x.globalAlpha = 0.5; x.fillRect(l.x - 2, l.y - 70, 4, 70); x.globalAlpha = 1; x.globalCompositeOperation = 'source-over'; x.fillStyle = c; x.fillRect(l.x - 7, l.y - 7, 14, 14); x.strokeStyle = '#000'; x.lineWidth = 1; x.strokeRect(l.x - 7, l.y - 7, 14, 14); }
     }
-    if (this.shrine) { const s = this.shrine, sp = sprite('prop_tomb3', 1, 86); x.globalCompositeOperation = 'lighter'; x.drawImage(glow('#b070ff', 128), s.x - 74, s.y - 100, 148, 148); x.globalAlpha = 0.45; x.fillStyle = '#c090ff'; x.fillRect(s.x - 3, s.y - 190, 6, 190); x.globalAlpha = 1; x.globalCompositeOperation = 'source-over'; x.drawImage(sp, s.x - sp.width / 2, s.y - sp.height + 10); }
+    if (this.shrine) { const s = this.shrine, sp = sprite('prop_tomb3', 1, 86); x.globalCompositeOperation = 'lighter'; x.drawImage(glow('#b070ff', 128), s.x - 74, s.y - 100, 148, 148); x.globalAlpha = 0.45; x.fillStyle = '#c090ff'; x.fillRect(s.x - 3, s.y - 190, 6, 190); x.globalAlpha = 1; x.globalCompositeOperation = 'source-over'; x.drawImage(sp, s.x - LW(sp) / 2, s.y - LH(sp) + 10); }
     for (const l of this.loot) if (l.kind === 'crate') this.arrow(x, l.x, l.y, camx, camy, vw, vh, '#ffd24a');
     if (this.shrine) this.arrow(x, this.shrine.x, this.shrine.y, camx, camy, vw, vh, '#c090ff');
     for (const m of this.mineList) { x.fillStyle = '#23282c'; x.beginPath(); x.ellipse(m.x, m.y, 12, 6, 0, 0, TAU); x.fill(); x.strokeStyle = '#6a737a'; x.lineWidth = 1.5; x.stroke(); x.fillStyle = Math.floor(this.t * 3) % 2 ? '#ff3a3a' : '#601818'; x.fillRect(m.x - 2, m.y - 2, 4, 4); }
@@ -512,7 +512,7 @@ export class Run {
     x.globalCompositeOperation = 'lighter';
     for (const b of this.bullets) {
       if (b.shape === 'flame') { const k = 1 - Math.max(0, b.life) / 0.42; x.globalCompositeOperation = 'lighter'; x.globalAlpha = 0.55 * (1 - k * 0.6); x.fillStyle = k < 0.4 ? '#ffd060' : '#ff6a20'; x.beginPath(); x.arc(b.x, b.y, 7 + k * 15, 0, TAU); x.fill(); x.globalAlpha = 1; x.globalCompositeOperation = 'source-over'; }
-      else if (b.shape === 'pumpkin') { const sp = sprite('prop_pumpkin', 1, 24); x.save(); x.translate(b.x, b.y); x.rotate(b.spin); x.drawImage(sp, -sp.width / 2, -sp.height / 2); x.restore(); }
+      else if (b.shape === 'pumpkin') { const sp = sprite('prop_pumpkin', 1, 24); x.save(); x.translate(b.x, b.y); x.rotate(b.spin); x.drawImage(sp, -LW(sp) / 2, -LH(sp) / 2); x.restore(); }
       else if (b.shape === 'grenade') { x.fillStyle = '#2a3238'; x.beginPath(); x.arc(b.x, b.y, 5, 0, TAU); x.fill(); x.fillStyle = '#ff7a30'; x.fillRect(b.x - 1, b.y - 1, 2, 2); }
       else if (b.shape === 'bullet') { x.strokeStyle = b.crit ? '#ffd84a' : '#ffe9a0'; x.lineWidth = 3; x.beginPath(); x.moveTo(b.x, b.y); x.lineTo(b.x - Math.cos(b.a) * 26, b.y - Math.sin(b.a) * 26); x.stroke(); }
       else if (b.shape === 'knife') { const c = Math.cos(b.a), s = Math.sin(b.a); x.setTransform(dpr * S * c, dpr * S * s, -dpr * S * s, dpr * S * c, dpr * (W / 2 - camx * S + ox) + dpr * S * (b.x * 1), dpr * (H / 2 - camy * S + oy) + dpr * S * b.y); x.drawImage(KNIFE, -22, -6); x.setTransform(dpr * S, 0, 0, dpr * S, dpr * (W / 2 - camx * S + ox), dpr * (H / 2 - camy * S + oy)); }
@@ -526,7 +526,7 @@ export class Run {
       else if (f.k === 'bolt') { x.globalAlpha = 1 - f.t / f.life; x.strokeStyle = '#bfe8ff'; x.lineWidth = 3; x.beginPath(); x.moveTo(f.x, f.y); const mx = (f.x + f.x2) / 2 + rnd(-10, 10), my = (f.y + f.y2) / 2 + rnd(-10, 10); x.lineTo(mx, my); x.lineTo(f.x2, f.y2); x.stroke(); }
       else if (f.k === 's') { x.globalAlpha = 1 - f.t / f.life; x.strokeStyle = f.col; x.lineWidth = 2; x.beginPath(); x.moveTo(f.x, f.y); x.lineTo(f.x - f.vx * 0.04, f.y - f.vy * 0.04); x.stroke(); }
       else if (f.k === 'p') { x.globalAlpha = 1 - f.t / f.life; x.fillStyle = f.col; x.fillRect(f.x - f.r, f.y - f.r, f.r * 2, f.r * 2); }
-      else if (f.k === 'gf') { const k = f.t / f.life, s0 = f.face < 0 ? flipped(f.s) : f.s; x.globalAlpha = (1 - k) * 0.7; x.drawImage(s0, f.x - s0.width / 2, f.y - s0.height - k * 40); }
+      else if (f.k === 'gf') { const k = f.t / f.life, s0 = f.face < 0 ? flipped(f.s) : f.s; x.globalAlpha = (1 - k) * 0.7; x.drawImage(s0, f.x - LW(s0) / 2, f.y - LH(s0) - k * 40); }
     }
     x.globalAlpha = 1; x.globalCompositeOperation = 'source-over';
     this.drawDark(x, W, H, S, camx, camy, ox, oy, q);
@@ -558,7 +558,7 @@ export class Run {
   }
   drawCrew(x, c) {
     const job = c.sv.main, key = `cr_${job}_${c.sv.g}`, fr = frames(key, 1, 92, c.moving ? 'walk' : 'idle'), s0 = fr[Math.floor(c.bob * (c.moving ? 0.9 : 0.35)) % fr.length], s = c.face < 0 ? flipped(s0) : s0;
-    x.drawImage(SHADOW, c.x - 18, c.y - 7, 36, 14); x.drawImage(s, c.x - s.width / 2, c.y - s.height + FRAME_PAD(92));
+    x.drawImage(SHADOW, c.x - 18, c.y - 7, 36, 14); x.drawImage(s, c.x - LW(s) / 2, c.y - LH(s) + FRAME_PAD(92));
   }
   drawTurret(x, t) {
     x.drawImage(SHADOW, t.x - 14, t.y - 5, 28, 10); x.fillStyle = '#2a3038'; x.fillRect(t.x - 9, t.y - 16, 18, 14); x.fillStyle = '#9aa7b5'; x.fillRect(t.x - 6, t.y - 20, 12, 5);
@@ -566,21 +566,21 @@ export class Run {
   }
   drawProp(x, p) {
     const s0 = spr(p.t, PROP_H[p.t] || 74), s = p.f < 0 ? flipped(s0) : s0;
-    x.drawImage(SHADOW, p.x - s.width * 0.4, p.y - 8, s.width * 0.8, 16); x.drawImage(s, p.x - s.width / 2, p.y - s.height);
+    x.drawImage(SHADOW, p.x - LW(s) * 0.4, p.y - 8, LW(s) * 0.8, 16); x.drawImage(s, p.x - LW(s) / 2, p.y - LH(s));
   }
   drawEnemy(x, e) {
     const d = e.def, ghost = d.fx === 'ghost' || d.hover, bob = Math.sin(e.age * (ghost ? 3 : 7) + e.ph) * (ghost ? 6 : 2.5), lift = ghost ? 16 : d.fx === 'swoop' ? 26 : 0;
     const kind = ghost ? 'ghost' : d.fx === 'swoop' ? 'flap' : 'walk', fr = frames(d.sprite, e.v, d.size, kind), s0 = fr[Math.floor(e.age * (ghost ? 5 : kind === 'flap' ? 14 : 9 * (d.speed / 70) + 4)) % fr.length], s = e.face < 0 ? flipped(s0) : s0, yy = e.y - lift - (ghost ? bob : 0) + FRAME_PAD(d.size), jx = e.slam > 0 ? rnd(-2, 2) : 0;
     x.drawImage(SHADOW, e.x - d.r * 1.2, e.y - d.r * 0.45, d.r * 2.4, d.r * 0.9);
     if (ghost) x.globalAlpha = 0.88;
-    x.drawImage(s, e.x - s.width / 2 + jx, yy - s.height);
-    if (e.flash > 0) { x.globalAlpha = 0.85; x.drawImage(flashOf(s), e.x - s.width / 2 + jx, yy - s.height); }
+    x.drawImage(s, e.x - LW(s) / 2 + jx, yy - LH(s));
+    if (e.flash > 0) { x.globalAlpha = 0.85; x.drawImage(flashOf(s), e.x - LW(s) / 2 + jx, yy - LH(s)); }
     x.globalAlpha = 1;
     if (d.fx === 'shooter' && this.q < 3) { const hh = this.hero; x.strokeStyle = 'rgba(255,60,60,.9)'; x.lineWidth = 2.4; x.beginPath(); x.ellipse(e.x, yy + 2, d.r + 9 + Math.sin(this.t * 4 + e.ph) * 1.5, (d.r + 8) * 0.4, 0, 0, TAU); x.stroke();
-      if (e.cd < 0.5 && e.cd > 0) { x.globalAlpha = 0.3 + (0.5 - e.cd); x.strokeStyle = '#ff4a4a'; x.lineWidth = 1; x.setLineDash([4, 5]); x.beginPath(); x.moveTo(e.x, yy - s.height * 0.4); x.lineTo(hh.x, hh.y - 30); x.stroke(); x.setLineDash([]); x.globalAlpha = 1; } }
-    if (this.q < 2 && d.glow) { x.globalCompositeOperation = 'lighter'; x.globalAlpha = 0.55 + 0.2 * Math.sin(this.t * 6 + e.ph); x.drawImage(glow(d.glow, 96), e.x - s.height * 0.3, yy - s.height * 0.95, s.height * 0.6, s.height * 0.5); x.globalAlpha = 1; x.globalCompositeOperation = 'source-over'; }
-    if (this.q < 2 && d.eye) { x.globalCompositeOperation = 'lighter'; x.drawImage(glow(d.eye, 32), e.x - 11 + (e.face < 0 ? 2 : -2), yy - s.height * 0.86 - 5, 22, 14); x.globalCompositeOperation = 'source-over'; }
-    if (e.hp < e.maxHp && !d.boss && e.hp > 0) { const w = d.r * 2, by = yy - s.height - 6; x.fillStyle = 'rgba(0,0,0,.6)'; x.fillRect(e.x - w / 2, by, w, 4); x.fillStyle = d.elite ? '#ff9a3a' : '#e04a4a'; x.fillRect(e.x - w / 2, by, w * Math.max(0, e.hp / e.maxHp), 4); }
+      if (e.cd < 0.5 && e.cd > 0) { x.globalAlpha = 0.3 + (0.5 - e.cd); x.strokeStyle = '#ff4a4a'; x.lineWidth = 1; x.setLineDash([4, 5]); x.beginPath(); x.moveTo(e.x, yy - LH(s) * 0.4); x.lineTo(hh.x, hh.y - 30); x.stroke(); x.setLineDash([]); x.globalAlpha = 1; } }
+    if (this.q < 2 && d.glow) { x.globalCompositeOperation = 'lighter'; x.globalAlpha = 0.55 + 0.2 * Math.sin(this.t * 6 + e.ph); x.drawImage(glow(d.glow, 96), e.x - LH(s) * 0.3, yy - LH(s) * 0.95, LH(s) * 0.6, LH(s) * 0.5); x.globalAlpha = 1; x.globalCompositeOperation = 'source-over'; }
+    if (this.q < 2 && d.eye) { x.globalCompositeOperation = 'lighter'; x.drawImage(glow(d.eye, 32), e.x - 11 + (e.face < 0 ? 2 : -2), yy - LH(s) * 0.86 - 5, 22, 14); x.globalCompositeOperation = 'source-over'; }
+    if (e.hp < e.maxHp && !d.boss && e.hp > 0) { const w = d.r * 2, by = yy - LH(s) - 6; x.fillStyle = 'rgba(0,0,0,.6)'; x.fillRect(e.x - w / 2, by, w, 4); x.fillStyle = d.elite ? '#ff9a3a' : '#e04a4a'; x.fillRect(e.x - w / 2, by, w * Math.max(0, e.hp / e.maxHp), 4); }
   }
   arrow(x, tx, ty, camx, camy, vw, vh, col) {
     const hx = vw / 2 - 26, hy = vh / 2 - 26, dx = tx - camx, dy = ty - camy; if (Math.abs(dx) < hx && Math.abs(dy) < hy) return;
@@ -590,14 +590,14 @@ export class Run {
   drawPet(x, p) {
     const d = p.def, s = sprite('pet_' + d.id, 1, d.size), fl = p.face < 0; x.drawImage(SHADOW, p.x - 14, p.y - 4, 28, 9);
     if (d.id === 'wisp') { x.globalCompositeOperation = 'lighter'; x.globalAlpha = 0.6 + 0.2 * Math.sin(p.t * 5); x.drawImage(glow('#6affd0', 96), p.x - 38, p.y - d.size - 4, 76, 76); x.globalAlpha = 1; x.globalCompositeOperation = 'source-over'; }
-    const img = fl ? flipped(s) : s, lift = d.id === 'raven' || d.id === 'wisp' ? 10 : 0; x.drawImage(img, p.x - img.width / 2, p.y - img.height - lift + 4);
+    const img = fl ? flipped(s) : s, lift = d.id === 'raven' || d.id === 'wisp' ? 10 : 0; x.drawImage(img, p.x - LW(img) / 2, p.y - LH(img) - lift + 4);
   }
   drawHero(x) {
     const h = this.hero, moving = h.moving, fr = frames('hero_' + this.S.hero, 1, 100, moving ? 'walk' : 'idle'), s0 = fr[Math.floor(h.bob * (moving ? 0.9 : 0.35)) % fr.length], s = h.face < 0 ? flipped(s0) : s0, bob = 0 + FRAME_PAD(100) * 0;
     x.drawImage(SHADOW, h.x - 20, h.y - 7, 40, 14);
     if (h.inv > 0 && Math.floor(this.t * 20) % 2) x.globalAlpha = 0.5;
-    x.drawImage(s, h.x - s.width / 2, h.y - s.height + FRAME_PAD(100) - bob);
-    if (h.flash > 0) { x.globalAlpha = 0.6; x.drawImage(flashOf(s), h.x - s.width / 2, h.y - s.height + FRAME_PAD(100) - bob); }
+    x.drawImage(s, h.x - LW(s) / 2, h.y - LH(s) + FRAME_PAD(100) - bob);
+    if (h.flash > 0) { x.globalAlpha = 0.6; x.drawImage(flashOf(s), h.x - LW(s) / 2, h.y - LH(s) + FRAME_PAD(100) - bob); }
     x.globalAlpha = 1;
     // the weapon in hand: aims at the target, kicks back when it fires, muzzle flash on guns
     const K = this.hs.weaponKind, Wp = WEAPONS[K], a = h.aim, ca = Math.cos(a), sa = Math.sin(a), hx = h.x + ca * 8 + h.face * 6, hy = h.y - 44 - bob + sa * 5, rc = h.recoil || 0;

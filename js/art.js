@@ -1,5 +1,11 @@
 // Loads the painted art; anything missing gets a simple stand-in so the game always runs.
 const IMG = {}, SCALED = {}, FLASH = new WeakMap();
+// sharper sprites on big screens: pictures are baked RES times larger and drawn at their logical size (c.lw x c.lh)
+export let RES = 1;
+export const LW = (c) => c.lw || c.width, LH = (c) => c.lh || c.height;
+const _di = CanvasRenderingContext2D.prototype.drawImage;
+CanvasRenderingContext2D.prototype.drawImage = function (im) { if (arguments.length === 3 && im.lw) return _di.call(this, im, arguments[1], arguments[2], im.lw, im.lh); return _di.apply(this, arguments); };
+const mark = (arr) => { for (const c of arr) if (!c.lw) { c.lw = c.width / RES; c.lh = c.height / RES; } return arr; };
 const NAMES = ['icon_crossbow', 'icon_katana', 'icon_chainsaw', 'icon_sledgehammer', 'icon_minigun', 'icon_flamethrower', 'icon_nailgun', 'icon_grenade', 'icon_sniper', 'en_dockhand_1', 'en_dockhand_2', 'en_gull_1', 'en_gull_2', 'en_scorched_1', 'en_scorched_2', 'en_doll_1', 'en_doll_2', 'en_commuter_1', 'en_commuter_2', 'en_rat_1', 'en_rat_2', 'en_plaguevic_1', 'en_plaguevic_2', 'en_bloat_1', 'en_bloat_2', 'en_patient_1', 'en_patient_2', 'en_nurse_1', 'en_nurse_2', 'en_noble_1', 'en_noble_2', 'en_knight_1', 'en_knight_2', 'boss_captain_1', 'boss_captain_2', 'boss_matron_1', 'boss_matron_2', 'boss_conductor_1', 'boss_conductor_2', 'boss_plaguedoc_1', 'boss_plaguedoc_2', 'boss_warden_1', 'boss_warden_2', 'boss_queen_1', 'boss_queen_2', 'en_pumpkinhead_1', 'en_pumpkinhead_2', 'en_scarecrow_1', 'en_scarecrow_2', 'boss_pumpkinking_1', 'boss_pumpkinking_2', 'icon_pumpkincannon', 'pet_hound', 'pet_raven', 'pet_wisp', 'pet_cat', 'hero_priest_1', 'hero_priest_2', 'hero_mech_1', 'hero_mech_2', 'hero_hunter_1', 'hero_hunter_2', 'hero_nurse_1', 'hero_nurse_2', 'hero_f_1', 'hero_f_2', 'hero_m_1', 'hero_m_2', 'en_ghost_1', 'en_ghost_2', 'en_ghoul_1', 'en_ghoul_2', 'en_crow_1', 'en_crow_2', 'en_child_1', 'en_child_2', 'en_brute_1', 'en_brute_2', 'boss_gravekeeper_1', 'boss_gravekeeper_2',
   'prop_tomb1', 'prop_tomb2', 'prop_tomb3', 'prop_tree', 'prop_lamp', 'prop_car', 'prop_fence', 'prop_pumpkin', 'prop_bush',
   'cr_elec_f', 'cr_elec_m', 'cr_plumb_f', 'cr_plumb_m', 'cr_cook_f', 'cr_cook_m', 'cr_mech_f', 'cr_mech_m', 'cr_med_f', 'cr_med_m', 'cr_weap_f', 'cr_weap_m', 'cr_trade_f', 'cr_trade_m', 'cr_scout_f', 'cr_scout_m', 'cr_faith_f', 'cr_faith_m',
@@ -28,15 +34,16 @@ function standIn(name, h) {
 // a copy of the picture scaled to height h (cached), so thousands of draws stay cheap
 export function spr(name, h) {
   h = Math.round(h); const key = name + '@' + h; if (SCALED[key]) return SCALED[key];
-  const src = IMG[name] || IMG[name + '_1'];
+  const src = IMG[name] || IMG[name + '_1'], hh = Math.round(h * RES);
   let c;
-  if (!src) c = standIn(name, h);
-  else { c = document.createElement('canvas'); c.height = h; c.width = Math.max(1, Math.round(src.width * h / src.height)); const x = c.getContext('2d'); x.imageSmoothingQuality = 'high'; x.drawImage(src, 0, 0, c.width, c.height); }
+  if (!src) c = standIn(name, hh);
+  else { c = document.createElement('canvas'); c.height = hh; c.width = Math.max(1, Math.round(src.width * hh / src.height)); const x = c.getContext('2d'); x.imageSmoothingQuality = 'high'; x.drawImage(src, 0, 0, c.width, c.height); }
+  mark([c]);
   return (SCALED[key] = c);
 }
 export function sprite(name, variant, h) { const n = IMG[`${name}_${variant}`] ? `${name}_${variant}` : (IMG[name + '_1'] ? name + '_1' : name); return spr(n, h); }
 // white silhouette for hit flashes
-export function flashOf(c) { let f = FLASH.get(c); if (f) return f; f = document.createElement('canvas'); f.width = c.width; f.height = c.height; const x = f.getContext('2d'); x.drawImage(c, 0, 0); x.globalCompositeOperation = 'source-in'; x.fillStyle = '#fff'; x.fillRect(0, 0, f.width, f.height); FLASH.set(c, f); return f; }
+export function flashOf(c) { let f = FLASH.get(c); if (f) return f; f = document.createElement('canvas'); f.width = c.width; f.height = c.height; f.lw = c.lw; f.lh = c.lh; const x = f.getContext('2d'); x.drawImage(c, 0, 0, c.width, c.height); x.globalCompositeOperation = 'source-in'; x.fillStyle = '#fff'; x.fillRect(0, 0, f.width, f.height); FLASH.set(c, f); return f; }
 export const hasArt = (n) => !!IMG[n] || !!IMG[n + '_1'];
 export const iconUrl = (n) => (IMG['icon_' + n] ? IMG['icon_' + n].src : '');
 
@@ -48,7 +55,7 @@ const GEMSPR = {};
 export function gemSprite(col) { if (GEMSPR[col]) return GEMSPR[col]; const c = mkc(18, 18), x = c.getContext('2d'); x.fillStyle = col; x.strokeStyle = 'rgba(0,0,0,.7)'; x.lineWidth = 1.5; x.beginPath(); x.moveTo(9, 1); x.lineTo(16, 7); x.lineTo(9, 17); x.lineTo(2, 7); x.closePath(); x.fill(); x.stroke(); x.fillStyle = 'rgba(255,255,255,.55)'; x.beginPath(); x.moveTo(9, 2); x.lineTo(13, 7); x.lineTo(9, 7); x.closePath(); x.fill(); return (GEMSPR[col] = c); }
 export const SHADOW = (() => { const c = mkc(64, 24), x = c.getContext('2d'), g = x.createRadialGradient(32, 12, 2, 32, 12, 30); g.addColorStop(0, 'rgba(0,0,0,.55)'); g.addColorStop(1, 'rgba(0,0,0,0)'); x.save(); x.scale(1, 0.4); x.fillStyle = g; x.fillRect(0, 0, 64, 60); x.restore(); return c; })();
 const FLIP = new WeakMap();
-export function flipped(c) { let f = FLIP.get(c); if (f) return f; f = mkc(c.width, c.height); const x = f.getContext('2d'); x.translate(c.width, 0); x.scale(-1, 1); x.drawImage(c, 0, 0); FLIP.set(c, f); return f; }
+export function flipped(c) { let f = FLIP.get(c); if (f) return f; f = mkc(c.width, c.height); f.lw = c.lw; f.lh = c.lh; const x = f.getContext('2d'); x.translate(c.width, 0); x.scale(-1, 1); x.drawImage(c, 0, 0, c.width, c.height); FLIP.set(c, f); return f; }
 const diamond = (col) => { const c = mkc(14, 14), x = c.getContext('2d'); x.fillStyle = col; x.strokeStyle = 'rgba(0,0,0,.6)'; x.beginPath(); x.moveTo(7, 1); x.lineTo(12, 7); x.lineTo(7, 13); x.lineTo(2, 7); x.closePath(); x.fill(); x.stroke(); x.fillStyle = 'rgba(255,255,255,.55)'; x.fillRect(5, 4, 2, 2); return c; };
 export const GEM = { g: diamond('#7dff9a'), b: diamond('#6bd0ff'), p: diamond('#ff6bd6') };
 export const GOLD = (() => { const c = mkc(12, 12), x = c.getContext('2d'); x.fillStyle = '#ffd24a'; x.strokeStyle = '#7a5a00'; x.beginPath(); x.arc(6, 6, 5, 0, 7); x.fill(); x.stroke(); x.fillStyle = '#fff3b0'; x.fillRect(4, 3, 2, 2); return c; })();
@@ -96,13 +103,15 @@ function animFrames(a, h) {
 }
 export function frames(name, variant, h, kind) {
   const real = ANIM[`${name}_${kind === 'walk' && name.startsWith('hero') ? 'run' : kind}`] || ANIM[`${name}_${kind}`], rk = `${name}|real|${h}|${kind}`;
-  if (real) return FR[rk] || (FR[rk] = animFrames(real, h));
+  if (real) return FR[rk] || (FR[rk] = mark(animFrames(real, Math.round(h * RES))));
   const base = sprite(name, variant, h), key = `${name}|${variant}|${h}|${kind}`; if (FR[key]) return FR[key];
   const n = kind === 'walk' ? 8 : kind === 'idle' ? 6 : 8;
-  return (FR[key] = bake(base, kind, n));
+  return (FR[key] = mark(bake(base, kind, n)));
 }
 export const FRAME_PAD = (h) => Math.round(h * 0.06);
 
 export const PUDDLE = (() => { const c = mkc(96, 40), x = c.getContext('2d'); const g = x.createRadialGradient(48, 20, 2, 48, 20, 46); g.addColorStop(0, 'rgba(40,60,90,.75)'); g.addColorStop(0.7, 'rgba(25,38,60,.55)'); g.addColorStop(1, 'rgba(25,38,60,0)'); x.save(); x.scale(1, 0.42); x.fillStyle = g; x.fillRect(0, 0, 96, 96); x.restore(); x.fillStyle = 'rgba(190,210,240,.35)'; x.beginPath(); x.ellipse(40, 16, 14, 2.2, 0, 0, 7); x.fill(); return c; })();
 export const TUFT = [0, 1, 2].map((i) => { const c = mkc(22, 20), x = c.getContext('2d'); x.strokeStyle = ['#2b3a22', '#33432a', '#25301c'][i]; x.lineWidth = 1.6; for (let k = 0; k < 7; k++) { x.beginPath(); x.moveTo(11 + (k - 3) * 1.5, 19); x.quadraticCurveTo(11 + (k - 3) * 3, 9, 11 + (k - 3) * 4.5 + (i - 1) * 3, 2 + (k % 3) * 2); x.stroke(); } return c; });
 export const PATCH = ['#1a2a18', '#2a1a2e', '#101c28'].map((col) => glow(col, 128));
+
+export function setRes(r) { if (r === RES) return; RES = r; for (const k in SCALED) delete SCALED[k]; for (const k in FR) delete FR[k]; }
