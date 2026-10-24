@@ -281,6 +281,11 @@ function detailHtml(it) {
 function flashMsg() { if (!msg) return; const m = msg; setTimeout(() => { if (msg === m) { msg = ''; const el = $('.msg'); if (el) el.remove(); } }, 2600); }
 const perkBox = (it) => { if (it.slot !== 'weapon') return ''; const ks = [...(it.perks || [])]; const W = WEAPONS[it.kind]; if (W && W.perk && !ks.includes(W.perk)) ks.unshift(W.perk); return ks.length ? `<div class="perks">${ks.map((k) => `<p><b>${PERKS[k].name}</b> <small>${PERKS[k].desc}</small></p>`).join('')}</div>` : ''; };
 let btab = 'ach';
+function rewardPop(title, sub, text) {
+  const o = document.createElement('div'); o.className = 'rewardpop';
+  o.innerHTML = `<div class="rp"><small>${title}</small>${sub ? `<h3>${sub}</h3>` : ''}<div class="rtxt">${text}</div><button class="go">Nice</button></div>`;
+  o.onclick = () => o.remove(); document.body.appendChild(o); setTimeout(() => o.remove(), 6000);
+}
 const achToast = (before) => { for (const a of ACH) if (!before.has(a.id) && !S.ach[a.id] && achDone(S, a)) UI.toast('Achievement: ' + a.name); };
 const achSet = () => { ensureBook(S); syncDex(S); return new Set(ACH.filter((a) => S.ach[a.id] || achDone(S, a)).map((a) => a.id)); };
 const wDesc = (W) => { const kind = W.melee ? 'Melee' : W.shape === 'flame' ? 'Flame' : W.shape === 'grenade' ? 'Explosive' : W.shape === 'bullet' ? 'Gun' : 'Thrown'; return `${kind} · ${(1 / W.rate).toFixed(1)} attacks/sec · damage ${W.dmg}${W.n > 1 ? ' x' + W.n : ''}${W.perk ? ' · ' + PERKS[W.perk].name : ''}`; };
@@ -328,7 +333,7 @@ function handle(act, d) {
   if (!$('#screen').classList.contains('on') && act !== 'again') return;
   if (act === 'tab') { tab = d.t; sel = null; tab === 'camp' ? renderCamp() : tab === 'quests' ? renderQuests() : tab === 'book' ? renderBook() : renderGear(); return; }
   if (act === 'btab') { btab = d.b; renderBook(); return; }
-  if (act === 'claima') { const a = claimAch(S, d.id); if (a) { msg = 'Achievement reward: ' + rewardText(a.rew); save(); } renderBook(); return; }
+  if (act === 'claima') { const a = claimAch(S, d.id); if (a) { rewardPop('Achievement', a.name || '', rewardText(a.rew)); save(); } renderBook(); return; }
   if (act === 'story') { if (readyStory(S)) { sheet = { kind: 'story' }; renderCamp(); } return; }
   if (act === 'storychoose') { const st = readyStory(S); if (!st) return; const r = chooseStory(S, st.sv.id, +d.i); if (!r) return; if (r.poor) { msg = 'You cannot afford that.'; renderCamp(); return; } save(); sheet = { kind: 'story', res: r }; renderCamp(); return; }
   if (act === 'tutok') { S.tut = S.tut || {}; S.tut.camp = true; save(); renderCamp(); return; }
@@ -343,9 +348,9 @@ function handle(act, d) {
   if (act === 'runopts') { sheet = { kind: 'runopts' }; renderCamp(); return; }
   if (act === 'nmstep') { const o = runOpts(S); S.opts.nm = Math.max(0, Math.min(Math.min(NM_MAX, S.nm || 0), o.nm + +d.s)); save(); renderCamp(); return; }
   if (act === 'modtoggle') { const o = runOpts(S), L = o.mods.slice(); const i = L.indexOf(d.m); if (i >= 0) L.splice(i, 1); else if (L.length < MODS_MAX) L.push(d.m); S.opts.mods = L; save(); renderCamp(); return; }
-  if (act === 'claimq') { const r = claimQuest(S, d.s, +d.i); if (r) { msg = 'Reward: ' + rewardText(r); save(); } renderQuests(); return; }
-  if (act === 'claimb') { const r = claimBonus(S, d.s); if (r) { msg = 'Bonus: ' + rewardText(r); save(); } renderQuests(); return; }
-  if (act === 'claims') { const r = claimStreak(S); if (r) { msg = 'Daily reward: ' + rewardText(r); save(); } renderQuests(); return; }
+  if (act === 'claimq') { const r = claimQuest(S, d.s, +d.i); if (r) { rewardPop('Quest complete', '', rewardText(r)); save(); } renderQuests(); return; }
+  if (act === 'claimb') { const r = claimBonus(S, d.s); if (r) { rewardPop('Bonus reward', '', rewardText(r)); save(); } renderQuests(); return; }
+  if (act === 'claims') { const r = claimStreak(S); if (r) { rewardPop('Daily reward', '', rewardText(r)); save(); } renderQuests(); return; }
   if (act === 'run') { cb.start(); return; }
   if (act === 'dstep') { S.district = Math.max(1, Math.min(S.maxDistrict, S.district + +d.s)); save(); renderCamp(); return; }
   if (act === 'district') { S.district = +d.d; save(); renderCamp(); return; }
