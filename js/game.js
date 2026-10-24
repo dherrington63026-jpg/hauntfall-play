@@ -304,8 +304,8 @@ export class Run {
   dropItem(x, y, good, boss) {
     const t = this.t, r = Math.random(), luck = Math.min(3, this.luck());
     // rarity: grows with time and district; elites/bosses roll better
-    let w = [60, 28, 9, 2.5, 0.45, 0.05].map((v, i) => v * (i >= 2 ? (1 + t / 200 + 0.18 * (this.district - 1)) * luck : 1));
-    if (good) w = [0, 25, 40, 24, 9, 2].map((v, i) => v * (i >= 3 ? luck : 1)); if (boss) w = [0, 0, 24, 40, 28, 8].map((v, i) => v * (i >= 4 ? luck : 1));
+    let w = [60, 28, 9, 2.5, 0.35, 0.006].map((v, i) => v * (i >= 2 ? (1 + t / 200 + 0.18 * (this.district - 1)) * luck : 1));
+    if (good) w = [0, 26, 42, 24, 7, 0.2].map((v, i) => v * (i >= 3 ? luck : 1)); if (boss) w = [0, 0, 26, 42, 24, 1.2].map((v, i) => v * (i >= 4 ? luck : 1));
     let s = r * w.reduce((a, b) => a + b), rar = 0; while (rar < 5 && s > w[rar]) { s -= w[rar]; rar++; }
     const it = makeItem(this.S, 1 + Math.floor(this.district * 1.2 + t / 150) + (boss ? 2 : 0), rar, undefined, undefined, boss ? 0.7 : good ? 0.5 : 0.4);
     this.loot.push({ kind: 'item', item: it, x, y, t: 0 });
