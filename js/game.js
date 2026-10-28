@@ -108,7 +108,7 @@ export class Run {
     this.updateFx(dt);
     if (this.shake > 0) this.shake = Math.max(0, this.shake - dt * 2.5);
     this.cam.x += (h.x - this.cam.x) * Math.min(1, dt * 9); this.cam.y += (h.y - this.cam.y) * Math.min(1, dt * 9);
-    if (h.hp <= 0) { const rv = talentLvl(this.S, 'revive'); if (rv > 0 && !this.revived && this.mode !== 'haunt') { this.revived = true; h.hp = this.maxHp * (0.2 + 0.15 * rv); h.inv = 3; this.ui.toast('Second Chance! You get back up.'); if (this.ui.banner) this.ui.banner('Second Chance', 'You refuse to fall'); this.shake = 1; for (const e of this.enemies) { if (!e.def.boss && Math.hypot(e.x - h.x, e.y - h.y) < 220) { e.vx += (e.x - h.x) * 6; e.vy += (e.y - h.y) * 6; } } } else this.end(false); }
+    if (h.hp <= 0) { const rv = talentLvl(this.S, 'revive'); if (rv > 0 && !this.revived && this.mode !== 'haunt') { this.revived = true; h.hp = this.maxHp * (0.2 + 0.15 * rv); h.inv = 3; this.ui.toast('Second Chance! You get back up.'); if (this.ui.banner) this.ui.banner('Second Chance', 'You refuse to fall'); this.shake = 1; for (const e of this.enemies) { if (!e.def.boss && Math.hypot(e.x - h.x, e.y - h.y) < 220) { e.vx += (e.x - h.x) * 6; e.vy += (e.y - h.y) * 6; } } } else if (this.ui.shopOn && this.ui.shopOn() && !this.adRevived && this.mode === 'run' && !this.afk && !this.retreated) { this.adRevived = true; this.paused = true; this.ui.reviveOffer((ok) => { this.paused = false; if (ok) this.adRevive(); else this.end(false); }); } else this.end(false); }
     this.ui.hud(this);
   }
   // ---------- AFK brain ----------
@@ -443,6 +443,7 @@ export class Run {
     for (const f of this.fx) { f.t += dt; if (f.k === 'p') { f.x += f.vx * dt; f.y += f.vy * dt; f.vx *= 0.94; f.vy *= 0.94; } else if (f.k === 's') { f.x += f.vx * dt; f.y += f.vy * dt; f.vy += 300 * dt; } } this.fx = this.fx.filter((f) => f.t < f.life);
     for (const t of this.texts) { t.t += dt; t.y -= 38 * dt; } this.texts = this.texts.filter((t) => t.t < 0.8);
   }
+  adRevive() { const h = this.hero; h.hp = this.maxHp * 0.5; h.inv = 3; this.ui.toast('You get back up.'); if (this.ui.banner) this.ui.banner('Back on your feet', 'one more chance'); this.shake = 1; for (const e of this.enemies) { if (!e.def.boss && Math.hypot(e.x - h.x, e.y - h.y) < 260) { e.vx += (e.x - h.x) * 6; e.vy += (e.y - h.y) * 6; } } }
   retreat() { if (this.over) return; this.retreated = true; this.paused = false; this.end(false); }
   end(won) {
     if (this.over) return; this.over = true; this.won = won;

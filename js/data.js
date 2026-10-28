@@ -412,7 +412,14 @@ export const upgradeSecs = (lvl) => Math.min(43200, Math.round(20 * Math.pow(1.5
 
 // ----- builders: how many rooms can be built or upgraded at the same time (more will be a purchase later; all 5 are free for now) -----
 export const BUILDERS_MAX = 5;
-export const builderCount = (S) => Math.min(BUILDERS_MAX, S.base.builders == null ? BUILDERS_MAX : S.base.builders);
+// Phone app: 2 builders from the start. Builder 3: Remove Ads, or one rewarded ad (once), or Rank 3. Builders 4 and 5: the Builders Pack, or Rank 6 and Rank 12.
+// The website build keeps all 5 free.
+let STORE_RULES = false; export const setStoreRules = (v) => { STORE_RULES = !!v; };
+export const builderCount = (S) => {
+  if (!STORE_RULES) return Math.min(BUILDERS_MAX, S.base.builders == null ? BUILDERS_MAX : S.base.builders);
+  const lv = (S.rank && S.rank.lv) || 1, e = S.ent || {};
+  return 2 + ((e.removeAds || S.adBuilder || lv >= 3) ? 1 : 0) + ((e.builders || lv >= 6) ? 1 : 0) + ((e.builders || lv >= 12) ? 1 : 0);
+};
 export const buildOf = (S, key) => S.base.builds.find((b) => b.key === key) || null;
 // ----- survivors -----
 const FIRST = { f: ['Mara', 'Jess', 'Ivy', 'Nora', 'Tess', 'Lena', 'Rosa', 'June', 'Cora', 'Hana', 'Beth', 'Maya', 'Dana', 'Vera', 'Elsa', 'Gwen'], m: ['Jack', 'Sam', 'Eli', 'Owen', 'Ray', 'Hank', 'Leo', 'Cole', 'Abe', 'Finn', 'Gus', 'Nate', 'Otis', 'Walt', 'Ned', 'Moe'] };
