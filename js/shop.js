@@ -11,17 +11,18 @@ export const enabled = native || FAKE;
 
 // ---- ids (David fills these in; keep TEST true until the real AdMob app and RevenueCat keys exist) ----
 const TEST = true;
-const AD_UNITS = { ios: '', android: '' };                                                       // real rewarded-ad unit ids (ca-app-pub-.../...)
+const AD_UNITS = { ios: 'ca-app-pub-5865120493583018/8476844012', android: 'ca-app-pub-5865120493583018/2103007359' };                                                       // real rewarded-ad unit ids (ca-app-pub-.../...)
 const TEST_UNITS = { ios: 'ca-app-pub-3940256099942544/1712485313', android: 'ca-app-pub-3940256099942544/5224354917' };
-const INT_UNITS = { ios: '', android: '' };                                                       // real INTERSTITIAL unit ids
+const INT_UNITS = { ios: 'ca-app-pub-5865120493583018/7050539712', android: 'ca-app-pub-5865120493583018/9676703058' };                                                       // real INTERSTITIAL unit ids
 const TEST_INT = { ios: 'ca-app-pub-3940256099942544/4411468910', android: 'ca-app-pub-3940256099942544/1033173712' };
 const RC_KEYS = { ios: '', android: '' };                                                         // RevenueCat PUBLIC app keys (appl_... / goog_...): safe to ship
 const PRODUCTS = { removeAds: 'com.kelbra.hauntfall.removeads', builders: 'com.kelbra.hauntfall.builderspack' };
 export const PRICE_FALLBACK = { removeAds: '$1.99', builders: '$0.99' };   // shown only until the store sends the real price
 
 const plat = native ? C.getPlatform() : 'web';
-const AdMob = native ? ((C.Plugins && C.Plugins.AdMob) || (C.registerPlugin && C.registerPlugin('AdMob'))) : null;
-const RC = native ? ((C.Plugins && C.Plugins.Purchases) || (C.registerPlugin && C.registerPlugin('Purchases'))) : null;
+const plug = (n) => { try { return (C.Plugins && C.Plugins[n]) || (C.registerPlugin && C.registerPlugin(n)) || null; } catch (e) { return null; } };   // a missing plugin must never stop the first screen
+const AdMob = native ? plug('AdMob') : null;
+const RC = native ? plug('Purchases') : null;
 const unit = () => (TEST ? TEST_UNITS[plat] : AD_UNITS[plat]);
 const prices = {}, cache = {};
 let rcReady = null, adInit = null, loaded = false, loading = false;

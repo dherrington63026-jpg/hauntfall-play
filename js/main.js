@@ -9,7 +9,7 @@ import { setStoreRules } from './data.js';
 
 const $ = (s) => document.querySelector(s), cv = $('#cv');
 const S = loadSave() || newSave();
-setStoreRules(shop.enabled); if (shop.enabled) document.body.classList.add('shop'); shop.init(S, () => { writeSave(S); syncShop(); });
+setStoreRules(shop.enabled); if (shop.enabled) document.body.classList.add('shop'); try { shop.init(S, () => { writeSave(S); syncShop(); }); } catch (e) { /* the store must never stop the first screen */ }
 let run = null, last = 0;
 function start(o = {}) {
   UI.stopAfkTimer(); UI.hideAll(); if (run) run.destroy();
