@@ -9,6 +9,40 @@ const isGun = (s) => s === 'bullet' || s === 'flame' || s === 'grenade' || s ===
 const WEAPON_LEN = { katana: 30, sledge: 30, crossbow: 26, nailgun: 18, chainsaw: 26, flame: 30, grenade: 34, sniper: 44, minigun: 34, knife: 14, machete: 26, axe: 22, bat: 28, crowbar: 26, pistol: 16, revolver: 18, smg: 24, shotgun: 32, rifle: 38 };
 const PROP_H = { prop_tree: 230, prop_car: 130, prop_lamp: 150, prop_tomb3: 100, prop_fence: 70, prop_bush: 60, prop_pumpkin: 40, prop_tomb1: 74, prop_tomb2: 74 };
 
+// In-hand weapons: small hand-drawn shapes in the weapon's own local space (x runs along the aim, 0 = the hand). Metal gets a light top edge and a dark underside so it reads as a solid object, not a line.
+const WOOD = ['#8a5a32', '#4c2d17'], STEEL = ['#c9d2dc', '#59626c'], GUN = ['#4a525c', '#14181c'], BLACK = ['#2a2f36', '#0b0d10'];
+function bar(x, x0, y0, w, h, c, r = 0) {   // a bar with a light upper half and a dark lower half
+  x.fillStyle = c[1]; if (r) { x.beginPath(); x.roundRect(x0, y0, w, h, r); x.fill(); } else x.fillRect(x0, y0, w, h);
+  x.fillStyle = c[0]; x.fillRect(x0 + (r ? 1 : 0), y0, w - (r ? 2 : 0), Math.max(0.8, h * 0.42));
+}
+const poly = (x, pts, fill, stroke) => { x.beginPath(); x.moveTo(pts[0], pts[1]); for (let i = 2; i < pts.length; i += 2) x.lineTo(pts[i], pts[i + 1]); x.closePath(); x.fillStyle = fill; x.fill(); if (stroke) { x.strokeStyle = stroke; x.lineWidth = 0.8; x.stroke(); } };
+function drawWeaponShape(x, K) {
+  x.lineJoin = 'round'; x.lineCap = 'round';
+  switch (K) {
+    case 'pistol': bar(x, -2, -3, 17, 4.6, GUN, 1); poly(x, [-1, 1, 4, 1, 2.5, 9, -3.5, 9], '#23272d'); bar(x, 5, 1.6, 4, 1, BLACK); break;
+    case 'revolver': bar(x, 4, -2.6, 15, 3, STEEL); x.fillStyle = '#7b848e'; x.beginPath(); x.arc(5, -0.8, 3.6, 0, 7); x.fill(); poly(x, [-2, -1, 3, -1, 1, 8, -5, 7], WOOD[1]); poly(x, [-1.5, -0.5, 2, -0.5, 0.6, 5, -3, 4.5], WOOD[0]); break;
+    case 'smg': bar(x, -4, -3, 22, 5, GUN, 1); bar(x, 18, -1.6, 6, 2.6, STEEL); poly(x, [6, 2, 10, 2, 10.5, 12, 7, 12], BLACK[1]); poly(x, [-1, 2, 3, 2, 1.5, 8, -2, 8], '#23272d'); bar(x, -11, -2.4, 8, 2.4, BLACK); break;
+    case 'shotgun': poly(x, [-14, -1, -3, -3.2, -3, 2.4, -9, 4.5, -15, 5], WOOD[1]); poly(x, [-13, -0.8, -3, -2.6, -3, 0.4, -9, 2, -14, 2.6], WOOD[0]); bar(x, -3, -3.4, 9, 5.6, GUN, 1); bar(x, 6, -3.2, 26, 2.6, STEEL); bar(x, 8, -0.5, 15, 2, GUN); bar(x, 11, -0.6, 9, 4.4, WOOD, 1.5); break;
+    case 'rifle': poly(x, [-14, -1, -3, -3, -3, 2.4, -8, 4.6, -15, 5.5], WOOD[1]); poly(x, [-13, -0.6, -3, -2.5, -3, 0.2, -8, 2, -14, 2.8], WOOD[0]); bar(x, -3, -3.4, 10, 5, GUN, 1); bar(x, 7, -2.8, 32, 2.4, STEEL); bar(x, 8, -0.4, 13, 3.4, WOOD, 1.5); bar(x, 0, -6, 7, 2.2, BLACK, 1); break;
+    case 'sniper': poly(x, [-15, -1, -3, -3, -3, 2.4, -9, 4.6, -16, 5.5], BLACK[1]); poly(x, [-14, -0.6, -3, -2.5, -3, 0.2, -9, 2, -15, 2.8], '#3b424c'); bar(x, -3, -3.4, 12, 5, GUN, 1); bar(x, 9, -2.6, 36, 2.2, STEEL); bar(x, -1, -8.4, 13, 3.6, BLACK, 1.5); x.fillStyle = '#5ab0ff'; x.fillRect(11.4, -7.8, 1.2, 2.4); bar(x, 40, -2.8, 5, 3, BLACK); break;
+    case 'minigun': bar(x, -4, -4, 10, 8, GUN, 2); for (const o of [-3.2, -0.4, 2.4]) bar(x, 6, o - 1.2, 28, 2.2, STEEL); bar(x, 14, -5, 3, 10, BLACK); bar(x, 28, -5, 3, 10, BLACK); poly(x, [-2, 3, 4, 3, 3, 10, -3, 10], BLACK[1]); break;
+    case 'nailgun': bar(x, -3, -3, 15, 5.6, ['#e8a520', '#9a6a10'], 1.5); bar(x, 12, -1.6, 6, 2.2, STEEL); poly(x, [-1, 2, 3, 2, 2, 9, -2.5, 9], BLACK[1]); bar(x, 4, -5.5, 6, 2.5, BLACK); break;
+    case 'crossbow': bar(x, -6, -1.4, 28, 2.8, WOOD, 1); x.strokeStyle = STEEL[1]; x.lineWidth = 2.6; x.beginPath(); x.moveTo(14, -10); x.quadraticCurveTo(21, 0, 14, 10); x.stroke(); x.strokeStyle = '#d8dee6'; x.lineWidth = 1; x.stroke(); x.strokeStyle = '#dcd2b8'; x.lineWidth = 0.9; x.beginPath(); x.moveTo(14, -10); x.lineTo(9, 0); x.lineTo(14, 10); x.stroke(); poly(x, [22, -1, 29, 0, 22, 1], '#cdd5dd'); break;
+    case 'flame': bar(x, -3, -2.6, 20, 4.4, GUN, 1.5); bar(x, 17, -3.6, 14, 3.4, ['#d86a1c', '#7a3408'], 1.5); x.fillStyle = '#ff9a3a'; x.beginPath(); x.arc(31, -1.8, 1.8, 0, 7); x.fill(); poly(x, [-14, 0, -4, -3, -4, 8, -14, 9], '#6a7a52', '#2d3a22'); poly(x, [-1, 2, 3, 2, 2, 8, -2, 8], BLACK[1]); break;
+    case 'grenade': bar(x, -4, -4, 22, 7, GUN, 3); bar(x, 18, -4.6, 14, 8, ['#8a949e', '#3c444c'], 2); x.fillStyle = '#0b0d10'; x.beginPath(); x.arc(32, -0.6, 3, 0, 7); x.fill(); poly(x, [-1, 3, 4, 3, 2.5, 10, -2, 10], BLACK[1]); bar(x, -12, -2.2, 8, 2.6, BLACK); break;
+    case 'pumpcannon': bar(x, -4, -4.4, 20, 8, ['#e0842a', '#7a3a0c'], 3); bar(x, 16, -5.4, 12, 10, ['#f19a3c', '#8a4410'], 3); x.fillStyle = '#1a0f08'; x.beginPath(); x.arc(28, -0.4, 3.4, 0, 7); x.fill(); poly(x, [-1, 3, 4, 3, 2.5, 10, -2, 10], BLACK[1]); break;
+    case 'knife': poly(x, [-3, -1.6, 0, -1.6, 0, 1.6, -3, 1.6], '#1f2329'); bar(x, 0, -2.6, 1.8, 5.2, STEEL); poly(x, [1.8, -1.8, 13, -0.4, 14.4, 0.6, 1.8, 1.8], '#d8e0e8', '#59626c'); break;
+    case 'machete': bar(x, -6, -1.6, 7, 3.2, BLACK, 1.5); bar(x, 1, -2.6, 1.6, 5.2, STEEL); poly(x, [2.6, -2.4, 24, -2.8, 27, 1.8, 2.6, 2.6], '#d4dce4', '#59626c'); poly(x, [2.6, -2.4, 24, -2.8, 24, -1.6, 2.6, -1.2], '#ffffff'); break;
+    case 'katana': bar(x, -9, -1.5, 9, 3, ['#3a3f48', '#0e1014'], 1.5); for (let i = -8; i < -1; i += 2.2) { x.strokeStyle = '#8a1c1c'; x.lineWidth = 0.9; x.beginPath(); x.moveTo(i, -1.5); x.lineTo(i + 1.2, 1.5); x.stroke(); } bar(x, 0, -3, 1.8, 6, ['#d8b04a', '#7a5a14']); poly(x, [1.8, -1.2, 29, -2.6, 33, -0.6, 29, 0.2, 1.8, 1.4], '#e6edf4', '#6a737e'); poly(x, [1.8, -1.2, 29, -2.6, 29, -1.6, 1.8, -0.4], '#ffffff'); break;
+    case 'axe': bar(x, -8, -1.3, 28, 2.6, WOOD, 1.2); poly(x, [14, -1, 19, -9, 26, -8, 24, 0, 26, 8, 19, 9, 14, 1], '#b9c3cd', '#4a525c'); poly(x, [14, -1, 19, -9, 26, -8, 22, -1], '#eef3f8'); bar(x, 12, -2.2, 3, 4.4, BLACK); break;
+    case 'bat': poly(x, [-8, -1.2, 18, -2.2, 27, -3.2, 28, 3.2, 18, 2.2, -8, 1.2], WOOD[1]); poly(x, [-8, -1.2, 18, -2.2, 27, -3.2, 27, -1.4, 18, -0.4, -8, 0], WOOD[0]); x.fillStyle = '#cfd6dd'; for (const px of [14, 18, 22, 26]) { poly(x, [px - 1, -2.6, px, -5.6, px + 1, -2.6], '#cfd6dd'); poly(x, [px - 1, 2.6, px, 5.6, px + 1, 2.6], '#8a939c'); } break;
+    case 'crowbar': bar(x, -6, -1.3, 30, 2.6, ['#c2cad2', '#5a636c'], 1.2); x.strokeStyle = '#8a939c'; x.lineWidth = 2.6; x.beginPath(); x.moveTo(24, 0); x.quadraticCurveTo(29, 0, 29, 5); x.stroke(); x.beginPath(); x.moveTo(-6, 0); x.quadraticCurveTo(-9, 0, -9, -3); x.stroke(); break;
+    case 'sledge': bar(x, -8, -1.4, 30, 2.8, WOOD, 1.2); bar(x, 20, -6, 11, 12, ['#9aa4ae', '#3a424a'], 1.5); bar(x, 20, -6, 2.5, 12, ['#dfe6ed', '#8a939c']); break;
+    case 'chainsaw': bar(x, -8, -4, 15, 8, ['#f08a1c', '#8a3c06'], 2); poly(x, [-3, 4, 2, 4, 1, 10, -3, 10], BLACK[1]); bar(x, 7, -2.8, 20, 5.6, ['#cfd6dd', '#59626c'], 2.5); x.fillStyle = '#10141a'; for (let i = 8; i < 26; i += 2.6) x.fillRect(i, -3.4, 1.2, 1.2), x.fillRect(i + 1.2, 2.2, 1.2, 1.2); break;
+    default: bar(x, -2, -1.6, 18, 3.2, GUN, 1);
+  }
+}
+
 const RUN_LEN = 300;               // seconds until the boss
 const CELL = 90;                   // collision grid
 const TAU = Math.PI * 2;
@@ -604,8 +638,7 @@ export class Run {
     const K = this.hs.weaponKind, Wp = WEAPONS[K], a = h.aim, ca = Math.cos(a), sa = Math.sin(a), hx = h.x + ca * 8 + h.face * 6, hy = h.y - 44 - bob + sa * 5, rc = h.recoil || 0;
     const len = WEAPON_LEN[K] || 16, gun = isGun(Wp.shape);
     const ex = hx + ca * (len - rc), ey = hy + sa * (len - rc);
-    x.lineCap = 'round'; x.strokeStyle = gun ? '#14181c' : '#cfd8e2'; x.lineWidth = gun ? (K === 'shotgun' || K === 'rifle' ? 5 : 4) : 3.2; x.beginPath(); x.moveTo(hx - ca * rc, hy - sa * rc); x.lineTo(ex, ey); x.stroke();
-    x.strokeStyle = gun ? '#6a7480' : '#ffffff'; x.lineWidth = 1.2; x.beginPath(); x.moveTo(hx - ca * rc, hy - sa * rc - 1); x.lineTo(ex, ey - 1); x.stroke();
+    x.save(); x.translate(hx - ca * rc, hy - sa * rc); x.rotate(a); if (ca < 0) x.scale(1, -1); drawWeaponShape(x, K); x.restore();
     if (gun && h.fire > 0) { const k = h.fire / 0.07; x.globalCompositeOperation = 'lighter'; x.globalAlpha = k; x.drawImage(FLARE, ex - 22, ey - 22, 44, 44); x.globalAlpha = 1; x.globalCompositeOperation = 'source-over'; }
   }
   drawDark(x, W, H, S, camx, camy, ox, oy, q) {

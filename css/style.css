@@ -285,3 +285,5 @@ button.rc.crew { cursor: pointer; }
 .shoprow { display: none; margin: 10px 0; text-align: center; } body.shop .shoprow { display: block; } .shoprow small { display: block; margin-bottom: 6px; color: var(--dim); } .shoprow button { margin: 3px; padding: 8px 12px; font-size: 13px; } .shoprow p { margin: 6px 0 0; min-height: 1em; font-size: 12px; }
 .bslot.lock button { display: block; margin: 4px 0 0; font-size: 12px; padding: 6px 10px; }
 #dblBtn { padding: 10px 16px; font-size: 14px; }
+
+.kbrow { display: none; text-align: center; margin: 6px 0; } body.kbug .kbrow { display: block; } .kbrow button { padding: 8px 14px; font-size: 13px; }
